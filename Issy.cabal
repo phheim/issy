@@ -75,3 +75,102 @@ library
   
   default-language:
     Haskell2010
+
+executable rpgsolve
+
+  ghc-options:
+    -Wall -Wno-name-shadowing
+
+  main-is:
+    Main.hs
+
+  build-depends:
+      base
+    , Issy
+
+  hs-source-dirs:
+    src/tools/rpgsolve
+
+  default-language:
+    Haskell2010
+
+executable rpgcross
+
+  ghc-options:
+    -Wall -Wno-name-shadowing
+
+  main-is:
+    Main.hs
+
+  build-depends:
+      base
+    , containers
+    , Issy
+
+  hs-source-dirs:
+    src/tools/rpgcross
+
+  default-language:
+    Haskell2010
+
+
+executable rpgencode
+
+  ghc-options:
+    -Wall -Wno-name-shadowing
+
+  main-is:
+    Main.hs
+
+  other-modules:
+      MuCLP
+    , TSLT
+
+  build-depends:
+      base
+    , containers
+    , Issy
+
+  hs-source-dirs:
+    src/tools/rpgencode
+
+  default-language:
+    Haskell2010
+
+executable rpgprint
+
+  ghc-options:
+    -Wall -Wno-name-shadowing
+
+  main-is:
+    Main.hs
+
+  build-depends:
+      base
+    , Issy
+
+  hs-source-dirs:
+    src/tools/rpgprint
+
+  default-language:
+    Haskell2010
+
+executable tslmt2rpg
+
+  ghc-options:
+    -Wall -Wno-name-shadowing
+
+  main-is:
+    Main.hs
+
+  build-depends:
+      base
+    , Issy
+
+  hs-source-dirs:
+    src/tools/tsl2rpg
+
+  default-language:
+    Haskell2010
+
+

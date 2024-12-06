@@ -3,8 +3,8 @@ LINTING=hlint -i "Use tuple-section"
 
 default:
 	stack build
-	# @mkdir -p builds
-	# @cp ${STACKPATH}/bin/* builds/
+	@mkdir -p builds
+	@cp ${STACKPATH}/bin/* builds/
 
 clean:
 	stack clean
