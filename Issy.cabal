@@ -1,0 +1,77 @@
+name:                Issy
+version:             1.0.0.0
+build-type:          Simple
+cabal-version:       >=1.10
+
+library
+
+  ghc-options:
+    -Wall -Wno-name-shadowing -fno-ignore-asserts
+
+  build-depends:
+      base
+    , containers
+    , process
+    , hanoi
+    , finite
+    , tsl
+
+  exposed-modules:
+      Issy
+    , Issy.Logic.FOL
+    , Issy.RPG
+  
+  other-modules:
+      Issy.Base.Locations
+    , Issy.Base.Objectives
+    , Issy.Base.SymbolicState
+    , Issy.Base.Variables
+    , Issy.Config
+    , Issy.Logic.RPLTL
+    , Issy.Logic.SMT
+    , Issy.Logic.Temporal
+    , Issy.Logic.TSLMT
+    , Issy.Monitor
+    , Issy.Monitor.CHC
+    , Issy.Monitor.Fixpoints
+    , Issy.Monitor.Formula
+    , Issy.Monitor.Monitor
+    , Issy.Monitor.Postprocess
+    , Issy.Monitor.Propagation
+    , Issy.Monitor.Rules
+    , Issy.Monitor.State
+    , Issy.Monitor.Successors
+    , Issy.OmegaAutomata
+    , Issy.OmegaAutomata.FromHOA
+    , Issy.Parsers.IssyFormat
+    , Issy.Parsers.RPG
+    , Issy.Parsers.SExpression
+    , Issy.Parsers.SMTLib
+    , Issy.Parsers.SMTLibLexer
+    , Issy.Parsers.TSLMT
+    , Issy.Printers.RPG
+    , Issy.Printers.SMTLib
+    , Issy.Products.RPGMonitor
+    , Issy.Products.RPGs
+    , Issy.Products.SGMonitor
+    , Issy.Products.SymbolicGames
+    , Issy.Solver.Attractor
+    , Issy.Solver.ControlFlowGraph
+    , Issy.Solver.GameInterface
+    , Issy.Solver.Heuristics
+    , Issy.Solver.LemmaFinding
+    , Issy.Solver.ObjectiveSolver
+    , Issy.Specification
+    , Issy.SymbolicArena
+    , Issy.Translation
+    , Issy.Translation.RPLTL2SG
+    , Issy.Translation.TSL2RPG
+    , Issy.Utils.Extra
+    , Issy.Utils.Logging
+    , Issy.Utils.OpenList
+  
+  hs-source-dirs:
+      src/lib
+  
+  default-language:
+    Haskell2010

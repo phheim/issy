@@ -1,0 +1,4 @@
+/builds
+/.stack-work/*
+/stack.yaml.lock
+*.swp
