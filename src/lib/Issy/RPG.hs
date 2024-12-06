@@ -1,10 +1,6 @@
 ---------------------------------------------------------------------------------
 {-# LANGUAGE LambdaCase #-}
 
--- TODO: Add sortOf, remove IO type, encapsulate more!!!
--- TODO: Make consitent with project wide connvetion: game structure -> g, ...
--- TODO: Encapsulate structure of Game completely!
--- TODO: Replace variables and Co.
 -------------------------------------------------------------------------------
 module Issy.RPG
   ( Loc
@@ -32,6 +28,7 @@ module Issy.RPG
   , addLocation
   , addTransition
   , setInv
+  , selfLoop
   , -- Other
     succT
   , succs
@@ -50,38 +47,23 @@ module Issy.RPG
 import Control.Monad (liftM2)
 import Data.Bifunctor (first)
 import Data.List (nub)
-import Data.Map.Strict (Map, (!?), findWithDefault, insertWith, member, restrictKeys)
-import qualified Data.Map.Strict as Map (elems, empty, filterWithKey, insert, map, toList)
+import Data.Map.Strict (Map, (!?))
+import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe)
-import Data.Set (Set, difference, empty, fromList, insert, intersection, singleton, union, unions)
-import qualified Data.Set as Set (map)
+import Data.Set (Set)
+import qualified Data.Set as Set
 
 import Issy.Base.Locations (Loc)
-import qualified Issy.Base.Locations as Locs (Store, add, empty, name, toSet)
+import qualified Issy.Base.Locations as Locs
 import Issy.Base.Objectives (Objective)
 import Issy.Base.SymbolicState (SymSt)
-import Issy.Base.SymbolicState as SymSt (get)
-
+import qualified Issy.Base.SymbolicState as SymSt
 import Issy.Config (Config)
-import Issy.Logic.FOL
-  ( Sort
-  , Symbol
-  , Term(Var)
-  , andf
-  , exists
-  , forAll
-  , impl
-  , ite
-  , mapTermM
-  , neg
-  , orf
-  , symbols
-  , true
-  )
-import Issy.Logic.SMT (unsat)
+import Issy.Logic.FOL (Sort, Symbol, Term)
+import qualified Issy.Logic.FOL as FOL
+import Issy.Logic.SMT as SMT
 import Issy.Utils.Extra (ifM, predecessorRelation)
-import Issy.Utils.OpenList (pop, push, pushOne)
-import qualified Issy.Utils.OpenList as OL (empty)
+import qualified Issy.Utils.OpenList as OL
 
 -------------------------------------------------------------------------------
 data Transition
@@ -94,8 +76,8 @@ data Transition
 succT :: Transition -> Set Loc
 succT =
   \case
-    TIf _ tt te -> succT tt `union` succT te
-    TSys choices -> fromList (snd <$> choices)
+    TIf _ tt te -> succT tt `Set.union` succT te
+    TSys choices -> Set.fromList (snd <$> choices)
 
 mapTerms :: (Term -> Term) -> Transition -> Transition
 mapTerms m =
@@ -103,7 +85,10 @@ mapTerms m =
     TIf p tt te -> TIf (m p) (mapTerms m tt) (mapTerms m te)
     TSys upds -> TSys $ map (first (fmap m)) upds
 
--- Loc go form 0 to cnt - 1
+selfLoop :: Loc -> Transition
+selfLoop l = TSys [(Map.empty, l)]
+
+-- TODO: Replace variables by Issy.Base.Variables
 data Game = Game
   { locationSet :: Locs.Store
   , inputs :: [Symbol]
@@ -189,75 +174,77 @@ addOutput g output sort bound
 
 addTransition :: Game -> Loc -> Transition -> Maybe Game
 addTransition g l t
-  | l `member` trans g = Nothing
+  | l `Map.member` trans g = Nothing
   | otherwise = Just $ foldl (addPred l) (g {trans = Map.insert l t (trans g)}) (succT t)
   where
-    addPred pre g suc = g {predecessors = insertWith union suc (singleton pre) (predecessors g)}
+    addPred pre g suc =
+      g {predecessors = Map.insertWith Set.union suc (Set.singleton pre) (predecessors g)}
 
 preds :: Game -> Loc -> Set Loc
-preds g l = findWithDefault empty l (predecessors g)
+preds g l = Map.findWithDefault Set.empty l (predecessors g)
 
 predSet :: Game -> Set Loc -> Set Loc
-predSet g ls = unions (Set.map (preds g) ls)
+predSet g ls = Set.unions (Set.map (preds g) ls)
 
 succs :: Game -> Loc -> Set Loc
-succs g l = maybe empty succT (trans g !? l)
+succs g l = maybe Set.empty succT (trans g !? l)
 
 cyclicIn :: Game -> Loc -> Bool
 cyclicIn g start = any (elem start . reachables g) (succs g start)
 
 reachables :: Game -> Loc -> Set Loc
-reachables g l = bfs empty (l `pushOne` OL.empty)
+reachables g l = bfs Set.empty (l `OL.pushOne` OL.empty)
   where
     bfs seen ol =
-      case pop ol of
+      case OL.pop ol of
         Nothing -> seen
         Just (o, ol')
           | o `elem` seen -> bfs seen ol'
           | otherwise ->
-            let seen' = o `insert` seen
-             in bfs seen' ((succs g o `difference` seen) `push` ol')
+            let seen' = o `Set.insert` seen
+             in bfs seen' ((succs g o `Set.difference` seen) `OL.push` ol')
 
 -- TODO: this breaks the invariants
 pruneUnreachables :: Loc -> Game -> Game
 pruneUnreachables init g =
   let reach = reachables g init
    in g
-        { predecessors = intersection reach <$> restrictKeys (predecessors g) reach
-        , trans = restrictKeys (trans g) reach
+        { predecessors = Set.intersection reach <$> Map.restrictKeys (predecessors g) reach
+        , trans = Map.restrictKeys (trans g) reach
         }
 
 usedSymbols :: Game -> Set Symbol
 usedSymbols g =
-  fromList (inputs g)
-    `union` fromList (outputs g)
-    `union` unions (Map.elems (symTrans <$> trans g))
-    `union` unions (map (symbols . snd) (Map.toList (invariant g)))
+  Set.unions
+    $ Set.fromList (inputs g)
+        : Set.fromList (outputs g)
+        : Map.elems (symTrans <$> trans g)
+        ++ map (FOL.symbols . snd) (Map.toList (invariant g))
   where
     symTrans =
       \case
-        TIf p t1 t2 -> symbols p `union` symTrans t1 `union` symTrans t2
-        TSys choices -> unions (concatMap (map (symbols . snd) . Map.toList . fst) choices)
+        TIf p t1 t2 -> Set.unions [FOL.symbols p, symTrans t1, symTrans t2]
+        TSys choices -> Set.unions (concatMap (map (FOL.symbols . snd) . Map.toList . fst) choices)
 
 -------------------------------------------------------------------------------
 simplifyTransition :: Config -> Transition -> IO Transition
-simplifyTransition cfg = go [true]
+simplifyTransition cfg = go [FOL.true]
   where
     go cond =
       \case
         TSys upd -> return $ TSys $ nub $ map (first simplifyUpdates) upd
         TIf p tt tf ->
           let rectt = go (p : cond) tt
-              rectf = go (neg p : cond) tf
-           in ifM (unsat cfg (andf (p : cond))) rectf
-                $ ifM (unsat cfg (andf (neg p : cond))) rectt
+              rectf = go (FOL.neg p : cond) tf
+           in ifM (SMT.unsat cfg (FOL.andf (p : cond))) rectf
+                $ ifM (SMT.unsat cfg (FOL.andf (FOL.neg p : cond))) rectt
                 $ liftM2 (TIf p) rectt rectf
 
 simplifyUpdates :: Map Symbol Term -> Map Symbol Term
 simplifyUpdates =
   Map.filterWithKey $ \var ->
     \case
-      Var v _ -> v /= var
+      FOL.Var v _ -> v /= var
       _ -> True
 
 --TODO: add pruning of locations. Warning this needs also to accounte possible winning conditions!
@@ -270,44 +257,45 @@ simplifyRPG cfg (game, wc) = do
     , wc)
 
 cpreSys :: Game -> SymSt -> Loc -> Term
-cpreSys g st l = andf [g `inv` l, forAll (inputs g) (validInput g l `impl` cpreST (tran g l))]
+cpreSys g st l =
+  FOL.andf [g `inv` l, FOL.forAll (inputs g) (validInput g l `FOL.impl` cpreST (tran g l))]
   where
     cpreST =
       \case
-        TIf p tt te -> ite p (cpreST tt) (cpreST te)
-        TSys upds -> orf [mapTermM u (andf [st `SymSt.get` l, g `inv` l]) | (u, l) <- upds]
+        TIf p tt te -> FOL.ite p (cpreST tt) (cpreST te)
+        TSys upds ->
+          FOL.orf [FOL.mapTermM u (FOL.andf [st `SymSt.get` l, g `inv` l]) | (u, l) <- upds]
 
 cpreEnv :: Game -> SymSt -> Loc -> Term
-cpreEnv g st l = andf [g `inv` l, exists (inputs g) (andf [validInput g l, cpreET (tran g l)])]
+cpreEnv g st l =
+  FOL.andf [g `inv` l, FOL.exists (inputs g) (FOL.andf [validInput g l, cpreET (tran g l)])]
   where
     cpreET =
       \case
-        TIf p tt te -> ite p (cpreET tt) (cpreET te)
-        TSys upds -> andf [mapTermM u ((g `inv` l) `impl` (st `SymSt.get` l)) | (u, l) <- upds]
+        TIf p tt te -> FOL.ite p (cpreET tt) (cpreET te)
+        TSys upds ->
+          FOL.andf [FOL.mapTermM u ((g `inv` l) `FOL.impl` (st `SymSt.get` l)) | (u, l) <- upds]
 
 validInput :: Game -> Loc -> Term
 validInput g l = go (tran g l)
   where
     go =
       \case
-        TIf p tt te -> ite p (go tt) (go te)
-        TSys upds -> orf [mapTermM u (g `inv` l) | (u, l) <- upds]
+        TIf p tt te -> FOL.ite p (go tt) (go te)
+        TSys upds -> FOL.orf [FOL.mapTermM u (g `inv` l) | (u, l) <- upds]
 
 -------------------------------------------------------------------------------
 -- Loop Game
 -------------------------------------------------------------------------------
--- TODO: This is still a bit different from the formal definition as it
--- creates dead-ends. We take care that they are not queried but maybe
--- this should change
--- SHOULD only BE CALLED ON
 loopGame :: Game -> Loc -> (Game, Loc)
 loopGame g l =
   let (g', shadow) = addLocation g (locName g l ++ "'")
-      oldPreds = preds g l
+      shadowPreds = shadow `Set.insert` preds g l
       g'' =
         g'
-          { trans = Map.map (replaceByE l shadow) (trans g')
-          , predecessors = (Map.insert l empty . Map.insert shadow oldPreds) (predecessors g')
+          { trans = Map.insert shadow (selfLoop shadow) $ Map.map (replaceByE l shadow) (trans g')
+          , predecessors =
+              (Map.insert l Set.empty . Map.insert shadow shadowPreds) (predecessors g')
           , invariant = Map.insert shadow (g' `inv` l) (invariant g')
           }
     -- TODO WARNING: This might destroy stuff if game not cyclic? Probably not though
