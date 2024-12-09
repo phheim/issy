@@ -13,7 +13,7 @@
             () 
             ; Guarantees 1
             (
-                (G (or (ap (= x' (+ x i))) (ap (= x' (- x i)))))
+                (F (or (ap (> x 0)) (ap (= i 0))))
             )
         )
     )
@@ -23,15 +23,13 @@
         ; game 1
         (
             ; Locations 1
-            ((l0 0 true) (l1 1 true))
+            ((l0 1 true))
             ; Transitions 1
             (
-                (l0 l0 true)
-                (l1 l1 true)
-                (l0 l1 (> x 0))
+                (l0 l0 (or (= x~ (+ x i)) (= x~ (- x i))))
             )
-            ; Objetcive 1
-            (l0 Reachability)
+            ; Objective 1
+            (l0 Safety)
         )
     )
 )

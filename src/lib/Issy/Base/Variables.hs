@@ -40,7 +40,7 @@ import qualified Data.Set as Set
 import Issy.Logic.FOL (Sort, Symbol, Term, exists, forAll, mapSymbol)
 
 primeSuffix :: String
-primeSuffix = "'"
+primeSuffix = "~"
 
 data Variables = Variables
   { inputs :: Set Symbol

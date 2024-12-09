@@ -99,7 +99,7 @@ readTransformZ3 :: (Symbol -> Maybe Sort) -> [Token] -> Term
 readTransformZ3 ty =
   \case
     TLPar:TId "goals":TLPar:TId "goal":tr -> andf (readGoals tr)
-    _ -> error "Assertion: Invalid pattern for goals"
+    ts -> error $ "assert: Invalid pattern for goals: " ++ show ts
   where
     readGoals =
       \case
@@ -124,12 +124,9 @@ simplifyTO cfg to f = do
   let (solver, args) = ("z3", ["--smt2", "--in"])
   ifLog cfg "simplifyTO:" query
   out <- runTO to solver args query
-  return
-    (do
-       res <- out
-       case res of
-         '(':'e':'r':'r':_ -> Nothing -- Is this still necessary?
-         _ -> return (readTransformZ3 (bindings f !?) (tokenize res)))
+  case out of
+    Nothing -> pure Nothing
+    Just res -> pure $ Just $ readTransformZ3 (bindings f !?) (tokenize res)
 
 simplify :: Config -> Term -> IO Term
 simplify cfg = fmap (fromMaybe undefined) . simplifyTO cfg Nothing

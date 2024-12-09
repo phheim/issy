@@ -2,6 +2,7 @@ module Issy.Base.Locations
   ( Loc
   , Store
   , toSet
+  , toList
   , add
   , name
   , toString
@@ -27,9 +28,12 @@ empty :: Store
 empty = Store {cnt = 0, names = Map.empty}
 
 toSet :: Store -> Set Loc
-toSet locs
-  | cnt locs > 0 = Set.fromList (map Loc [0 .. cnt locs - 1])
-  | otherwise = Set.empty
+toSet = Set.fromList . toList
+
+toList :: Store -> [Loc]
+toList locs
+  | cnt locs > 0 = map Loc [0 .. cnt locs - 1]
+  | otherwise = []
 
 add :: Store -> String -> (Loc, Store)
 add locs name =

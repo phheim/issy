@@ -5,6 +5,7 @@ module Issy.SymbolicArena
   , preds
   , predSet
   , trans
+  , transList
   , locSet
   , locName
   , setDomain
@@ -68,6 +69,12 @@ domain arena l = Map.findWithDefault false l (aDomain arena)
 trans :: Arena -> Loc -> Loc -> Term
 trans arena src trg =
   Map.findWithDefault false trg $ Map.findWithDefault Map.empty src $ transRel arena
+
+transList :: Arena -> [(Loc, Loc, Term)]
+transList =
+  concatMap (\(src, sucs) -> map (\(trg, term) -> (src, trg, term)) (Map.toList sucs))
+    . Map.toList
+    . transRel
 
 succs :: Arena -> Loc -> Set Loc
 succs arena src =
