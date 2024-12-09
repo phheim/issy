@@ -218,7 +218,7 @@ simplifyArena cfg arena = do
   newTransRel <- mapM filt $ transRel arena
   arena <- pure $ arena {aDomain = newDom, transRel = newTransRel}
   let newPredRel =
-        Map.mapWithKey (\l -> Set.filter ((/= FOL.false) . trans arena l)) (predRel arena)
+        Map.mapWithKey (\l' -> Set.filter (\l -> trans arena l l' /= FOL.false)) (predRel arena)
   pure $ arena {predRel = newPredRel}
 
 simplifySG :: Config -> (Arena, Objective) -> IO (Arena, Objective)

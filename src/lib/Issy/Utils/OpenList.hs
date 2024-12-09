@@ -18,6 +18,7 @@ import Data.Set (Set, delete, difference, singleton, union)
 
 newtype OpenList a =
   OpenList ([a], Set a)
+ deriving (Eq, Ord, Show)
 
 pop :: Ord a => OpenList a -> Maybe (a, OpenList a)
 pop =

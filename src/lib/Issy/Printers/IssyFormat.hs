@@ -106,7 +106,6 @@ ps :: [String] -> String
 ps subs =
   case subs of
     [] -> "()\n"
-    [e] -> e
     es -> "(\n" ++ indent (concat es) ++ ")\n"
 
 indent :: String -> String
