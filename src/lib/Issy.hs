@@ -12,7 +12,9 @@ module Issy
   , rpltlToSG
   , specToSG
   , rpgProduct
+  , printIssyFormat
   , printRPG
+  , printSG
   , parseRPG
   , parseTSL
   , parseIssyFormat
@@ -21,21 +23,21 @@ module Issy
 -- Config
 import Issy.Config (Config, argumentDescription, argumentParser)
 
-import Issy.Parsers.IssyFormat (parseIssyFormat)
-
 -- Parsers 
+import Issy.Parsers.IssyFormat (parseIssyFormat)
 import Issy.Parsers.RPG (parseRPG)
 import Issy.Parsers.TSLMT (parseTSL)
 
 -- Printers
+import Issy.Printers.IssyFormat (printIssyFormat)
 import Issy.Printers.RPG (printRPG)
+import Issy.Printers.SymbolicGame (printSG)
 
 -- Products
 import Issy.Products.RPGs (rpgProduct)
 
-import Issy.Solver.GameInterface (fromRPG, fromSG)
-
 -- Solvers
+import Issy.Solver.GameInterface (fromRPG, fromSG)
 import Issy.Solver.ObjectiveSolver (solve)
 
 -- Translation (with and without pruning)

@@ -7,7 +7,6 @@ module Issy.Parsers.IssyFormat
 import Control.Monad (foldM, when)
 import Data.Map.Strict (Map, (!), (!?))
 import qualified Data.Map.Strict as Map
-import Data.Maybe (fromMaybe)
 import qualified Data.Set as Set
 import Text.Read (readMaybe)
 
@@ -65,7 +64,9 @@ parseVarDecs =
       (name, varType) <- parseVarDec d
       when (name `elem` FOL.predefined ++ ["true, false"])
         $ perr (getPos d) "Keyword not allowed as variable"
-      when (Vars.isPrimed name) $ perr (getPos d) "Primed variables not allowed"
+      when (not (isVarName name))
+        $ perr (getPos d)
+        $ "\"" ++ name ++ "\" is not a legal variable name"
       when (name `elem` Vars.allSymbols vars)
         $ perr (getPos d)
         $ "Duplicate or illegal instance of " ++ name
@@ -89,6 +90,15 @@ parseSort =
     SId _ "Int" -> pure SInt
     SId _ "Real" -> pure SReal
     s -> perr (getPos s) "Expected sort"
+
+isVarName :: String -> Bool
+isVarName =
+  \case
+    [] -> False
+    c:sr -> c `elem` idStarts && all (`elem` idSymbols) sr
+  where
+    idStarts = ['a' .. 'z'] ++ ['A' .. 'Z']
+    idSymbols = idStarts ++ ['0' .. '9'] ++ ['\'', '_']
 
 --
 -- Formula
@@ -146,10 +156,13 @@ parseLocs arena = foldM go (arena, Map.empty, Map.empty)
   where
     go (arena, toLoc, toRank) =
       \case
-        SPar _ [SId p name, SNum pr rank, sdom] -> do
+        SPar _ [SId p name, SId pr rank, sdom] -> do
           when (name `Map.member` toLoc) $ perr p $ "Location \"" ++ name ++ "\" already defined"
           (arena, loc) <- pure $ SG.addLoc arena name
-          rank <- fromMaybe (perr pr "Could not parse acceptance number") $ readMaybe rank
+          rank <-
+            case readMaybe rank of
+              Nothing -> perr pr "Could not parse acceptance number"
+              Just num -> pure num
           arena <- SG.setDomain arena loc <$> parseTerm (SG.variables arena) sdom
           pure (arena, Map.insert name loc toLoc, Map.insert name rank toRank)
         s -> perr (getPos s) "Expected location definition"
@@ -202,14 +215,13 @@ parseTerm vars = go
           | name == "true" -> pure FOL.true
           | name == "false" -> pure FOL.false
           | name `elem` Vars.allSymbols vars -> pure $ FOL.Var name $ Vars.sortOf vars name
-          | otherwise -> perr p $ "Found undeclared variables \"" ++ name ++ "\""
-        SNum p num ->
-          case SMTLib.tryParseInt 0 num of
-            Just n -> pure $ FOL.Const $ FOL.CInt n
-            Nothing ->
-              case SMTLib.tryParseRat 1 0 num of
-                Just r -> pure $ FOL.Const $ FOL.CReal r
-                Nothing -> perr p "Could not recognize number"
+          | otherwise ->
+            case SMTLib.tryParseInt 0 name of
+              Just n -> pure $ FOL.Const $ FOL.CInt n
+              Nothing ->
+                case SMTLib.tryParseRat 1 0 name of
+                  Just r -> pure $ FOL.Const $ FOL.CReal r
+                  Nothing -> perr p $ "Found undeclared variables or constant \"" ++ name ++ "\""
         SPar _ (SId p name:args)
           | name `elem` FOL.predefined -> FOL.func name <$> mapM go args
           | otherwise -> perr p $ "Found unkown function while parsing term: \"" ++ name ++ "\""

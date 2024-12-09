@@ -40,11 +40,11 @@ data Game
   = RPG RPG.Game
   | Sym Sym.Arena
 
-fromRPG :: RPG.Game -> Game
-fromRPG = RPG
+fromRPG :: (RPG.Game, a) -> (Game, a)
+fromRPG = first RPG
 
-fromSG :: Sym.Arena -> Game
-fromSG = Sym
+fromSG :: (Sym.Arena, a) -> (Game, a)
+fromSG = first Sym
 
 liftG :: (RPG.Game -> a) -> (Sym.Arena -> a) -> Game -> a
 liftG f _ (RPG g) = f g

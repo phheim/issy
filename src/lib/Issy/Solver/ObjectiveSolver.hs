@@ -33,8 +33,8 @@ import Issy.Utils.Logging
 -------------------------------------------------------------------------------
 -- Solving
 -------------------------------------------------------------------------------
-solve :: Config -> Game -> Objective -> IO ()
-solve ctx g obj = do
+solve :: Config -> (Game, Objective) -> IO ()
+solve ctx (g, obj) = do
   ctx <- pure $ setName "Solve" ctx
   let init = initialLoc obj
   (res, cfg) <-
@@ -50,8 +50,8 @@ solve ctx g obj = do
       when (generateProgram ctx) (process ctx cfg >>= putStrLn . printCFG g)
     else putStrLn "Unrealizable"
 
-solveCache :: Config -> Cache -> Game -> Objective -> IO Bool
-solveCache ctx cache g obj = do
+solveCache :: Config -> Cache -> (Game, Objective) -> IO Bool
+solveCache ctx cache (g, obj) = do
   ctx <- pure $ setName "SolveCache" ctx
   ctx <- pure $ ctx {generateProgram = False}
   let init = initialLoc obj

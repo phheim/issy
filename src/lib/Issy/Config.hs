@@ -48,7 +48,7 @@ defaultConfig :: Config
 defaultConfig =
   Config
     { logging = True
-    , logName = "[RPG]"
+    , logName = "[Issy]"
     , smtSolver = SMTSolverZ3
     , smtModelGenCommand = "(check-sat-using (and-then simplify (! default :macro-finder true)))"
     , smtQueryLogging = False

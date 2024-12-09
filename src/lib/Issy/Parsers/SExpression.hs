@@ -10,6 +10,7 @@ module Issy.Parsers.SExpression
   ) where
 
 import Data.Bifunctor (first)
+import Data.Char (isAscii, isPrint, ord)
 
 data Pos = Pos
   { lineNum :: Word
@@ -31,7 +32,6 @@ data Token
   = TLPar Pos
   | TRPar Pos
   | TId Pos String
-  | TNum Pos String
   deriving (Eq, Ord, Show)
 
 getPosT :: Token -> Pos
@@ -40,7 +40,6 @@ getPosT =
     TLPar p -> p
     TRPar p -> p
     TId p _ -> p
-    TNum p _ -> p
 
 cleanupNL :: String -> String
 cleanupNL =
@@ -55,48 +54,28 @@ cleanupNL =
 terminators :: [Char]
 terminators = [')', '(', ' ', ';', '\n']
 
-digits :: [Char]
-digits = ['0' .. '9']
-
-idStarts :: [Char]
-idStarts = ['a' .. 'z'] ++ ['A' .. 'Z']
-
-idSymbols :: [Char]
-idSymbols = idStarts ++ digits ++ ['\'', '_']
-
 tokenize :: String -> PRes [Token]
 tokenize = go (Pos {lineNum = 1, pos = 1})
   where
     go p =
       \case
         [] -> Right []
-        ';':sr -> go (nextLine p) $ drop 1 $ dropWhile (/= ' ') sr
+        ';':sr -> go (nextLine p) $ drop 1 $ dropWhile (/= '\n') sr
         ' ':sr -> go (nextSymbol p) sr
         '\n':sr -> go (nextLine p) sr
         '(':sr -> (TLPar p :) <$> go (nextSymbol p) sr
         ')':sr -> (TRPar p :) <$> go (nextSymbol p) sr
-        c:sr
-          | c `elem` digits -> goWord p "" p (c : sr)
-          | c `elem` idStarts -> goID p "" p (c : sr)
-          | otherwise -> perr p $ "Found illegal character '" ++ [c] ++ "'"
-    goWord sp acc p =
-      \case
-        [] -> Right [TNum sp (reverse acc)]
-        c:sr
-          | c `elem` terminators -> (TNum sp (reverse acc) :) <$> go p (c : sr)
-          | c `elem` digits ++ ['.'] -> goWord sp (c : acc) (nextSymbol p) sr
-          | otherwise -> perr p $ "Found illegal character '" ++ [c] ++ "' in number"
+        s -> goID p "" p s
     goID sp acc p =
       \case
         [] -> Right [TId sp (reverse acc)]
         c:sr
           | c `elem` terminators -> (TId sp (reverse acc) :) <$> go p (c : sr)
-          | c `elem` idSymbols -> goID sp (c : acc) (nextSymbol p) sr
-          | otherwise -> perr p $ "Found illegal character '" ++ [c] ++ "' in identifier"
+          | isAscii c && isPrint c -> goID sp (c : acc) (nextSymbol p) sr
+          | otherwise -> perr p $ "Found illegal character '" ++ [c] ++ "' (" ++ show (ord c) ++ ")"
 
 data SExpr
   = SId Pos String
-  | SNum Pos String
   | SPar Pos [SExpr]
   deriving (Eq, Ord, Show)
 
@@ -104,7 +83,6 @@ getPos :: SExpr -> Pos
 getPos =
   \case
     SId p _ -> p
-    SNum p _ -> p
     SPar p _ -> p
 
 parseSExpr :: [Token] -> PRes (SExpr, [Token])
@@ -112,7 +90,6 @@ parseSExpr =
   \case
     [] -> Left "Parser error: found EOF while parsing S-expression"
     TId p str:tr -> Right (SId p str, tr)
-    TNum p num:tr -> Right (SNum p num, tr)
     TLPar p:tr -> do
       (es, tr) <- parseSExprs tr
       case tr of

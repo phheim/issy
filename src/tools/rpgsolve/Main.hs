@@ -1,16 +1,13 @@
 module Main where
 
-import Issy (argumentParser, fromRPG, parseRPG, solve)
+import Issy (argumentDescription, argumentParser, fromRPG, parseRPG, solve)
 
-import System.Environment (getArgs)
+import Common (checkArgs, liftErr)
 
 main :: IO ()
 main = do
-  args <- getArgs
-  case argumentParser args of
-    Left err -> fail err
-    Right cfg -> do
-      input <- getContents
-      case parseRPG input of
-        Left err -> fail err
-        Right (game, wc) -> solve cfg (fromRPG game) wc
+  args <- checkArgs argumentDescription
+  cfg <- liftErr $ argumentParser args
+  input <- getContents
+  spec <- liftErr $ parseRPG input
+  solve cfg (fromRPG spec)

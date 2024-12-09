@@ -1,0 +1,37 @@
+(
+    ; Variables come first
+    (   
+        (input Int i)
+        (state Int x)
+    )
+    
+    ; Formula specs
+    (
+        ; formula 1
+        (   
+            ; Asumptions 1
+            () 
+            ; Guarantees 1
+            (
+                (G (or (ap (= x' (+ x i))) (ap (= x' (- x i)))))
+            )
+        )
+    )
+
+    ;  Games specs
+    (
+        ; game 1
+        (
+            ; Locations 1
+            ((l0 0 true) (l1 1 true))
+            ; Transitions 1
+            (
+                (l0 l0 true)
+                (l1 l1 true)
+                (l0 l1 (> x 0))
+            )
+            ; Objetcive 1
+            (l0 Reachability)
+        )
+    )
+)

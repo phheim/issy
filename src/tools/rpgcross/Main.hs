@@ -2,26 +2,19 @@ module Main
   ( main
   ) where
 
-import System.Environment (getArgs)
+import Control.Monad ((>=>))
+import System.Exit (die)
 
-import Issy (Objective, parseRPG, printRPG, rpgProduct)
-import Issy.RPG (Game)
+import Issy (parseRPG, printRPG, rpgProduct)
 
--- TODO: Make this cross-plattform!!
-getDirPath :: String -> String
-getDirPath = reverse . dropWhile (/= '/') . reverse
-
-readGame :: String -> IO (Game, Objective)
-readGame path = do
-  content <- readFile path
-  case parseRPG content of
-    Left err -> fail err
-    Right gwc -> return gwc
+import Common (checkArgs, liftErr)
 
 main :: IO ()
 main = do
-  crossFilePath <- head <$> getArgs
-  subGameRelPaths <- filter (not . null) . lines <$> readFile crossFilePath
-  let subGamePaths = map (getDirPath crossFilePath ++) subGameRelPaths
-  games <- mapM readGame subGamePaths
-  putStrLn (printRPG (rpgProduct games))
+  args <- checkArgs "TODO: WRITE HELP DESCIRPTION"
+  case args of
+    [] -> die "Expected at least on argument"
+    [f] -> readFile f >>= (liftErr . parseRPG) >>= (putStrLn . printRPG)
+    fs -> do
+      games <- mapM (readFile >=> (liftErr . parseRPG)) fs
+      putStrLn (printRPG (rpgProduct games))

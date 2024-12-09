@@ -49,7 +49,9 @@ library
     , Issy.Parsers.SMTLib
     , Issy.Parsers.SMTLibLexer
     , Issy.Parsers.TSLMT
+    , Issy.Printers.IssyFormat
     , Issy.Printers.RPG
+    , Issy.Printers.SymbolicGame
     , Issy.Printers.SMTLib
     , Issy.Products.RPGMonitor
     , Issy.Products.RPGs
@@ -76,6 +78,72 @@ library
   default-language:
     Haskell2010
 
+executable issy-solve
+
+  ghc-options:
+    -Wall -Wno-name-shadowing
+
+  main-is:
+    Main.hs
+
+  other-modules:
+    Common
+
+  build-depends:
+      base
+    , Issy
+
+  hs-source-dirs:
+    src/tools/solve
+    src/tools/common
+
+  default-language:
+    Haskell2010
+
+executable issy-print
+
+  ghc-options:
+    -Wall -Wno-name-shadowing
+
+  main-is:
+    Main.hs
+
+  other-modules:
+    Common
+
+  build-depends:
+      base
+    , Issy
+
+  hs-source-dirs:
+    src/tools/print
+    src/tools/common
+
+  default-language:
+    Haskell2010
+
+executable issy-to-game
+
+  ghc-options:
+    -Wall -Wno-name-shadowing
+
+  main-is:
+    Main.hs
+
+  other-modules:
+    Common
+
+  build-depends:
+      base
+    , Issy
+
+  hs-source-dirs:
+    src/tools/togame
+    src/tools/common
+
+  default-language:
+    Haskell2010
+
 executable rpgsolve
 
   ghc-options:
@@ -84,12 +152,16 @@ executable rpgsolve
   main-is:
     Main.hs
 
+  other-modules:
+    Common
+
   build-depends:
       base
     , Issy
 
   hs-source-dirs:
     src/tools/rpgsolve
+    src/tools/common
 
   default-language:
     Haskell2010
@@ -102,6 +174,9 @@ executable rpgcross
   main-is:
     Main.hs
 
+  other-modules:
+    Common
+
   build-depends:
       base
     , containers
@@ -109,10 +184,10 @@ executable rpgcross
 
   hs-source-dirs:
     src/tools/rpgcross
+    src/tools/common
 
   default-language:
     Haskell2010
-
 
 executable rpgencode
 
@@ -123,7 +198,8 @@ executable rpgencode
     Main.hs
 
   other-modules:
-      MuCLP
+      Common
+    , MuCLP
     , TSLT
 
   build-depends:
@@ -133,6 +209,7 @@ executable rpgencode
 
   hs-source-dirs:
     src/tools/rpgencode
+    src/tools/common
 
   default-language:
     Haskell2010
@@ -149,8 +226,12 @@ executable rpgprint
       base
     , Issy
 
+  other-modules:
+    Common
+
   hs-source-dirs:
     src/tools/rpgprint
+    src/tools/common
 
   default-language:
     Haskell2010
@@ -163,14 +244,16 @@ executable tslmt2rpg
   main-is:
     Main.hs
 
+  other-modules:
+    Common
+
   build-depends:
       base
     , Issy
 
   hs-source-dirs:
     src/tools/tsl2rpg
+    src/tools/common
 
   default-language:
     Haskell2010
-
-

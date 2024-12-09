@@ -71,8 +71,9 @@ OBJ      : '(' ID ('Safety' | 'Reachability '| 'Buechi' | 'CoBuechi' | 'ParityMa
 A term is basically like in the SMT-Lib-2 format without quantifiers, lambda, and let expressions. Similar rules for typing apply (TODO make more precise). 
 Only variables declared initially are allowed to be free variables, and additionally primed version of the state variables.
 ```
-TERM : '(' OP TERM* ')' | PID | NAT | RAT
-OP   : 'and ' | 'or' | 'not' | 'ite' | 'distinct' | '=>' |
-       '=' | '<' | '>'| '<=' | '>=' |
-       '+' | '-' | '*' | '/' | 'mod' | 'abs' | 'to_real' 
+TERM   : '(' OP TERM* ')' | PID | CONSTS
+OP     : 'and ' | 'or' | 'not' | 'ite' | 'distinct' | '=>' |
+         '=' | '<' | '>'| '<=' | '>=' |
+         '+' | '-' | '*' | '/' | 'mod' | 'abs' | 'to_real' 
+CONSTS : RAT | NAT | 'true' | 'false'
 ```
