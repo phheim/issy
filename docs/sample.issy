@@ -1,0 +1,17 @@
+input int i
+state int x
+
+/*
+    First a formula
+*/
+logic {
+    assume [true] // this is not need, and order does not matter
+    assert F [i = 0 || x > 0]
+}
+
+// Now a game, order does not matter either!
+game Safety from l0 {
+    loc l0 1
+    
+    from l0 to l0 with [x' = x + i || x' = x - i] 
+}

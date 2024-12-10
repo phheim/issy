@@ -257,3 +257,28 @@ executable tslmt2rpg
 
   default-language:
     Haskell2010
+
+
+executable issy-compiler
+
+  ghc-options:
+    -Wall -Wno-name-shadowing
+
+  main-is:
+    Main.hs
+
+  other-modules:
+    Compiler.Base
+    Compiler.Checker
+    Compiler.Lexer
+    Compiler.Parser
+    Compiler.Writer
+
+  build-depends:
+      base
+
+  hs-source-dirs:
+    src/compiler
+
+  default-language:
+    Haskell2010

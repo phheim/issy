@@ -1,0 +1,24 @@
+(
+  (
+    (input Int i)
+    (state Int x)
+  )
+  ()
+  (
+    (
+      (
+        (l0_l0_q1 1 true)
+        (l1_l0_q2 0 true)
+        (l2_sink 0 false)
+      )
+      (
+        (l0_l0_q1 l0_l0_q1 true)
+        (l1_l0_q2 l0_l0_q1 (or (= i 0) (not (<= x 0))))
+        (l1_l0_q2 l1_l0_q2 (and (or (= x~ (+ x i)) (= x~ (+ x (* (- 1) i)))) (not (= i 0)) (<= x 0)))
+        (l2_sink l2_sink true)
+      )
+      (l1_l0_q2 Buechi)
+    )
+  )
+)
+

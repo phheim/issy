@@ -9,9 +9,9 @@ VARDECL  : ('input' | 'state') TYPE VID
 
 LOGICDEF : 'logic' '{' LOGICSTM*  '}'
 LOGICSTM : ('assert' | 'assume') RPLTL
-RPLTL    : '(' RPLTL ')' | UOP RPLTL RPLTL | RPLTL BOP RPLTL | FOL
+RPLTL    : '(' RPLTL ')' | UOP RPLTL RPLTL | RPLTL BOP RPLTL | FOL | 'true' | 'false'
 UOP      : '!' | 'F' | 'X' | 'G'
-BOP      : '&&' | '||' | 'U' | 'W' | 'R' | '->'
+BOP      : '&&' | '||' | 'U' | 'W' | 'R' | '->' | '<->'
 
 Precdence 
         as TLSF!
@@ -22,13 +22,13 @@ LOCDEF   : 'loc' ID [NAT] [FOL]
 TRANSDEF : 'from' ID 'to' ID 'with' FOL
 
 FOL      : '[' TERM ']'
-TERM     : CONST | ID['''] | '(' TERM ')' | UOP TERM | TERM BOP TERM | 'ite' TERM TERM TERM
+TERM     : CONST | ID['''] | '(' TERM ')' | UOP TERM | TERM BOP TERM
 CONST    : NAT | RAT | 'true' | 'false'
 UOP      : '!' | 'abs' | '-'
 BOP      : '&&' | '||' | '*' | '+' | '-' | '/' | 'mod' | '->' | '<->' | '=' | '<' | '>'| '<=' | '>='
 
-Precedence :
-        ite, <->, ->, ||, &&, '!', 'mod', '*', '/', '+', '-', 'abs'
+Precedence (low to high):
+        <->, ->, ||, &&, '!', '<', '>', '=', '<=', '>=' , 'mod', '/', '*', '+', '-', 'abs'
 
 MACRO   : 'def' ID '=' FOL 
 
