@@ -1,18 +1,18 @@
 {-# LANGUAGE LambdaCase #-}
 
 --TODO: Add invariants!
-module MuCLP
-  ( convert
+module Issy.Extractors.MuCLP
+  ( rpgToMuCLP
   ) where
 
 import Data.Fixed
 import Data.Map ((!?))
 import Data.Ratio ((%))
 import Data.Set (Set)
-import qualified Data.Set as Set (toList)
+import qualified Data.Set as Set
 
-import qualified Issy as Locs (toNumber)
-import Issy (Objective(..), WinningCondition(..))
+import qualified Issy.Base.Locations as Locs
+import Issy.Base.Objectives (Objective(..), WinningCondition(..))
 import Issy.Logic.FOL
 import Issy.RPG
 
@@ -173,8 +173,8 @@ encBuechi g init fset =
   let (gs, ls) = unzip (encBuech g fset <$> Set.toList (locations g))
    in unlines $ encAll "LPred" g init : "s.t." : gs ++ ls
 
-convert :: Game -> Objective -> String
-convert g obj =
+rpgToMuCLP :: Game -> Objective -> String
+rpgToMuCLP g obj =
   case winningCond obj of
     Reachability reach -> encReachable g (initialLoc obj) reach
     Safety safe -> encSafety g (initialLoc obj) safe

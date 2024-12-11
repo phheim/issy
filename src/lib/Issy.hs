@@ -18,10 +18,16 @@ module Issy
   , parseRPG
   , parseTSL
   , parseIssyFormat
+  , rpgToMuCLP
+  , rpgToTSLT
   ) where
 
 -- Config
 import Issy.Config (Config, argumentDescription, argumentParser)
+
+-- Extractors
+import Issy.Extractors.MuCLP(rpgToMuCLP)
+import Issy.Extractors.TSLT(rpgToTSLT)
 
 -- Parsers 
 import Issy.Parsers.IssyFormat (parseIssyFormat)

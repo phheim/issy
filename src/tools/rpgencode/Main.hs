@@ -2,10 +2,7 @@ module Main where
 
 import System.Exit (die)
 
-import Issy (parseRPG)
-
-import qualified MuCLP
-import qualified TSLT
+import Issy (parseRPG, rpgToTSLT, rpgToMuCLP)
 
 import Common (checkArgs, liftErr)
 
@@ -15,6 +12,6 @@ main = do
   (g, wc) <- liftErr (parseRPG input)
   args <- checkArgs "TODO HELP TEXT"
   case args of
-    ["muclp"] -> putStrLn (MuCLP.convert g wc)
-    ["tslt"] -> putStrLn (TSLT.convert g wc)
+    ["muclp"] -> putStrLn $ rpgToMuCLP g wc
+    ["tslt"] -> putStrLn $ rpgToTSLT g wc
     arg -> die $ "Unkown argument" ++ concatMap (" " ++) arg

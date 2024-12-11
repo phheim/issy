@@ -1,17 +1,17 @@
 {-# LANGUAGE LambdaCase #-}
 
 --TODO: Add invariants!
-module TSLT
-  ( convert
+module Issy.Extractors.TSLT
+  ( rpgToTSLT
   ) where
 
 import Data.Fixed
-import qualified Data.Map.Strict as Map (toList)
+import qualified Data.Map.Strict as Map
 import Data.Set (Set)
-import qualified Data.Set as Set (toList)
+import qualified Data.Set as Set 
 
-import qualified Issy as Locs (toNumber)
-import Issy (Objective(..), WinningCondition(..))
+import qualified Issy.Base.Locations as Locs
+import Issy.Base.Objectives (Objective(..), WinningCondition(..))
 import Issy.Logic.FOL
 import Issy.RPG
 
@@ -134,8 +134,8 @@ encCond g op loc =
   let locs = Set.toList loc
    in "guarantee { " ++ op ++ "(" ++ concatMap (\l -> encLoc g l ++ " || ") locs ++ "false);}"
 
-convert :: Game -> Objective -> String
-convert g obj =
+rpgToTSLT :: Game -> Objective -> String
+rpgToTSLT g obj =
   unlines
     [ encGame (initialLoc obj) g
     , case winningCond obj of

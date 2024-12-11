@@ -18,15 +18,16 @@ library
 
   exposed-modules:
       Issy
-    , Issy.Logic.FOL
-    , Issy.RPG
-  
+ 
   other-modules:
       Issy.Base.Locations
     , Issy.Base.Objectives
     , Issy.Base.SymbolicState
     , Issy.Base.Variables
     , Issy.Config
+    , Issy.Extractors.MuCLP
+    , Issy.Extractors.TSLT
+    , Issy.Logic.FOL 
     , Issy.Logic.RPLTL
     , Issy.Logic.SMT
     , Issy.Logic.Temporal
@@ -57,6 +58,7 @@ library
     , Issy.Products.RPGs
     , Issy.Products.SGMonitor
     , Issy.Products.SymbolicGames
+    , Issy.RPG
     , Issy.Solver.Attractor
     , Issy.Solver.ControlFlowGraph
     , Issy.Solver.GameInterface
@@ -199,12 +201,9 @@ executable rpgencode
 
   other-modules:
       Common
-    , MuCLP
-    , TSLT
 
   build-depends:
       base
-    , containers
     , Issy
 
   hs-source-dirs:
