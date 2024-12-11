@@ -27,7 +27,7 @@ intersect2 (a1, o1) (a2, o2) =
    in case (winningCond o1, winningCond o2) of
         (Safety s1, Safety s2) ->
           (arenaI, Objective {initialLoc = init, winningCond = Safety (prods s1 s2)})
-        (_, Safety _) -> intersect2 (a2, o2) (a1, o2)
+        (_, Safety _) -> intersect2 (a2, o2) (a1, o1)
         (Safety s1, wc2) ->
           let bads = SG.locSet arenaS `Set.difference` prods s1 (SG.locSet a2)
               arenaR = foldl (\a l -> SG.redirectTransTo a l sink) arenaS bads
