@@ -194,19 +194,18 @@ cpreSys arena st src =
 
 loopArena :: Arena -> Loc -> (Arena, Loc)
 loopArena arena l =
-  let (arena', l') = addLoc arena (Locs.name (locations arena) l ++ "'")
+  let (arena0, l') = addLoc arena (Locs.name (locations arena) l ++ "'")
+      arena1 = setDomain arena0 l' $ domain arena0 l
+      (arena2, sink) = addSink arena1
+      arena' = setTrans arena2 l' sink FOL.true
    in ( arena'
-          { aDomain = Map.insert l (domain arena' l) (aDomain arena')
-          , transRel =
-              Map.insert
-                l'
-                (Map.singleton l' true)
-                (Map.mapKeys
-                   (\loc ->
-                      if loc == l
-                        then l'
-                        else l)
-                   <$> transRel arena')
+          { transRel =
+              Map.mapKeys
+                (\loc ->
+                   if loc == l
+                     then l'
+                     else loc)
+                <$> transRel arena'
           , predRel = Map.insert l Set.empty . Map.insert l' (preds arena l) $ predRel arena'
           }
       , l')

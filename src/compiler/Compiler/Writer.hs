@@ -79,7 +79,7 @@ writeFormula =
     LBExpr (LBOp op) f1 f2 ->
       let s1 = writeFormula f1
           s2 = writeFormula f2
-          mk ops =  sexpr [ops, s1, s2]
+          mk ops = sexpr [ops, s1, s2]
        in case op of
             "&&" -> mk "and"
             "||" -> mk "or"
@@ -105,21 +105,21 @@ writeTerm =
           s2 = writeTerm t2
           mk ops = sexpr [ops, s1, s2]
        in case op of
-              "&&" -> mk "and"
-              "||" -> mk "or"
-              "->" -> mk "=>"
-              "<->" -> sexpr ["and", sexpr ["=>", s1, s2], sexpr ["=>", s1, s2]]
-              op
-                | op `elem` [">", "<", "=", "<=", ">=", "+", "-", "*", "/", "mod"] -> mk op
-                | otherwise -> error "assert: this should have been already checked!"
+            "&&" -> mk "and"
+            "||" -> mk "or"
+            "->" -> mk "=>"
+            "<->" -> sexpr ["and", sexpr ["=>", s1, s2], sexpr ["=>", s1, s2]]
+            op
+              | op `elem` [">", "<", "=", "<=", ">=", "+", "-", "*", "/", "mod"] -> mk op
+              | otherwise -> error "assert: this should have been already checked!"
     ATUexpr (TUP op) t ->
-        let s = writeTerm t
-         in case op of
-              "!" -> sexpr ["not", s]
-              "-" -> sexpr ["-", "0", s]
-              "abs" -> sexpr ["abs", s]
-              _ -> error "assert: this should have been already checked!"
-       
+      let s = writeTerm t
+       in case op of
+            "!" -> sexpr ["not", s]
+            "-" -> sexpr ["-", "0", s]
+            "abs" -> sexpr ["abs", s]
+            _ -> error "assert: this should have been already checked!"
+
 changeName :: String -> String
 changeName =
   map $ \c ->
