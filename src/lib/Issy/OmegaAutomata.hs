@@ -121,6 +121,21 @@ setAcceptance accept doa =
           Buechi reps -> reps
           Parity colors -> Map.keysSet colors
    in if occurs `Set.isSubsetOf` states doa
-        then doa {doaAccept = accept}
+        then toSafety $ doa {doaAccept = accept}
         else error "try to set acceptance with non-existent states"
+------------------------------------------------------------------------------
+toSafety :: Ord a => DOA a -> DOA a 
+toSafety doa = 
+    case doaAccept doa of 
+        Safety _ -> doa
+        Parity _ -> doa
+        Buechi reps -> let nonReps = doaStates doa `Set.difference` reps
+                        in if all (isSelfLoop doa) nonReps 
+                                then doa { doaAccept = Safety reps }
+                                else doa
+
+
+isSelfLoop :: Ord a => DOA a -> State -> Bool
+isSelfLoop doa state = 
+    trans doa state == Set.singleton (Set.empty, state)
 ------------------------------------------------------------------------------
