@@ -64,10 +64,11 @@ writeTrans =
 writeFormula :: AstTF -> String
 writeFormula =
   \case
-    LAp term -> sexpr ["ap", writeTerm term]
-    LBConst True -> "true"
-    LBConst False -> "false"
-    LUExpr (LUOp op) f ->
+    AFGround pred -> sexpr ["ap", writeGround pred]
+    AFBool True -> "true"
+    AFBool False -> "false"
+    AFVar name -> sexpr ["ap", changeName name]
+    AFUexp (UOP op) f ->
       let sop =
             case op of
               "!" -> "not"
@@ -76,7 +77,7 @@ writeFormula =
               "X" -> "X"
               _ -> error "assert: this should have been already checked!"
        in sexpr [sop, writeFormula f]
-    LBExpr (LBOp op) f1 f2 ->
+    AFBexp (BOP op) f1 f2 ->
       let s1 = writeFormula f1
           s2 = writeFormula f2
           mk ops = sexpr [ops, s1, s2]
@@ -95,12 +96,13 @@ writeFormula =
 writeTerm :: AstTerm -> String
 writeTerm =
   \case
-    AConstBool True -> "true"
-    AConstBool False -> "false"
-    AConstInt n -> show n
-    AConstReal n -> sexpr [show (numerator n), "/", show (denominator n)]
-    ATermVar name -> changeName name
-    ATBexpr (TBOP op) t1 t2 ->
+    ATGround pred -> writeGround pred
+    ATBool True -> "true"
+    ATBool False -> "false"
+    ATVar name -> changeName name
+    ATUexp (UOP "!") t -> sexpr ["not", writeTerm t]
+    ATUexp _ _ -> error "assert: this should have been already checked!"
+    ATBexp (BOP op) t1 t2 ->
       let s1 = writeTerm t1
           s2 = writeTerm t2
           mk ops = sexpr [ops, s1, s2]
@@ -109,16 +111,21 @@ writeTerm =
             "||" -> mk "or"
             "->" -> mk "=>"
             "<->" -> sexpr ["and", sexpr ["=>", s1, s2], sexpr ["=>", s1, s2]]
-            op
-              | op `elem` [">", "<", "=", "<=", ">=", "+", "-", "*", "/", "mod"] -> mk op
-              | otherwise -> error "assert: this should have been already checked!"
-    ATUexpr (TUP op) t ->
-      let s = writeTerm t
-       in case op of
-            "!" -> sexpr ["not", s]
-            "-" -> sexpr ["-", "0", s]
-            "abs" -> sexpr ["abs", s]
             _ -> error "assert: this should have been already checked!"
+
+writeGround :: AstGround -> String
+writeGround =
+  \case
+    AConstInt n -> show n
+    AConstReal n -> sexpr [show (numerator n), "/", show (denominator n)]
+    AGVar name -> changeName name
+    AGUexp (UOP "-") t -> sexpr ["-", "0", writeGround t]
+    AGUexp (UOP "abs") t -> sexpr ["abs", writeGround t]
+    AGUexp _ _ -> error "assert: this should have been already checked!"
+    AGBexp (BOP op) t1 t2
+      | op `elem` [">", "<", "=", "<=", ">=", "+", "-", "*", "/", "mod"] ->
+        sexpr [op, writeGround t1, writeGround t2]
+      | otherwise -> error "assert: this should have been already checked!"
 
 changeName :: String -> String
 changeName =

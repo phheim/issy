@@ -29,7 +29,7 @@ parseDef ts = do
   case str of
     "input" -> apply2 (AstVar AInput) $ parseVar ts
     "state" -> apply2 (AstVar AState) $ parseVar ts
-    "logic" -> apply1 AstLogic $ parseLogic ts
+    "formula" -> apply1 AstLogic $ parseLogic ts
     "game" -> apply3 AstGame $ parseGame ts
     _ -> expectErr p str "specification definition"
 
@@ -93,16 +93,16 @@ parseLoc ts = do
   checkID p id
   (str, p) <- peak ts "}"
   (num, ts) <-
-    if str `elem` ["[", "trans", "loc", "}"]
+    if str `elem` ["trans", "loc", "}", "with"]
       then pure (0, ts)
       else do
         n <- parseInteger p str
         pure (n, consume ts)
   (str, _) <- peak ts "}"
   (term, ts) <-
-    if str == "["
-      then parseFOL ts
-      else pure (AConstBool True, ts)
+    if str == "with"
+      then parseTerm (consume ts)
+      else pure (ATBool True, ts)
   pure (id, num, term, ts)
 
 parseTrans :: [Token] -> PRes (String, String, AstTerm, [Token])
@@ -113,7 +113,7 @@ parseTrans ts = do
   (id2, p, ts) <- next ts "identifier"
   checkID p id2
   ts <- exact ts "with"
-  (term, ts) <- parseFOL ts
+  (term, ts) <- parseTerm ts
   pure (id1, id2, term, ts)
 
 --
@@ -126,12 +126,13 @@ checkID :: Pos -> String -> PRes ()
 checkID = check isProperID "identifier"
 
 isProperID :: String -> Bool
-isProperID =
-  \case
-    [] -> False
-    c:s ->
-      (c `elem` ['a' .. 'z'] ++ ['A' .. 'Z'])
-        && all (`elem` ['a' .. 'z'] ++ ['A' .. 'Z'] ++ ['0' .. '9'] ++ ['_']) s
+isProperID s =
+  not (isKeyword s)
+    && (case s of
+          [] -> False
+          c:s ->
+            (c `elem` ['a' .. 'z'] ++ ['A' .. 'Z'])
+              && all (`elem` ['a' .. 'z'] ++ ['A' .. 'Z'] ++ ['0' .. '9'] ++ ['_']) s)
 
 isId :: String -> Bool
 isId s =
@@ -156,35 +157,89 @@ parseRat p str =
 parseRPLTL :: [Token] -> PRes (AstTF, [Token])
 parseRPLTL =
   parseOps
-    ((== "(") . tval, (== ")") . tval)
+    pars
     (\t ts ->
        case tval t of
-         "true" -> pure (LBConst True, ts)
-         "false" -> pure (LBConst False, ts)
-         _ -> apply1 LAp (parseFOL (t : ts)))
-    (\t ->
-       if tval t `elem` ["!", "X", "G", "F"]
-         then Just (LUExpr (LUOp (tval t)), 12)
-         else Nothing)
-    (\t ->
-       let op = LBExpr (LBOp (tval t))
-        in case tval t of
-             "&&" -> Just (op, 10, 11)
-             "||" -> Just (op, 8, 9)
-             "->" -> Just (op, 7, 6)
-             "<->" -> Just (op, 7, 6)
-             "W" -> Just (op, 5, 4)
-             "U" -> Just (op, 3, 2)
-             "R" -> Just (op, 0, 1)
-             _ -> Nothing)
-    -- TODO: seprate in base
-    (\t ->
-       "Compiler error ["
-         ++ show (lineNum (tpos t))
-         ++ ":"
-         ++ show (pos (tpos t))
-         ++ "] : Found bad token while parsing operators")
-    "Compiler Error : Found EOF while parsing primary operators"
+         "true" -> pure (AFBool True, ts)
+         "false" -> pure (AFBool False, ts)
+         "[" -> apply1 AFGround (parseGround (t : ts))
+         name -> do
+           check isId name (tpos t) "identifier"
+           pure (AFVar name, ts))
+    (unPred (AFUexp . UOP) [(["!", "X", "G", "F"], 12)])
+    (binPred
+       (AFBexp . BOP)
+       [ (["R"], 0, 1)
+       , (["U"], 3, 2)
+       , (["W"], 5, 4)
+       , (["<->", "->"], 7, 6)
+       , (["||"], 8, 9)
+       , (["&&"], 10, 11)
+       ])
+    tokenPos
+
+parseTerm :: [Token] -> PRes (AstTerm, [Token])
+parseTerm =
+  parseOps
+    pars
+    (\t ts ->
+       case tval t of
+         "true" -> pure (ATBool True, ts)
+         "false" -> pure (ATBool False, ts)
+         "[" -> apply1 ATGround (parseGround (t : ts))
+         name -> do
+           check isId name (tpos t) "identifier"
+           pure (ATVar name, ts))
+    (unPred (ATUexp . UOP) [(["!"], 8)])
+    (binPred (ATBexp . BOP) [(["<->"], 1, 0), (["<->"], 3, 2), (["||"], 4, 5), (["&&"], 6, 7)])
+    tokenPos
+
+parseGround :: [Token] -> PRes (AstGround, [Token])
+parseGround ts = do
+  ts <- exact ts "["
+  (t, ts) <- parseGroundTerm ts
+  ts <- exact ts "]"
+  pure (t, ts)
+
+parseGroundTerm :: [Token] -> PRes (AstGround, [Token])
+parseGroundTerm =
+  parseOps
+    pars
+    (\t ts ->
+       case tval t of
+         name ->
+           case parseInteger (tpos t) name of
+             Right n -> pure (AConstInt n, ts)
+             _ ->
+               case parseRat (tpos t) name of
+                 Right n -> pure (AConstReal n, ts)
+                 _ -> do
+                   check isId name (tpos t) "identifier"
+                   pure (AGVar name, ts))
+    (unPred (AGUexp . UOP) [(["-"], 6), (["abs"], 7)])
+    (binPred
+       (AGBexp . BOP)
+       [(["=", "<", ">", ">=", "<="], 0, 1), (["+", "-"], 2, 3), (["mod", "/", "*"], 4, 5)])
+    tokenPos
+
+pars :: (Token -> Bool, Token -> Bool)
+pars = ((== "(") . tval, (== ")") . tval)
+
+tokenPos :: Token -> (Int, Int)
+tokenPos t = (lineNum (tpos t), pos (tpos t))
+
+unPred :: (String -> e -> e) -> [([String], Word)] -> Token -> Maybe (e -> e, Word)
+unPred op preds t =
+  case filter ((tval t `elem`) . fst) preds of
+    [] -> Nothing
+    (_, p):_ -> Just (op (tval t), p)
+
+binPred ::
+     (String -> e -> e -> e) -> [([String], Word, Word)] -> Token -> Maybe (e -> e -> e, Word, Word)
+binPred op preds t =
+  case filter (\(n, _, _) -> tval t `elem` n) preds of
+    [] -> Nothing
+    (_, pl, pr):_ -> Just (op (tval t), pl, pr)
 
 -- TODO Move to own module!
 parseOps ::
@@ -193,12 +248,19 @@ parseOps ::
   -> (t -> [t] -> PRes (e, [t]))
   -> (t -> Maybe (e -> e, Word))
   -> (t -> Maybe (e -> e -> e, Word, Word))
-  -> (t -> String)
-  -> String
+  -> (t -> (Int, Int))
   -> [t]
   -> PRes (e, [t])
-parseOps (lpar, rpar) parseAtom unOp binOp errToken errEOF = go
+parseOps (lpar, rpar) parseAtom unOp binOp posToken = go
   where
+    errEOF = "Compiler Error : Found EOF while parsing primary operators"
+    errToken t =
+      "Compiler error ["
+        ++ show (fst (posToken t))
+        ++ ":"
+        ++ show (snd (posToken t))
+        ++ "] : Found bad token while parsing operators"
+       --
     go = parseOp 0
        -- 
     parseOp pred ts = do
@@ -234,64 +296,6 @@ parseOps (lpar, rpar) parseAtom unOp binOp errToken errEOF = go
                 | otherwise -> do
                   (e2, ts) <- parseOp rp ts
                   parseBin (op e1 e2) pred ts
-
-parseFOL :: [Token] -> PRes (AstTerm, [Token])
-parseFOL ts = do
-  ts <- exact ts "["
-  (t, ts) <- parseTerm ts
-  ts <- exact ts "]"
-  pure (t, ts)
-
-parseTerm :: [Token] -> PRes (AstTerm, [Token])
-parseTerm =
-  parseOps
-    ((== "(") . tval, (== ")") . tval)
-    (\t ts ->
-       case tval t of
-         "true" -> pure (AConstBool True, ts)
-         "false" -> pure (AConstBool False, ts)
-         name ->
-           case parseInteger (tpos t) name of
-             Right n -> pure (AConstInt n, ts)
-             _ ->
-               case parseRat (tpos t) name of
-                 Right n -> pure (AConstReal n, ts)
-                 _ -> do
-                   check isId name (tpos t) "identifier"
-                   pure (ATermVar name, ts))
-    (\t ->
-       let op = ATUexpr (TUP (tval t))
-        in case tval t of
-             "!" -> Just (op, 8)
-             "-" -> Just (op, 16)
-             "abs" -> Just (op, 17)
-             _ -> Nothing)
-    (\t ->
-       let op = ATBexpr (TBOP (tval t))
-        in case tval t of
-             "<->" -> Just (op, 1, 0)
-             "->" -> Just (op, 3, 2)
-             "||" -> Just (op, 4, 5)
-             "&&" -> Just (op, 6, 7)
-             "=" -> Just (op, 8, 9)
-             "<" -> Just (op, 8, 9)
-             ">" -> Just (op, 8, 9)
-             ">=" -> Just (op, 8, 9)
-             "<=" -> Just (op, 8, 9)
-             "mod" -> Just (op, 10, 11)
-             "/" -> Just (op, 12, 13)
-             "*" -> Just (op, 12, 13)
-             "+" -> Just (op, 14, 15)
-             "-" -> Just (op, 14, 15)
-             _ -> Nothing)
-    -- TODO: seprate in base
-    (\t ->
-       "Compiler error ["
-         ++ show (lineNum (tpos t))
-         ++ ":"
-         ++ show (pos (tpos t))
-         ++ "] : Found bad token while parsing operators")
-    "Compiler Error : Found EOF while parsing primary operators"
 
 --
 -- Helpers, TODO: maybe also move partially to other module

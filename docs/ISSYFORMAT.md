@@ -2,41 +2,67 @@
 
 This document describes the high-level format used by the Issy tool.
 
+## Syntax
 ```
-SPEC     : (VARDECL | GAMEDEF | LOGICDEF | MACRO)*
+SPEC     : (VARDECL | GAMEDEF | LOGICDEF)*
+```
 
-VARDECL  : ('input' | 'state') TYPE VID
+### Variables
+```
+VARDECL  : ('input' | 'state') TYPE ID
+TYPE     : 'int' | 'bool' | 'real'
+```
 
-LOGICDEF : 'logic' '{' LOGICSTM*  '}'
+### Formula Specifications
+```
+LOGICDEF : 'formula' '{' LOGICSTM*  '}'
 LOGICSTM : ('assert' | 'assume') RPLTL
-RPLTL    : '(' RPLTL ')' | UOP RPLTL RPLTL | RPLTL BOP RPLTL | FOL | 'true' | 'false'
+RPLTL    :  GPRED | CONST | ID['''] | '(' RPLTL ')' | UOP RPLTL | RPLTL BOP RPLTL 
+CONST    : 'true' | 'false'
 UOP      : '!' | 'F' | 'X' | 'G'
-BOP      : '&&' | '||' | 'U' | 'W' | 'R' | '->' | '<->'
+BOP      : '&&' | '||' | '->' | '<->' | 'U' | 'W' | 'R'
+```
+with precedence as TLSF.
 
-Precdence 
-        as TLSF!
 
+### Game Specifications
+```
 GAMEDEF  : 'game' WINCOND 'from' ID '{' ( LOCDEF | TRANSDEF)* '}' 
 WINCOND  : 'Safety' | 'Reachability' | 'Buechi' | 'CoBuechi' | 'ParityMaxOdd' 
-LOCDEF   : 'loc' ID [NAT] [FOL]
-TRANSDEF : 'from' ID 'to' ID 'with' FOL
+LOCDEF   : 'loc' ID [NAT] ['with' TERM]
+TRANSDEF : 'from' ID 'to' ID 'with' TERM
 
-FOL      : '[' TERM ']'
-TERM     : CONST | ID['''] | '(' TERM ')' | UOP TERM | TERM BOP TERM
-CONST    : NAT | RAT | 'true' | 'false'
-UOP      : '!' | 'abs' | '-'
-BOP      : '&&' | '||' | '*' | '+' | '-' | '/' | 'mod' | '->' | '<->' | '=' | '<' | '>'| '<=' | '>='
+TERM     : GPRED | CONST | ID['''] | '(' TERM ')' | UOP TERM | TERM BOP TERM 
+CONST    : 'true'  | 'false'
+UOP      : '!' 
+BOP      : '&&' | '||' | '->' | '<->'
+```
+with precedence (from high to low):
+```
+    {!} > {&&} > {||} > {-> (ra)} > {<-> (ra)} 
+```
 
-Precedence (low to high):
-        <->, ->, ||, &&, '!', '<', '>', '=', '<=', '>=' , 'mod', '/', '*', '+', '-', 'abs'
+## Ground Predicates
 
-MACRO   : 'def' ID '=' FOL 
+```
+GPRED   : '[' GROUND ']'
+GROUND  : CONST | ID['''] | '(' GROUND ')' | GUOP GROUND | GROUND GBOP GROUND
+CONST   : NAT   | RAT
+GUOP    : '*' | '+' | '-' | '/' | 'mod' | '=' | '<' | '>'| '<=' | '>='
+GBOP    : '-' | 'abs'
+```
+with precedence (from high to low):
+```
+    {abs} > {*, /, mod} > {+, -} > {<, >, =, <=, >=}
+```
 
+### Basics
+```
 ID      : ALPHA (ALPHA | DIGIT | '_')*
 NAT     : DIGIT+
 RAT     : DIGIT+ '.' DIGIT+
 ```
 
-Comments
+### Comments
 - single line '/ /'
 - multi-line / * , comments are not nested!

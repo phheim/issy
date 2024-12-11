@@ -1,6 +1,13 @@
 module Compiler.Base where
 
 --
+-- Constants
+--
+isKeyword :: String -> Bool
+isKeyword =
+  flip elem ["assume", "assert", "input", "state", "loc", "from", "with", "game", "formula"] --TODO add all
+
+--
 -- Error Handeling
 --
 type PRes a = Either String a
@@ -71,18 +78,11 @@ data AstLogicStm
   deriving (Eq, Ord, Show)
 
 data AstTF
-  = LAp AstTerm
-  | LBConst Bool
-  | LUExpr LUOp AstTF
-  | LBExpr LBOp AstTF AstTF
-  deriving (Eq, Ord, Show)
-
-newtype LUOp =
-  LUOp String
-  deriving (Eq, Ord, Show)
-
-newtype LBOp =
-  LBOp String
+  = AFGround AstGround
+  | AFBool Bool
+  | AFVar String
+  | AFUexp UOP AstTF
+  | AFBexp BOP AstTF AstTF
   deriving (Eq, Ord, Show)
 
 data AstGameStm
@@ -91,18 +91,25 @@ data AstGameStm
   deriving (Eq, Ord, Show)
 
 data AstTerm
+  = ATBool Bool
+  | ATVar String
+  | ATGround AstGround
+  | ATBexp BOP AstTerm AstTerm
+  | ATUexp UOP AstTerm
+  deriving (Eq, Ord, Show)
+
+data AstGround
   = AConstInt Integer
   | AConstReal Rational
-  | AConstBool Bool
-  | ATermVar String
-  | ATBexpr TBOP AstTerm AstTerm
-  | ATUexpr TUOP AstTerm
+  | AGVar String
+  | AGBexp BOP AstGround AstGround
+  | AGUexp UOP AstGround
   deriving (Eq, Ord, Show)
 
-newtype TBOP =
-  TBOP String
+newtype BOP =
+  BOP String
   deriving (Eq, Ord, Show)
 
-newtype TUOP =
-  TUP String
+newtype UOP =
+  UOP String
   deriving (Eq, Ord, Show)
