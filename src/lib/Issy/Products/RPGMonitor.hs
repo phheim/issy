@@ -35,7 +35,7 @@ import Issy.Utils.Logging
 
 onTheFlyProduct :: Config -> Game -> Objective -> Monitor -> IO (Game, Objective)
 onTheFlyProduct cfg game obj monitor = do
-  cfg <- pure $ setName "RPGxMonitor" cfg
+  cfg <- pure $ setName "RPG x Monitor" cfg
   case checkDomain game monitor of
     Just err -> fail ("assert: " ++ err)
     Nothing -> do

@@ -23,6 +23,7 @@ module Issy.SymbolicArena
   , addLoc
   , addSink
   , empty
+  , succs
   ) where
 
 import Data.Bifunctor (second)

@@ -26,6 +26,7 @@ module Issy.Logic.FOL
   , mapTerm
   , mapTermM
   , mapSymbol
+  , setTerm
   , --
     forAll
   , exists
@@ -57,6 +58,7 @@ module Issy.Logic.FOL
   , frees
   , quantifierFree
   , symbols
+  , nonBoolTerms
   , --
     uniqueName
   , uniquePrefix
@@ -81,6 +83,7 @@ data Sort
   | SFunc [Sort] Sort
   deriving (Eq, Ord, Show)
 
+-- TODO: Maybe remove on of UnintF and CustomF
 data Function
   = PredefF Symbol
   | UnintF Symbol
@@ -101,27 +104,13 @@ data Constant
   -- ^ 'BoolConst' is a bool constant
   deriving (Eq, Ord, Show)
 
+booleanFunctions :: [String]
+booleanFunctions = ["and", "or", "not", "distinct", "=>"]
+
 predefined :: [String]
 predefined =
-  [ "and"
-  , "or"
-  , "not"
-  , "ite"
-  , "distinct"
-  , "+"
-  , "-"
-  , "*"
-  , "/"
-  , "=>"
-  , "="
-  , "<"
-  , ">"
-  , "<="
-  , ">="
-  , "abs"
-  , "to_real"
-  , "mod"
-  ]
+  booleanFunctions
+    ++ ["ite", "+", "-", "*", "/", "=", "<", ">", "<=", ">=", "abs", "to_real", "mod"]
 
 data Term
   = Var Symbol Sort
@@ -230,6 +219,21 @@ mapSymbol m = rec
         Lambda t f -> Lambda t (rec f)
         QVar n -> QVar n
         Const c -> Const c
+
+setTerm :: Term -> Bool -> Term -> Term
+setTerm targ val = go
+  where
+    go f
+      | targ == f && val = true
+      | targ == f && not val = false
+      | otherwise =
+        case f of
+          Func (PredefF "and") fs -> andf (map go fs)
+          Func (PredefF "or") fs -> orf (map go fs)
+          Func (PredefF "not") [f] -> neg (go f)
+          Func (PredefF "=>") [f, g] -> go f `impl` go g
+          Func (PredefF "distinct") fs -> distinct (map go fs)
+          _ -> f
 
 -------------------------------------------------------------------------------
 true :: Term
@@ -357,6 +361,15 @@ symbols =
     Quant _ _ f -> symbols f
     Lambda _ f -> symbols f
     _ -> empty
+
+nonBoolTerms :: Term -> Set Term
+nonBoolTerms =
+  \case
+    Const (CBool _) -> empty
+    Func (PredefF f) args
+      | f `elem` booleanFunctions -> unions $ map nonBoolTerms args
+      | otherwise -> singleton $ Func (PredefF f) args
+    f -> singleton f
 
 -------------------------------------------------------------------------------
 uniqueName :: Symbol -> Set Symbol -> Symbol
