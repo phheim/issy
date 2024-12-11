@@ -2,7 +2,7 @@ module Main where
 
 import System.Exit (die)
 
-import Issy (parseRPG, rpgToTSLT, rpgToMuCLP)
+import Issy (parseRPG, rpgToMuCLP, rpgToTSLT)
 
 import Common (checkArgs, liftErr)
 

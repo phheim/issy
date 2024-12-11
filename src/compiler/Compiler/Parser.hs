@@ -10,7 +10,6 @@ import Data.Ratio ((%))
 import Text.Read (readMaybe)
 
 import Compiler.Base
-import Compiler.Lexer
 
 parse :: [Token] -> PRes AstSpec
 parse = fmap fst . parseSpec

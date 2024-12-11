@@ -5,7 +5,7 @@ module Issy.Extractors.MuCLP
   ( rpgToMuCLP
   ) where
 
-import Data.Fixed
+import Data.Fixed (Nano, showFixed)
 import Data.Map ((!?))
 import Data.Ratio ((%))
 import Data.Set (Set)

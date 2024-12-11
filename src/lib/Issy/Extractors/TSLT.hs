@@ -5,10 +5,10 @@ module Issy.Extractors.TSLT
   ( rpgToTSLT
   ) where
 
-import Data.Fixed
+import Data.Fixed (Nano, showFixed)
 import qualified Data.Map.Strict as Map
 import Data.Set (Set)
-import qualified Data.Set as Set 
+import qualified Data.Set as Set
 
 import qualified Issy.Base.Locations as Locs
 import Issy.Base.Objectives (Objective(..), WinningCondition(..))

@@ -4,7 +4,7 @@ module Issy.Parsers.IssyFormat
   ( parseIssyFormat
   ) where
 
-import Control.Monad (foldM, when)
+import Control.Monad (foldM, unless, when)
 import Data.Map.Strict (Map, (!), (!?))
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
@@ -64,9 +64,7 @@ parseVarDecs =
       (name, varType) <- parseVarDec d
       when (name `elem` FOL.predefined ++ ["true, false"])
         $ perr (getPos d) "Keyword not allowed as variable"
-      when (not (isVarName name))
-        $ perr (getPos d)
-        $ "\"" ++ name ++ "\" is not a legal variable name"
+      unless (isVarName name) $ perr (getPos d) $ "\"" ++ name ++ "\" is not a legal variable name"
       when (name `elem` Vars.allSymbols vars)
         $ perr (getPos d)
         $ "Duplicate or illegal instance of " ++ name

@@ -4,7 +4,7 @@ module Compiler.Writer
   ( write
   ) where
 
-import Data.Maybe (catMaybes)
+import Data.Maybe (mapMaybe)
 import Data.Ratio (denominator, numerator)
 
 import Compiler.Base
@@ -130,7 +130,7 @@ changeName =
 -- Helpers
 --
 chainWs :: (a -> Maybe String) -> [a] -> String
-chainWs f = ps . catMaybes . map f
+chainWs f = ps . mapMaybe f
 
 sexpr :: [String] -> String
 sexpr =
