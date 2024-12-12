@@ -71,7 +71,6 @@ generatePredicatesRPLT cfg vars preds = do
             Set.fromList [func "=" args, func "<" args, func "<=" args]
           | otherwise -> Set.empty
         _ -> Set.empty
-  
 
 propagatedPredicates :: Config -> Term -> [(Symbol, Term)] -> Set Term -> IO [Term]
 propagatedPredicates cfg constr upds = filterM propagate . Set.toList

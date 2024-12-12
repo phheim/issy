@@ -1,3 +1,5 @@
+{-# LANGUAGE LambdaCase #-}
+
 module Issy.SymbolicArena
   ( Arena
   , domain
@@ -24,6 +26,7 @@ module Issy.SymbolicArena
   , addSink
   , empty
   , succs
+  , check
   ) where
 
 import Data.Bifunctor (second)
@@ -218,6 +221,43 @@ loopArena arena l =
           , predRel = Map.insert l Set.empty . Map.insert l' (preds arena l) $ predRel arena'
           }
       , l')
+
+--
+-- Sanitize
+--
+check :: Config -> Arena -> IO (Maybe String)
+check cfg a = go $ Set.toList $ locSet a
+  where
+    v = variables a
+    go =
+      \case
+        [] -> pure Nothing
+        l:lr -> do
+                -- Check conditions from symbolic game structure definition
+                -- Condition 1: At most on successor location for evironment choice
+                -- TODO CHECK PAPER CONDITON W.R.T domain restrictions for X'
+          c1 <-
+            SMT.valid cfg
+              $ Vars.forallX v
+              $ FOL.impl (domain a l)
+              $ Vars.forallI v
+              $ Vars.forallX' v
+              $ FOL.atMostOne
+              $ flip map (Set.toList (locSet a))
+              $ \l' -> Vars.primeT v (domain a l') `FOL.impl` trans a l l'
+                -- Condition 2: Successor exists
+          c2 <-
+            SMT.valid cfg
+              $ Vars.forallX v
+              $ FOL.impl (domain a l)
+              $ Vars.existsI v
+              $ Vars.existsX' v
+              $ FOL.orfL (Set.toList (locSet a))
+              $ \l' -> FOL.andf [Vars.primeT v (domain a l'), trans a l l']
+          case (c1, c2) of
+            (False, _) -> pure $ Just $ locName a l ++ "violates (1) in game definition"
+            (_, False) -> pure $ Just $ locName a l ++ "violates (2) in game definition"
+            _ -> go lr
 
 --
 -- Simplification

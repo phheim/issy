@@ -44,6 +44,7 @@ module Issy.Logic.FOL
   , ite
   , distinct
   , exactlyOne
+  , atMostOne
   , bvarT
   , ivarT
   , rvarT
@@ -293,6 +294,9 @@ distinct = Func (PredefF "distinct")
 
 exactlyOne :: [Term] -> Term
 exactlyOne fs = andf (orf fs : map (\f -> f `impl` andf [neg g | g <- fs, g /= f]) fs)
+
+atMostOne :: [Term] -> Term
+atMostOne fs = geqT oneT $ func "+" $ map (\f -> ite f oneT zeroT) fs
 
 quantify :: Symbol -> Term -> Term
 quantify var = quant 0
