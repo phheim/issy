@@ -15,8 +15,8 @@ module Issy.Logic.SMT
 
 import Data.Map ((!?))
 import Data.Maybe (fromMaybe)
-import System.Exit (ExitCode(..))
 import System.Process (readProcessWithExitCode)
+import qualified System.Timeout as Sys (timeout)
 
 import Issy.Config
   ( Config(smtSimplifyZ3Tacs)
@@ -31,7 +31,7 @@ import Issy.Parsers.SMTLibLexer
 import Issy.Printers.SMTLib
 import Issy.Utils.Logging
 
-modelQuery :: Config -> Maybe Word -> String
+modelQuery :: Config -> Maybe Int -> String
 modelQuery cfg mto = preproc (smtModelGenCommand cfg)
   where
     to = fromMaybe maxBound mto
@@ -55,7 +55,7 @@ getSolver cfg =
     SMTSolverZ3 -> ("z3", ["-smt2", "-in"])
     SMTSolverCVC5 -> ("cvc5", ["--produce-models", "-"])
 
-satTO :: Config -> Maybe Word -> Term -> IO (Maybe Bool)
+satTO :: Config -> Maybe Int -> Term -> IO (Maybe Bool)
 satTO cfg to f = do
   let query = toSMTLib2 f ++ "(check-sat)"
   let (solver, args) = getSolver cfg
@@ -69,7 +69,7 @@ satTO cfg to f = do
          's':'a':'t':_ -> return True
          _ -> error ("smt-solver returned unexpected: \"" ++ res ++ "\""))
 
-satModelTO :: Config -> Maybe Word -> Term -> IO (Maybe (Maybe Model))
+satModelTO :: Config -> Maybe Int -> Term -> IO (Maybe (Maybe Model))
 satModelTO cfg to f = do
   let query = toSMTLib2 f ++ modelQuery cfg to ++ "(get-model)"
   let (solver, args) = getSolver cfg
@@ -118,7 +118,7 @@ z3TacticList =
     [t] -> t
     t:tr -> "(and-then " ++ t ++ " " ++ z3TacticList tr ++ ")"
 
-simplifyTO :: Config -> Maybe Word -> Term -> IO (Maybe Term)
+simplifyTO :: Config -> Maybe Int -> Term -> IO (Maybe Term)
 simplifyTO cfg to f = do
   let query = toSMTLib2 f ++ "(apply " ++ z3TacticList (smtSimplifyZ3Tacs cfg) ++ ")"
   let (solver, args) = ("z3", ["--smt2", "--in"])
@@ -131,23 +131,24 @@ simplifyTO cfg to f = do
 simplify :: Config -> Term -> IO Term
 simplify cfg = fmap (fromMaybe undefined) . simplifyTO cfg Nothing
 
-runTO :: Maybe Word -> String -> [String] -> String -> IO (Maybe String)
+runTO :: Maybe Int -> String -> [String] -> String -> IO (Maybe String)
 runTO to cmd args input =
   case to of
     Nothing -> do
       (_, res, _) <- readProcessWithExitCode cmd args input
       return (Just res)
-    Just n -> do
-      (ext, res, _) <- readProcessWithExitCode "timeout" (show n : cmd : args) input
-      case ext of
-        ExitSuccess -> return (Just res)
-        ExitFailure n
-          | n == 124 -> return Nothing
-          | otherwise -> return (Just res)
+    Just n
+      | n < 0 -> do
+        (_, res, _) <- readProcessWithExitCode cmd args input
+        return (Just res)
+      | otherwise -> do
+        res <- Sys.timeout (n * 10^(6 :: Int)) $ readProcessWithExitCode cmd args input
+        case res of
+          Just (_, res, _) -> return (Just res)
+          Nothing -> pure Nothing
 
--- this will move to rpgsolve part
 z3SimplifyUF :: [String]
 z3SimplifyUF = ["simplify", "propagate-ineqs", "qe", "simplify"]
 
-trySimplifyUF :: Config -> Word -> Term -> IO (Maybe Term)
+trySimplifyUF :: Config -> Int -> Term -> IO (Maybe Term)
 trySimplifyUF cfg to = simplifyTO (cfg {smtSimplifyZ3Tacs = z3SimplifyUF}) (Just to)

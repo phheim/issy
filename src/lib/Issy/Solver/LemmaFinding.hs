@@ -159,7 +159,7 @@ constCompInv rest (TypedCells {..}) prf =
           br n = ite (bvarT (varcl prf n c))
        in br "a" (br "b" true (func "=" [cc, var])) (br "b" (cc `leqT` var) (var `leqT` cc))
 
-genInstH :: Word -> TypedCells -> Symbol -> LemInst
+genInstH :: Int -> TypedCells -> Symbol -> LemInst
 genInstH limit tyc pref =
   let (ccomp, cinvc) = templateConfig limit
       act = bvarT (pref ++ "_act")
@@ -175,14 +175,13 @@ genInstH limit tyc pref =
            (andf [act, ci, inv])
            prime)
 
-genInst ::
-     Word -> TypedCells -> Symbol -> LemSyms -> Constraint -> Term -> (Constraint, Term, Lemma)
+genInst :: Int -> TypedCells -> Symbol -> LemSyms -> Constraint -> Term -> (Constraint, Term, Lemma)
 genInst limit tyc pref l cons f =
   let LemInst consL li = genInstH limit tyc pref
       rep = replaceLemma tyc li l
    in (consL ++ map rep cons, rep f, li)
 
-skolemize :: Word -> TypedCells -> Set Symbol -> Term -> Term
+skolemize :: Int -> TypedCells -> Set Symbol -> Term -> Term
 skolemize limit (TypedCells {..}) metas =
   mapTerm
     (\v s ->
@@ -191,7 +190,7 @@ skolemize limit (TypedCells {..}) metas =
          else Nothing)
 
 instantiate ::
-     Word -> TypedCells -> Constraint -> Term -> [LemSyms] -> (Constraint, Term, [(LemSyms, Lemma)])
+     Int -> TypedCells -> Constraint -> Term -> [LemSyms] -> (Constraint, Term, [(LemSyms, Lemma)])
 instantiate limit tyc cons f ls =
   let syms = unions (cellsS tyc : symbols f : (symbols <$> cons))
       pref = uniquePrefix "p" syms
@@ -206,13 +205,7 @@ instantiate limit tyc cons f ls =
 -- Search
 -------------------------------------------------------------------------------
 resolveQE ::
-     Config
-  -> Word
-  -> TypedCells
-  -> Constraint
-  -> Term
-  -> [LemSyms]
-  -> IO (Term, [(LemSyms, Lemma)])
+     Config -> Int -> TypedCells -> Constraint -> Term -> [LemSyms] -> IO (Term, [(LemSyms, Lemma)])
 resolveQE cfg limit tyc cons f ls =
   let (cons', f', _) = instantiate limit tyc cons f ls
       meta = Set.toList (frees (andf cons'))
@@ -230,13 +223,7 @@ resolveQE cfg limit tyc cons f ls =
             return (false, [])
 
 resolveSk ::
-     Config
-  -> Word
-  -> TypedCells
-  -> Constraint
-  -> Term
-  -> [LemSyms]
-  -> IO (Term, [(LemSyms, Lemma)])
+     Config -> Int -> TypedCells -> Constraint -> Term -> [LemSyms] -> IO (Term, [(LemSyms, Lemma)])
 resolveSk cfg limit tyc cons f ls = do
   cfg <- pure $ setName "Resolve SK" cfg
   let (cons', f', col) = instantiate limit tyc cons f ls
@@ -260,13 +247,7 @@ resolveSk cfg limit tyc cons f ls = do
       return (res, map (second (mapL (setModel m . sk))) col)
 
 resolveBoth ::
-     Config
-  -> Word
-  -> TypedCells
-  -> Constraint
-  -> Term
-  -> [LemSyms]
-  -> IO (Term, [(LemSyms, Lemma)])
+     Config -> Int -> TypedCells -> Constraint -> Term -> [LemSyms] -> IO (Term, [(LemSyms, Lemma)])
 resolveBoth cfg limit tyc cons f ls =
   let (cons', f', col) = instantiate limit tyc cons f ls
       meta = frees (andf cons')
@@ -298,13 +279,7 @@ resolveBoth cfg limit tyc cons f ls =
             return (false, [])
 
 resolve ::
-     Config
-  -> Word
-  -> TypedCells
-  -> Constraint
-  -> Term
-  -> [LemSyms]
-  -> IO (Term, [(LemSyms, Lemma)])
+     Config -> Int -> TypedCells -> Constraint -> Term -> [LemSyms] -> IO (Term, [(LemSyms, Lemma)])
 resolve cfg
   | skolemizeOnly cfg = resolveSk cfg
   | generateProgram cfg = resolveBoth cfg

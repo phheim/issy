@@ -84,7 +84,7 @@ cpreS ctx p g st = simplifySymSt ctx (symSt (locations g) (cpre p g st))
 -------------------------------------------------------------------------------
 -- Visit Counting
 -------------------------------------------------------------------------------
-type VisitCounter = Map Loc Word
+type VisitCounter = Map Loc Int
 
 noVisits :: Game -> VisitCounter
 noVisits g = fromSet (const 0) (locations g)
@@ -92,7 +92,7 @@ noVisits g = fromSet (const 0) (locations g)
 visit :: Loc -> VisitCounter -> VisitCounter
 visit l = Map.insertWith (+) l 1
 
-visits :: Loc -> VisitCounter -> Word
+visits :: Loc -> VisitCounter -> Int
 visits = findWithDefault 0
 
 -------------------------------------------------------------------------------
@@ -136,7 +136,7 @@ expandStep g name =
       | otherwise -> Func n (expandStep g name <$> args)
     atom -> atom
 
-accReach :: Word -> Ply -> Game -> Loc -> SymSt -> UsedSyms -> (Constraint, Term, UsedSyms, CFG)
+accReach :: Int -> Ply -> Game -> Loc -> SymSt -> UsedSyms -> (Constraint, Term, UsedSyms, CFG)
 accReach depth p g l st uSym =
   let (gl, l') = loopGame g l
       (b, s, c, lSyms, sSym, uSym') = lemmaSymbols g uSym
@@ -158,11 +158,11 @@ accReach depth p g l st uSym =
         ]
    in (cons', c, uSym'', cfg)
 
-visitingThreshold :: Word
+visitingThreshold :: Int
 visitingThreshold = 1
 
 iterAttr ::
-     Word -> Ply -> Game -> SymSt -> Loc -> UsedSyms -> CFG -> (Constraint, SymSt, UsedSyms, CFG)
+     Int -> Ply -> Game -> SymSt -> Loc -> UsedSyms -> CFG -> (Constraint, SymSt, UsedSyms, CFG)
 iterAttr depth p g st shadow = attr (OL.fromSet (preds g shadow)) (noVisits g) [] st
   where
     attr ::
@@ -187,7 +187,7 @@ iterAttr depth p g st shadow = attr (OL.fromSet (preds g shadow)) (noVisits g) [
       where
         reC l ol' = attr (preds g l `push` ol') (visit l vc)
 
-accelReach :: Config -> Word -> Ply -> Game -> Loc -> SymSt -> IO (Term, CFG)
+accelReach :: Config -> Int -> Ply -> Game -> Loc -> SymSt -> IO (Term, CFG)
 accelReach ctx limit p g l st = do
   ctx <- pure $ setName "AccReach" ctx
   lg ctx ["Accelerate in", locName g l, "on", lgS g st]
