@@ -34,7 +34,9 @@ module Issy.Logic.FOL
   , true
   , false
   , andf
+  , andfL
   , orf
+  , orfL
   , neg
   , impl
   , iff
@@ -251,6 +253,9 @@ andf xs
       [x] -> x
       xs -> Func (PredefF "and") xs
 
+andfL :: [a] -> (a -> Term) -> Term
+andfL xs f = andf $ map f xs
+
 orf :: [Term] -> Term
 orf xs
   | true `elem` xs = true
@@ -259,6 +264,9 @@ orf xs
       [] -> false
       [x] -> x
       xs -> Func (PredefF "or") xs
+
+orfL :: [a] -> (a -> Term) -> Term
+orfL xs f = orf $ map f xs
 
 neg :: Term -> Term
 neg f

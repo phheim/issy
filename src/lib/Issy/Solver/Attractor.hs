@@ -281,7 +281,7 @@ applyCache ctx game player cache attrSt currentLoc = go attrSt cache
 attractorFull :: Config -> Ply -> Game -> Cache -> SymSt -> IO (SymSt, CFG)
 attractorFull ctx p g cache symst = do
   nf <- Set.fromList . map fst <$> filterM (sat ctx . snd) (listSymSt symst)
-  lg ctx ["Attractor from", strS (locName g) nf, "starting in", lgS g symst]
+  lg ctx ["Attractor for", show p, "from", strS (locName g) nf, "starting in", lgS g symst]
   (res, cfg) <- attr (noVisits g) (OL.fromSet (predSet g nf)) symst (goalCFG symst)
   lg ctx ["Attractor result", lgS g res]
   return (res, cfg)

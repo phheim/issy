@@ -41,7 +41,7 @@ import qualified Issy.Base.SymbolicState as SymSt
 import Issy.Base.Variables (Variables)
 import qualified Issy.Base.Variables as Vars
 import Issy.Config (Config)
-import Issy.Logic.FOL (Symbol, Term, andf, false, frees, impl, orf, symbols, true)
+import Issy.Logic.FOL (Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.SMT as SMT
 import qualified Issy.Utils.OpenList as OL
@@ -65,11 +65,11 @@ empty vars =
     }
 
 domain :: Arena -> Loc -> Term
-domain arena l = Map.findWithDefault false l (aDomain arena)
+domain arena l = Map.findWithDefault FOL.false l (aDomain arena)
 
 trans :: Arena -> Loc -> Loc -> Term
 trans arena src trg =
-  Map.findWithDefault false trg $ Map.findWithDefault Map.empty src $ transRel arena
+  Map.findWithDefault FOL.false trg $ Map.findWithDefault Map.empty src $ transRel arena
 
 transList :: Arena -> [(Loc, Loc, Term)]
 transList =
@@ -81,7 +81,7 @@ succs :: Arena -> Loc -> Set Loc
 succs arena src =
   Set.fromList
     $ map fst
-    $ filter ((/= false) . snd)
+    $ filter ((/= FOL.false) . snd)
     $ Map.toList
     $ Map.findWithDefault Map.empty src
     $ transRel arena
@@ -119,7 +119,7 @@ reachables g l = bfs Set.empty (l `OL.pushOne` OL.empty)
 usedSymbols :: Arena -> Set Symbol
 usedSymbols arena =
   Vars.allSymbols (variables arena)
-    `Set.union` Set.unions (map symbols (concatMap Map.elems (Map.elems (transRel arena))))
+    `Set.union` Set.unions (map FOL.symbols (concatMap Map.elems (Map.elems (transRel arena))))
 
 boundedVar :: Arena -> Symbol -> Bool
 boundedVar _ _ = False --TODO: Implement: Maybe into variables!!!
@@ -136,8 +136,8 @@ setDomain arena l dom
 
 setTrans :: Arena -> Loc -> Loc -> Term -> Arena
 setTrans arena src trg trans
-  | trans == false = arena
-  | not (frees trans `Set.isSubsetOf` Vars.allSymbols (variables arena)) =
+  | trans == FOL.false = arena
+  | not (FOL.frees trans `Set.isSubsetOf` Vars.allSymbols (variables arena)) =
     error "assert: try to set transition with unkown variabels"
   | otherwise =
     let newTransRel =
@@ -170,28 +170,36 @@ createLocsFor arena name dom =
             in (setDomain a' l (dom e), Map.insert e l mp))
         (arena, Map.empty)
 
-transTerms :: Arena -> Loc -> (Loc -> Term) -> [Term]
-transTerms arena src next =
-  let vars = variables arena
-   in [ andf [trans arena src trg, Vars.primeT vars (domain arena trg), Vars.primeT vars (next trg)]
-      | trg <- succL arena src
-      ]
-
+--
+-- Solving
+--
 validInput :: Arena -> Loc -> Term
-validInput arena src = Vars.existsX' (variables arena) $ orf $ transTerms arena src (const true)
+validInput a l =
+  let v = variables a
+   in Vars.existsX' v
+        $ FOL.orfL (succL a l)
+        $ \l' -> FOL.andf [trans a l l', Vars.primeT v (domain a l')]
 
 cpreEnv :: Arena -> SymSt -> Loc -> Term
-cpreEnv arena st src =
-  let vars = variables arena
-   in Vars.existsI vars
-        $ andf
-            [validInput arena src, Vars.forallX' vars (andf (transTerms arena src (SymSt.get st)))]
+cpreEnv a d l =
+  let v = variables a
+   in Vars.existsI v
+        $ FOL.impl (validInput a l)
+        $ Vars.forallX' v
+        $ FOL.andfL (succL a l)
+        $ \l' ->
+            FOL.andf [trans a l l', Vars.primeT v (domain a l')]
+              `FOL.impl` Vars.primeT v (SymSt.get d l')
 
 cpreSys :: Arena -> SymSt -> Loc -> Term
-cpreSys arena st src =
-  let vars = variables arena
-   in Vars.forallI vars
-        $ validInput arena src `impl` Vars.existsX' vars (orf (transTerms arena src (SymSt.get st)))
+cpreSys a d l =
+  let v = variables a
+   in Vars.forallI v
+        $ FOL.impl (validInput a l)
+        $ Vars.existsX' v
+        $ FOL.orfL (succL a l)
+        $ \l' ->
+            FOL.andf [trans a l l', Vars.primeT v (domain a l'), Vars.primeT v (SymSt.get d l')]
 
 loopArena :: Arena -> Loc -> (Arena, Loc)
 loopArena arena l =
@@ -211,6 +219,9 @@ loopArena arena l =
           }
       , l')
 
+--
+-- Simplification
+--
 simplifyArena :: Config -> Arena -> IO Arena
 simplifyArena cfg arena = do
   let filt mp = Map.filter (/= FOL.false) <$> mapM (SMT.simplify cfg) mp
