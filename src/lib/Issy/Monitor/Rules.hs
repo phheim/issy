@@ -6,6 +6,7 @@ module Issy.Monitor.Rules
   ( applyRules
   , Context
   , context
+  , contextTSL
   , deducedInvariant
   , derivedEventually
   ) where
@@ -77,6 +78,7 @@ data Context = Context
   , fpPred :: Term
   , fpPred' :: Term
   -- Update related
+  , updates :: Bool --TODO: Add assertion checks w.r.t to this!
   , aux :: [Symbol]
   , updateEncodes :: Map (Symbol, Term) Symbol
   , exactlyOneUpd :: Term
@@ -90,8 +92,8 @@ data Context = Context
   , chcMaxCache :: Map ([Formula], [Formula]) (Maybe Formula)
   } deriving (Show)
 
-baseContext :: Variables -> Context
-baseContext vars =
+context :: Variables -> Context
+context vars =
   let fpn = uniqueName "fixpointpred" (allSymbols vars)
       stv = (\v -> (v, sortOf vars v)) <$> stateVarL vars
    in Context
@@ -101,6 +103,7 @@ baseContext vars =
         , fpPred = Func (UnintF fpn) $ map (uncurry Var) stv
         , fpPred' = primeT vars $ Func (UnintF fpn) $ map (uncurry Var) stv
             --
+        , updates = False
         , aux = []
         , updateEncodes = Map.empty
         , exactlyOneUpd = true
@@ -114,13 +117,14 @@ baseContext vars =
         , chcMaxCache = Map.empty
         }
 
-context :: Variables -> Set (Symbol, Term) -> Context
-context vars updates =
+contextTSL :: Variables -> Set (Symbol, Term) -> Context
+contextTSL vars updates =
   let complUpd = updates `Set.union` Set.map (\v -> (v, Var v (sortOf vars v))) (stateVars vars)
       prefUpd = uniquePrefix "update" (allSymbols vars)
       updAux = intmapSet (\n upd -> (upd, prefUpd ++ show n)) complUpd
-   in (baseContext vars)
+   in (context vars)
         { updateEncodes = Map.fromList updAux
+        , updates = True
         , aux = map snd updAux
         , exactlyOneUpd =
             andf

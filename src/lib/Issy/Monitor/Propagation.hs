@@ -50,6 +50,29 @@ generatePredicates cfg vars preds updates = do
         Set.singleton (Var var (sortOf vars var) `equal` upd)
       | otherwise = Set.empty
 
+generatePredicatesRPLT :: Config -> Variables -> Set Term -> IO (Set Term)
+generatePredicatesRPLT cfg vars preds = do
+  preds <- pure $ Set.filter (all (isStateVar vars) . frees) preds
+  let boolPreds = Set.map bvarT $ Set.filter ((== SBool) . sortOf vars) $ stateVars vars
+  preds <- pure $ preds `Set.union` guardLevel 2 boolPreds
+  preds <- pure $ preds `Set.union` guardLevel 3 (Set.unions (Set.map mutate preds))
+  preds <- pure $ preds `Set.union` guardLevel 1 (Set.map neg preds)
+  Set.fromList <$> mapM (simplify cfg) (Set.toList preds)
+  where
+    guardLevel k
+      | propagationLevel cfg >= k = id
+      | otherwise = const Set.empty
+    --
+    mutate term =
+      case term of
+        Func (PredefF "not") [arg] -> mutate arg
+        Func (PredefF name) args
+          | name `elem` ["=", "<", ">", "<=", ">="] ->
+            Set.fromList [func "=" args, func "<" args, func "<=" args]
+          | otherwise -> Set.empty
+        _ -> Set.empty
+  
+
 propagatedPredicates :: Config -> Term -> [(Symbol, Term)] -> Set Term -> IO [Term]
 propagatedPredicates cfg constr upds = filterM propagate . Set.toList
   where

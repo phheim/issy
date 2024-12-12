@@ -17,17 +17,21 @@ module Issy.Monitor
   ) where
 
 import qualified Data.Map.Strict as Map
+import Data.Set (Set)
 import qualified Data.Set as Set
 
+import Issy.Base.Variables (Variables)
 import Issy.Config (Config, setName)
+import Issy.Logic.FOL (Term)
 import qualified Issy.Logic.RPLTL as RPLTL
 import Issy.Logic.TSLMT hiding (variables)
 import qualified Issy.Logic.TSLMT as TSLMT (TSLSpec(variables))
-import Issy.Monitor.Formula (fromTSL)
+import Issy.Monitor.Formula (Formula)
+import qualified Issy.Monitor.Formula as MF
 import Issy.Monitor.Monitor
 import Issy.Monitor.Postprocess (finish)
 import Issy.Monitor.Propagation (generatePredicates)
-import Issy.Monitor.Rules (applyRules, context)
+import qualified Issy.Monitor.Rules as MR
 import Issy.Monitor.State (falseSt, initSt, stateToString, trueSt)
 import Issy.Monitor.Successors (generateSuccessor)
 import Issy.Printers.SMTLib (smtLib2)
@@ -35,19 +39,40 @@ import Issy.Utils.Logging
 
 initializeTSL :: Config -> TSLSpec -> IO Monitor
 initializeTSL cfg spec = do
+  cfg <- pure $ setName "Monitor TSL" cfg
+  preds <- generatePredicates cfg (TSLMT.variables spec) (tslSpecPreds spec) (tslSpecUpdates spec)
+  initialize
+    cfg
+    (MR.contextTSL (TSLMT.variables spec) (tslSpecUpdates spec))
+    (TSLMT.variables spec)
+    (MF.fromTSL <$> assumptions spec)
+    (MF.fromTSL <$> guarantees spec)
+    preds
+
+initializeRPLTL :: Config -> RPLTL.Spec -> IO Monitor
+initializeRPLTL cfg spec = do
   cfg <- pure $ setName "Monitor" cfg
-  let ctx = context (TSLMT.variables spec) (tslSpecUpdates spec)
-  let initialLabel = initSt (map fromTSL (assumptions spec)) (map fromTSL (guarantees spec))
+  preds <- error "TODO FIX: init monitor with RP-LTL" --generatePredicates cfg (TSLMT.variables spec) (tslSpecPreds spec) (tslSpecUpdates spec)
+  initialize
+    cfg
+    (MR.context (RPLTL.variables spec))
+    (RPLTL.variables spec)
+    (MF.fromRPLTL <$> RPLTL.assumptions spec)
+    (MF.fromRPLTL <$> RPLTL.guarantees spec)
+    preds
+
+initialize :: Config -> MR.Context -> Variables -> [Formula] -> [Formula] -> Set Term -> IO Monitor
+initialize cfg ctx vars assumptions guarantees preds = do
+  lg cfg ["generate preds:", strS smtLib2 preds]
+  let initialLabel = initSt assumptions guarantees
   lg cfg ["initalize:", "raw", stateToString initialLabel]
-  (initialLabel, ctx) <- applyRules cfg ctx initialLabel
+  (initialLabel, ctx) <- MR.applyRules cfg ctx initialLabel
   lg cfg ["initalize:", "simple", stateToString initialLabel]
   let initialLabels = [(State 0, initialLabel), (State 1, trueSt), (State 2, falseSt)]
-  preds <- generatePredicates cfg (TSLMT.variables spec) (tslSpecPreds spec) (tslSpecUpdates spec)
-  lg cfg ["generate preds:", strS smtLib2 preds]
   return
     $ Monitor
         { ctx = ctx
-        , variables = TSLMT.variables spec
+        , variables = vars
         , predicates = preds
         , initState = State 0
         , goodState = State 1
@@ -59,6 +84,3 @@ initializeTSL cfg spec = do
         , stateTrans = Map.empty
         , expansionCache = Map.empty
         }
-
-initializeRPLTL :: Config -> RPLTL.Spec -> IO Monitor
-initializeRPLTL = error "TODO FIX: init monitor with RP-LTL"

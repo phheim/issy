@@ -31,6 +31,7 @@ module Issy.Monitor.Formula
   , normAndLight
   , toplevelCNF
   , fromTSL
+  , fromRPLTL
   , staticFormulaToTerm
   , subst
   , substT
@@ -45,8 +46,10 @@ import qualified Data.Set as Set
 import Issy.Base.Variables (Variables)
 import qualified Issy.Base.Variables as Vars
 import Issy.Logic.FOL
-import Issy.Logic.TSLMT
+import qualified Issy.Logic.RPLTL as RPLTL
+import qualified Issy.Logic.TSLMT as TSL
 import Issy.Logic.Temporal
+
 import Issy.Printers.SMTLib (smtLib2)
 
 -------------------------------------------------------------------------------
@@ -509,21 +512,31 @@ encodeFormula updateEncode =
 -------------------------------------------------------------------------------
 -- Conversion
 -------------------------------------------------------------------------------
-fromTSL :: TSL -> Formula
+fromTL :: (a -> Formula) -> TL a -> Formula
+fromTL fromAtomic = go
+  where
+    go =
+      \case
+        TLAtomic a -> fromAtomic a
+        TLAnd fs -> fand $ map go fs
+        TLOr fs -> for $ map go fs
+        TLNot f -> fnot $ go f
+        TLUnaryOp TLNext f -> fnext $ go f
+        TLUnaryOp TLGlobally f -> fglobally $ go f
+        TLUnaryOp TLEventually f -> feventually $ go f
+        TLBinaryOp op f g ->
+          let (ff, fg) = (go f, go g)
+           in case op of
+                TLWeakUntil -> fweak ff fg
+                TLUntil -> fand [fweak ff fg, feventually fg]
+                TLRelease -> fweak fg (fand [ff, fg])
+
+fromTSL :: TSL.TSL -> Formula
 fromTSL =
-  \case
-    TLAtomic (TSLUpdate var term) -> fupdate True var term
-    TLAtomic (TSLPredicate term) -> fpred True term
-    TLAnd fs -> fand $ map fromTSL fs
-    TLOr fs -> for $ map fromTSL fs
-    TLNot f -> fnot $ fromTSL f
-    TLUnaryOp TLNext f -> fnext $ fromTSL f
-    TLUnaryOp TLGlobally f -> fglobally $ fromTSL f
-    TLUnaryOp TLEventually f -> feventually $ fromTSL f
-    TLBinaryOp op f g ->
-      let (ff, fg) = (fromTSL f, fromTSL g)
-       in case op of
-            TLWeakUntil -> fweak ff fg
-            TLUntil -> fand [fweak ff fg, feventually fg]
-            TLRelease -> fweak fg (fand [ff, fg])
+  fromTL $ \case
+    TSL.TSLUpdate var term -> fupdate True var term
+    TSL.TSLPredicate term -> fpred True term
+
+fromRPLTL :: RPLTL.Formula -> Formula
+fromRPLTL = fromTL (fpred True)
 -------------------------------------------------------------------------------
