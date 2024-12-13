@@ -12,8 +12,12 @@ import qualified Data.Set as Set
 
 import qualified Issy.Base.Locations as Locs
 import Issy.Base.Objectives (Objective(..), WinningCondition(..))
+import qualified Issy.Base.Variables as Vars
 import Issy.Logic.FOL
 import Issy.RPG
+
+sortOf :: Game -> Symbol -> Sort
+sortOf = Vars.sortOf . variables
 
 encConst :: Bool -> Constant -> String
 encConst ugly =
@@ -109,11 +113,13 @@ encTrans g =
 
 encState :: Game -> String
 encState g =
-  "//-- State: " ++ concatMap (\v -> encVar False v (sortOf g v) ++ ", ") (outputs g) ++ "loc"
+  "//-- State: "
+    ++ concatMap (\v -> encVar False v (sortOf g v) ++ ", ") (Vars.stateVarL (variables g))
+    ++ "loc"
 
 encInputs :: Game -> String
 encInputs g =
-  case inputs g of
+  case Vars.inputL (variables g) of
     [] -> ""
     i:ir -> "//-- Inputs: " ++ encV i ++ concatMap ((", " ++) . encV) ir
   where
@@ -124,7 +130,7 @@ encGame init g =
   unlines
     $ [encState g, encInputs g, "guarantee {", encLoc g init ++ ";"]
         ++ map
-             (\l -> "G (" ++ encLoc g l ++ " -> " ++ encTrans g (tran g l) ++ ");")
+             (\l -> "G (" ++ encLoc g l ++ " -> " ++ encTrans g (trans g l) ++ ");")
              (Set.toList (locations g))
         ++ ["}"]
 

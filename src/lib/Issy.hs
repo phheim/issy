@@ -11,7 +11,6 @@ module Issy
   , tslToRPG
   , rpltlToSG
   , specToSG
-  , rpgProduct
   , printIssyFormat
   , printRPG
   , printSG
@@ -38,9 +37,6 @@ import Issy.Parsers.TSLMT (parseTSL)
 import Issy.Printers.IssyFormat (printIssyFormat)
 import Issy.Printers.RPG (printRPG)
 import Issy.Printers.SymbolicGame (printSG)
-
--- Products
-import Issy.Products.RPGs (rpgProduct)
 
 -- Solvers
 import Issy.Solver.GameInterface (fromRPG, fromSG)

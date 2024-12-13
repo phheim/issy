@@ -4,6 +4,7 @@ module Issy.Products.RPGMonitor
   ( onTheFlyProduct
   ) where
 
+import Control.Monad (unless)
 import Data.List (nub)
 import Data.Map.Strict (Map, (!), (!?))
 import qualified Data.Map.Strict as Map
@@ -13,8 +14,6 @@ import qualified Data.Set as Set (empty, filter, insert, map)
 import qualified Issy.Utils.OpenList as OL (fromList, pop, pushList)
 
 import Issy.Base.Objectives (Objective(..), WinningCondition(..))
-import Issy.Base.Variables hiding (inputs)
-import qualified Issy.Base.Variables as Vars (inputs)
 import Issy.Config (Config, setName)
 import Issy.Logic.FOL
 import Issy.Monitor
@@ -36,26 +35,17 @@ import Issy.Utils.Logging
 onTheFlyProduct :: Config -> Game -> Objective -> Monitor -> IO (Game, Objective)
 onTheFlyProduct cfg game obj monitor = do
   cfg <- pure $ setName "RPG x Monitor" cfg
-  case checkDomain game monitor of
-    Just err -> fail ("assert: " ++ err)
-    Nothing -> do
-      (monitor, product) <- explore cfg game (initialLoc obj) monitor
-      lg cfg [show product]
-      monitor <- finish cfg monitor
-      let (prodGame, winEnv, winSys, toNew) = productToGame game monitor product
-      let wc = winningCond obj
-      let prodWC = newWC (winEnv, winSys) (explored product) (verdict monitor) toNew wc
-      let prodInit = toNew $ initLocState (initialLoc obj) monitor
-      let prodObj = Objective {initialLoc = prodInit, winningCond = prodWC}
-      simplifyRPG cfg (prodGame, prodObj)
-
--- checks if the game and monitor have the same symbols and updates and so
-checkDomain :: Game -> Monitor -> Maybe String
-checkDomain game mon =
-  if all (`elem` RPG.inputs game) (Vars.inputs (Monitor.variables mon))
-       && all (`elem` RPG.outputs game) (stateVars (Monitor.variables mon))
-    then Nothing
-    else Just "found variables in monitor not present in game"
+  unless (Monitor.variables monitor == RPG.variables game)
+    $ error "assert: found variables in monitor not present in game"
+  (monitor, product) <- explore cfg game (initialLoc obj) monitor
+  lg cfg [show product]
+  monitor <- finish cfg monitor
+  let (prodGame, winEnv, winSys, toNew) = productToGame game monitor product
+  let wc = winningCond obj
+  let prodWC = newWC (winEnv, winSys) (explored product) (verdict monitor) toNew wc
+  let prodInit = toNew $ initLocState (initialLoc obj) monitor
+  let prodObj = Objective {initialLoc = prodInit, winningCond = prodWC}
+  simplifyRPG cfg (prodGame, prodObj)
 
 -- Intermediate product data-structure
 data Product = Product
@@ -78,7 +68,7 @@ explore cfg game init mon = go (OL.fromList [initLocState init mon]) mon emptyPr
         Just ((l, q), openList)
           | (l, q) `elem` explored prod -> go openList mon prod
           | otherwise -> do
-            (transition, mon) <- traversTransition cfg mon q (tran game l)
+            (transition, mon) <- traversTransition cfg mon q (trans game l)
             let openList' =
                   OL.pushList
                     (filter ((`notElem` [VALID, UNSAFE]) . verdict mon . snd)
@@ -153,7 +143,7 @@ addTrivialWins game =
 
 productToGame :: Game -> Monitor -> Product -> (Game, Loc, Loc, (Loc, State) -> Loc)
 productToGame game mon prod =
-  let g0 = sameSymbolGame game
+  let g0 = RPG.empty (RPG.variables game)
       (g1, winEnv, winSys) = addTrivialWins g0
       (g2, mp) =
         createLocations

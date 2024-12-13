@@ -65,9 +65,9 @@ tsl2ltlMap vars tslFormula = (TL.And (tslFormula : constr), (atoms2ap !), (ap2at
 
 doa2game :: Variables -> (String -> TSL.Atom) -> DOA.DOA String -> (Game, Objective)
 doa2game vars atomOf doa =
-  let (game0, stateMap) = foldl addLocs (emptyGame, Map.empty) (DOA.states doa)
+  let game0 = RPG.empty vars
+      (game1, stateMap) = foldl addLocs (game0, Map.empty) (DOA.states doa)
       mapState st = fromMaybe (error "unmapped DOA state") $ stateMap !? st
-      game1 = foldl addVars game0 (Vars.inputs vars `Set.union` Vars.stateVars vars)
       game2 = foldl (addTrans mapState) game1 (DOA.states doa)
       init = mapState (DOA.initial doa)
       wc =
@@ -81,14 +81,9 @@ doa2game vars atomOf doa =
       let (game', loc) = RPG.addLocation game (DOA.stateName state)
        in (game', Map.insert state loc stateMap)
     --
-    addVars game var =
-      case Vars.typeOf vars var of
-        Vars.TInput sort -> fromMaybe game (RPG.addInput game var sort)
-        Vars.TOutput sort -> fromMaybe game (RPG.addOutput game var sort False)
-    --
     addTrans mapState game state =
       let doaTrans = DOA.trans doa state
-          trans = doatran2tran (outputs game) mapState atomOf doaTrans
+          trans = doatran2tran (Vars.stateVarL (variables game)) mapState atomOf doaTrans
        in case addTransition game (mapState state) trans of
             Just game -> game
             Nothing -> error "assert: Transition should not already exist"

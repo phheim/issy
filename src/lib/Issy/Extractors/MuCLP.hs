@@ -13,8 +13,18 @@ import qualified Data.Set as Set
 
 import qualified Issy.Base.Locations as Locs
 import Issy.Base.Objectives (Objective(..), WinningCondition(..))
+import qualified Issy.Base.Variables as Vars
 import Issy.Logic.FOL
 import Issy.RPG
+
+outputs :: Game -> [Symbol]
+outputs = Vars.stateVarL . variables
+
+inputs :: Game -> [Symbol]
+inputs = Vars.inputL . variables
+
+sortOf :: Game -> Symbol -> Sort
+sortOf = Vars.sortOf . variables
 
 encSort :: Sort -> String
 encSort =
@@ -119,7 +129,7 @@ encFullTrans pname g l =
                  ++ concatMap (\s -> " (" ++ s ++ ": " ++ encSort (sortOf g s) ++ ")") (inputs g)
                  ++ "."
           else "")
-    ++ encTrans pname g (tran g l)
+    ++ encTrans pname g (trans g l)
     ++ ");"
 
 encReach :: Game -> Set Loc -> Loc -> String

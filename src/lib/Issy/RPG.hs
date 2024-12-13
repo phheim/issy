@@ -5,26 +5,18 @@
 module Issy.RPG
   ( Loc
   , Game
-  , inputs
-  , outputs
+  , variables
   , locationSet
-  , boundedCells
   , Transition(..)
   , -- Access
     locations
-  , tran
+  , trans
   , inv
-  , tryTrans
-  , sortOf
-  , trySortOf
   , preds
   , predSet
   , locName
   , -- Construction
-    emptyGame
-  , sameSymbolGame
-  , addInput
-  , addOutput
+    empty
   , addLocation
   , addTransition
   , setInv
@@ -56,10 +48,13 @@ import qualified Data.Set as Set
 import Issy.Base.Locations (Loc)
 import qualified Issy.Base.Locations as Locs
 import Issy.Base.Objectives (Objective)
+import qualified Issy.Base.Objectives as Obj
 import Issy.Base.SymbolicState (SymSt)
 import qualified Issy.Base.SymbolicState as SymSt
+import Issy.Base.Variables (Variables)
+import qualified Issy.Base.Variables as Vars
 import Issy.Config (Config)
-import Issy.Logic.FOL (Sort, Symbol, Term)
+import Issy.Logic.FOL (Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
 import Issy.Logic.SMT as SMT
 import Issy.Utils.Extra (ifM, predecessorRelation)
@@ -88,62 +83,34 @@ mapTerms m =
 selfLoop :: Loc -> Transition
 selfLoop l = TSys [(Map.empty, l)]
 
--- TODO: Replace variables by Issy.Base.Variables
 data Game = Game
   { locationSet :: Locs.Store
-  , inputs :: [Symbol]
-  , outputs :: [Symbol]
-  , ioType :: Map Symbol Sort
-  , trans :: Map Loc Transition
-    -- ^ all locations should be mapped
+  , variables :: Variables
+  , transRel :: Map Loc Transition
   , predecessors :: Map Loc (Set Loc)
   , invariant :: Map Loc Term
-    -- ^ all location should be mapped, default mapping to true
-    -- Domain knowledge:
-  , boundedCells :: [Symbol]
   } deriving (Show)
 
 locName :: Game -> Loc -> String
 locName = Locs.name . locationSet
 
-trySortOf :: Game -> Symbol -> Maybe Sort
-trySortOf g v = ioType g !? v
-
-sortOf :: Game -> Symbol -> Sort
-sortOf g v = fromMaybe (error ("assert: sort of " ++ v ++ " not found")) $ trySortOf g v
-
-tryTrans :: Game -> Loc -> Maybe Transition
-tryTrans g l = trans g !? l
-
-tran :: Game -> Loc -> Transition
-tran g l = fromMaybe (error "assert: transition expected") $ tryTrans g l
+trans :: Game -> Loc -> Transition
+trans g l = fromMaybe (selfLoop l) $ transRel g !? l
 
 inv :: Game -> Loc -> Term
-inv g l = fromMaybe (error "assert: all invariants should be mapped!") $ invariant g !? l
+inv g l = fromMaybe FOL.true $ invariant g !? l
 
 setInv :: Game -> Loc -> Term -> Game
 setInv g l i = g {invariant = Map.insert l i (invariant g)}
 
-emptyGame :: Game
-emptyGame =
+empty :: Variables -> Game
+empty vars =
   Game
     { locationSet = Locs.empty
-    , inputs = []
-    , outputs = []
-    , ioType = Map.empty
-    , trans = Map.empty
+    , variables = vars
+    , transRel = Map.empty
     , predecessors = Map.empty
     , invariant = Map.empty
-    , boundedCells = []
-    }
-
-sameSymbolGame :: Game -> Game
-sameSymbolGame game =
-  emptyGame
-    { inputs = inputs game
-    , outputs = outputs game
-    , ioType = ioType game
-    , boundedCells = boundedCells game
     }
 
 locations :: Game -> Set Loc
@@ -154,28 +121,10 @@ addLocation g name =
   let (newLoc, locSet) = Locs.add (locationSet g) name
    in (g {locationSet = locSet}, newLoc)
 
-addInput :: Game -> Symbol -> Sort -> Maybe Game
-addInput g input sort
-  | input `elem` inputs g = Nothing
-  | input `elem` outputs g = Nothing
-  | otherwise = Just $ g {inputs = input : inputs g, ioType = Map.insert input sort (ioType g)}
-
-addOutput :: Game -> Symbol -> Sort -> Bool -> Maybe Game
-addOutput g output sort bound
-  | output `elem` outputs g = Nothing
-  | output `elem` inputs g = Nothing
-  | otherwise =
-    Just
-      $ g
-          { outputs = output : outputs g
-          , ioType = Map.insert output sort (ioType g)
-          , boundedCells = [output | bound] ++ boundedCells g
-          }
-
 addTransition :: Game -> Loc -> Transition -> Maybe Game
 addTransition g l t
-  | l `Map.member` trans g = Nothing
-  | otherwise = Just $ foldl (addPred l) (g {trans = Map.insert l t (trans g)}) (succT t)
+  | l `Map.member` transRel g = Nothing
+  | otherwise = Just $ foldl (addPred l) (g {transRel = Map.insert l t (transRel g)}) (succT t)
   where
     addPred pre g suc =
       g {predecessors = Map.insertWith Set.union suc (Set.singleton pre) (predecessors g)}
@@ -187,7 +136,7 @@ predSet :: Game -> Set Loc -> Set Loc
 predSet g ls = Set.unions (Set.map (preds g) ls)
 
 succs :: Game -> Loc -> Set Loc
-succs g l = maybe Set.empty succT (trans g !? l)
+succs g l = maybe Set.empty succT (transRel g !? l)
 
 cyclicIn :: Game -> Loc -> Bool
 cyclicIn g start = any (elem start . reachables g) (succs g start)
@@ -204,22 +153,22 @@ reachables g l = bfs Set.empty (l `OL.pushOne` OL.empty)
             let seen' = o `Set.insert` seen
              in bfs seen' ((succs g o `Set.difference` seen) `OL.push` ol')
 
--- TODO: this breaks the invariants
 pruneUnreachables :: Loc -> Game -> Game
-pruneUnreachables init g =
-  let reach = reachables g init
-   in g
-        { predecessors = Set.intersection reach <$> Map.restrictKeys (predecessors g) reach
-        , trans = Map.restrictKeys (trans g) reach
+pruneUnreachables init g = foldl disableLoc g $ locations g `Set.difference` reachables g init
+  where
+    disableLoc :: Game -> Loc -> Game
+    disableLoc g l =
+      g
+        { invariant = Map.insert l FOL.false (invariant g)
+        , transRel = Map.insert l (selfLoop l) (transRel g)
+        , predecessors = Map.insert l (Set.singleton l) $ (Set.filter (/= l)) <$> (predecessors g)
         }
 
 usedSymbols :: Game -> Set Symbol
 usedSymbols g =
-  Set.unions
-    $ Set.fromList (inputs g)
-        : Set.fromList (outputs g)
-        : Map.elems (symTrans <$> trans g)
-        ++ map (FOL.symbols . snd) (Map.toList (invariant g))
+  Set.union (Vars.allSymbols (variables g))
+    $ Set.unions
+    $ Map.elems (symTrans <$> transRel g) ++ map (FOL.symbols . snd) (Map.toList (invariant g))
   where
     symTrans =
       \case
@@ -247,18 +196,19 @@ simplifyUpdates =
       FOL.Var v _ -> v /= var
       _ -> True
 
---TODO: add pruning of locations. Warning this needs also to accounte possible winning conditions!
 simplifyRPG :: Config -> (Game, Objective) -> IO (Game, Objective)
 simplifyRPG cfg (game, wc) = do
-  newTrans <- mapM (simplifyTransition cfg) (trans game)
+  newTrans <- mapM (simplifyTransition cfg) (transRel game)
   let next l = fromMaybe (error ("assert: location not mapped " ++ show l)) $ newTrans !? l
-  return
-    ( game {trans = newTrans, predecessors = predecessorRelation (succT . next) (locations game)}
-    , wc)
+  game <-
+    pure
+      $ game
+          {transRel = newTrans, predecessors = predecessorRelation (succT . next) (locations game)}
+  pure (pruneUnreachables (Obj.initialLoc wc) game, wc)
 
 cpreSys :: Game -> SymSt -> Loc -> Term
 cpreSys g st l =
-  FOL.andf [g `inv` l, FOL.forAll (inputs g) (validInput g l `FOL.impl` cpreST (tran g l))]
+  FOL.andf [g `inv` l, Vars.forallI (variables g) (validInput g l `FOL.impl` cpreST (trans g l))]
   where
     cpreST =
       \case
@@ -268,7 +218,7 @@ cpreSys g st l =
 
 cpreEnv :: Game -> SymSt -> Loc -> Term
 cpreEnv g st l =
-  FOL.andf [g `inv` l, FOL.exists (inputs g) (FOL.andf [validInput g l, cpreET (tran g l)])]
+  FOL.andf [g `inv` l, Vars.existsI (variables g) (FOL.andf [validInput g l, cpreET (trans g l)])]
   where
     cpreET =
       \case
@@ -277,7 +227,7 @@ cpreEnv g st l =
           FOL.andf [FOL.mapTermM u ((g `inv` l) `FOL.impl` (st `SymSt.get` l)) | (u, l) <- upds]
 
 validInput :: Game -> Loc -> Term
-validInput g l = go (tran g l)
+validInput g l = go (trans g l)
   where
     go =
       \case
@@ -293,12 +243,11 @@ loopGame g l =
       shadowPreds = shadow `Set.insert` preds g l
       g'' =
         g'
-          { trans = Map.insert shadow (selfLoop shadow) $ Map.map (replaceByE l shadow) (trans g')
-          , predecessors =
-              (Map.insert l Set.empty . Map.insert shadow shadowPreds) (predecessors g')
+          { transRel =
+              Map.insert shadow (selfLoop shadow) $ Map.map (replaceByE l shadow) (transRel g')
+          , predecessors = Map.insert l Set.empty . Map.insert shadow shadowPreds $ predecessors g'
           , invariant = Map.insert shadow (g' `inv` l) (invariant g')
           }
-    -- TODO WARNING: This might destroy stuff if game not cyclic? Probably not though
    in (pruneUnreachables l g'', shadow)
 
 replaceByE :: Loc -> Loc -> Transition -> Transition

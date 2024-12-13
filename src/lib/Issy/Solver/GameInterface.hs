@@ -27,7 +27,6 @@ module Issy.Solver.GameInterface
 
 import Data.Bifunctor (first)
 import Data.Set (Set)
-import qualified Data.Set as Set
 
 import Issy.Base.Locations (Loc)
 import Issy.Base.SymbolicState (SymSt)
@@ -49,6 +48,9 @@ fromSG = first Sym
 liftG :: (RPG.Game -> a) -> (Sym.Arena -> a) -> Game -> a
 liftG f _ (RPG g) = f g
 liftG _ h (Sym a) = h a
+
+liftV :: (Vars.Variables -> a) -> Game -> a
+liftV f = f . liftG RPG.variables Sym.variables
 
 inv :: Game -> Loc -> Term
 inv = liftG RPG.inv Sym.domain
@@ -83,19 +85,19 @@ setInv (RPG g) l t = RPG $ RPG.setInv g l t
 setInv (Sym a) l t = Sym $ Sym.setDomain a l t
 
 inputL :: Game -> [Symbol]
-inputL = liftG RPG.inputs (Vars.inputL . Sym.variables)
+inputL = liftV Vars.inputL
 
 stateVarL :: Game -> [Symbol]
-stateVarL = liftG RPG.outputs (Vars.stateVarL . Sym.variables)
+stateVarL = liftV Vars.stateVarL
 
 stateVars :: Game -> Set Symbol
-stateVars = liftG (Set.fromList . RPG.outputs) (Vars.stateVars . Sym.variables)
+stateVars = liftV Vars.stateVars
 
 boundedVar :: Game -> Symbol -> Bool
-boundedVar = liftG (flip elem . RPG.boundedCells) (Vars.isBounded . Sym.variables)
+boundedVar = liftV Vars.isBounded
 
 locName :: Game -> Loc -> String
 locName = liftG RPG.locName Sym.locName
 
 sortOf :: Game -> Symbol -> Sort
-sortOf = liftG RPG.sortOf (Vars.sortOf . Sym.variables)
+sortOf = liftV Vars.sortOf
