@@ -22,9 +22,8 @@ import Issy.Config (Config, setName)
 import Issy.Logic.FOL
 import qualified Issy.Logic.TSLMT as TSL
 import qualified Issy.Logic.Temporal as TL
-import Issy.OmegaAutomata (DOA)
-import qualified Issy.OmegaAutomata as DOA
-import Issy.OmegaAutomata.FromHOA
+import qualified Issy.Translation.DOA as DOA
+import qualified Issy.Translation.LTL2DOA as LTL2DOA
 import Issy.RPG
 import qualified Issy.RPG as RPG
 import Issy.Utils.Extra
@@ -64,7 +63,7 @@ tsl2ltlStr vars tslFormula = (TL.toLTLStr (atoms2ap !) (TL.And (tslFormula : con
     atoms2ap = Map.fromList atomsAp
     ap2atoms = Map.fromList (map swap atomsAp)
 
-doa2game :: Variables -> (String -> TSL.Atom) -> DOA String -> (Game, Objective)
+doa2game :: Variables -> (String -> TSL.Atom) -> DOA.DOA String -> (Game, Objective)
 doa2game vars atomOf doa =
   let (game0, stateMap) = foldl addLocs (emptyGame, Map.empty) (DOA.states doa)
       mapState st = fromMaybe (error "unmapped DOA state") $ stateMap !? st
@@ -148,6 +147,6 @@ tsl2rpg cfg spec = do
   let (ltlstr, apMap) = tsl2ltlStr vars tsl
   lg cfg ["AP-Map:", strM id show apMap]
   lg cfg ["LTL:", ltlstr]
-  doa <- ltl2doa cfg ltlstr
+  doa <- LTL2DOA.translate cfg ltlstr
   lg cfg ["DOA:", show doa]
   simplifyRPG cfg $ doa2game vars (apMap !) doa

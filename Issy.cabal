@@ -42,8 +42,6 @@ library
     , Issy.Monitor.Rules
     , Issy.Monitor.State
     , Issy.Monitor.Successors
-    , Issy.OmegaAutomata
-    , Issy.OmegaAutomata.FromHOA
     , Issy.Parsers.IssyFormat
     , Issy.Parsers.RPG
     , Issy.Parsers.SExpression
@@ -68,6 +66,8 @@ library
     , Issy.Specification
     , Issy.SymbolicArena
     , Issy.Translation
+    , Issy.Translation.DOA
+    , Issy.Translation.LTL2DOA
     , Issy.Translation.RPLTL2SG
     , Issy.Translation.TSL2RPG
     , Issy.Utils.Extra

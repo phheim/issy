@@ -1,4 +1,4 @@
-module Issy.OmegaAutomata
+module Issy.Translation.DOA
   ( State
   , Acceptance(..)
   , Transition

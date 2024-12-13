@@ -5,8 +5,8 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DisambiguateRecordFields #-}
 
-module Issy.OmegaAutomata.FromHOA
-  ( ltl2doa
+module Issy.Translation.LTL2DOA
+  ( translate
   ) where
 
 import Control.Monad (unless)
@@ -31,7 +31,7 @@ import Hanoi
 import qualified Hanoi as HOA (State, parse, printHOA)
 
 import Issy.Config (Config, ltl2tgba)
-import qualified Issy.OmegaAutomata as DOA
+import qualified Issy.Translation.DOA as DOA
 import Issy.Utils.Logging
 
 -- TODO: Make ltl2tgba more configurable by just adding full command
@@ -44,8 +44,8 @@ spotHOA cfg options ltlstr = do
     Right hoa -> return hoa
 
 -- TODO: Make this some temporal logic business
-ltl2doa :: Config -> String -> IO (DOA.DOA String)
-ltl2doa cfg ltlstr = do
+translate :: Config -> String -> IO (DOA.DOA String)
+translate cfg ltlstr = do
   hoa <- spotHOA cfg ["--buchi"] ltlstr
   checkProp hoa COMPLETE
   if DETERMINISTIC `elem` properties hoa

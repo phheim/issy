@@ -16,9 +16,8 @@ import Issy.Logic.FOL (Term)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.RPLTL as RPLTL
 import qualified Issy.Logic.Temporal as TL
-import Issy.OmegaAutomata (DOA)
-import qualified Issy.OmegaAutomata as DOA
-import Issy.OmegaAutomata.FromHOA (ltl2doa)
+import qualified Issy.Translation.DOA as DOA
+import qualified Issy.Translation.LTL2DOA as LTL2DOA
 import Issy.SymbolicArena (Arena)
 import qualified Issy.SymbolicArena as SG
 import Issy.Utils.Extra
@@ -30,7 +29,7 @@ translate cfg spec = do
   let (ltlstr, apMap) = rpltlToltlStr formula
   lg cfg ["AP-Map:", strM id show apMap]
   lg cfg ["LTL:", ltlstr]
-  doa <- ltl2doa cfg ltlstr
+  doa <- LTL2DOA.translate cfg ltlstr
   lg cfg ["DOA:", show doa]
   SG.simplifySG cfg $ doa2game (RPLTL.variables spec) (apMap !) doa
 
@@ -41,7 +40,7 @@ rpltlToltlStr formula =
       ap2atoms = Map.fromList (map swap atomsAP)
    in (TL.toLTLStr (atoms2ap !) formula, ap2atoms)
 
-doa2game :: Variables -> (String -> Term) -> DOA String -> (Arena, Objective)
+doa2game :: Variables -> (String -> Term) -> DOA.DOA String -> (Arena, Objective)
 doa2game vars atomOf doa =
   let arena0 = SG.empty vars
       (arena1, mapState) =
