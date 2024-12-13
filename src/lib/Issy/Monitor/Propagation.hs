@@ -1,23 +1,26 @@
 module Issy.Monitor.Propagation
-  ( generatePredicates
-  , propagatedPredicates
+  ( generatePredicatesTSL
+  , generatePredicatesRPLTL
+  , propagatedPredicatesTSL
+  , propagatedPredicatesRPLTL
   ) where
 
 import Control.Monad (filterM)
 import qualified Data.Map.Strict as Map
-import Data.Set (Set, cartesianProduct)
+import Data.Set (Set)
 import qualified Data.Set as Set
 
-import Issy.Base.Variables
+import Issy.Base.Variables (Variables)
+import qualified Issy.Base.Variables as Vars
 import Issy.Config (Config, propagationLevel)
 import Issy.Logic.FOL
 import Issy.Logic.SMT
 
-generatePredicates :: Config -> Variables -> Set Term -> Set (Symbol, Term) -> IO (Set Term)
-generatePredicates cfg vars preds updates = do
-  preds <- pure $ Set.filter (all (isStateVar vars) . frees) preds
+generatePredicatesTSL :: Config -> Variables -> Set Term -> Set (Symbol, Term) -> IO (Set Term)
+generatePredicatesTSL cfg vars preds updates = do
+  preds <- pure $ Set.filter (all (Vars.isStateVar vars) . frees) preds
   let constUpdPreds = Set.unions $ Set.map constUpdateTerm updates
-  let boolPreds = Set.map bvarT $ Set.filter ((== SBool) . sortOf vars) $ stateVars vars
+  let boolPreds = Set.map bvarT $ Set.filter ((== SBool) . Vars.sortOf vars) $ Vars.stateVars vars
   preds <- pure $ preds `Set.union` guardLevel 2 constUpdPreds
   preds <- pure $ preds `Set.union` guardLevel 2 boolPreds
   preds <- pure $ preds `Set.union` guardLevel 3 (Set.unions (Set.map mutate preds))
@@ -43,17 +46,17 @@ generatePredicates cfg vars preds updates = do
         if var == v
           then Just upd
           else Nothing
-    applyUpds = Set.map (uncurry applyUpd) . cartesianProduct updates
+    applyUpds = Set.map (uncurry applyUpd) . Set.cartesianProduct updates
     --
     constUpdateTerm (var, upd)
-      | null (frees upd) && (sortOf vars var /= SBool) =
-        Set.singleton (Var var (sortOf vars var) `equal` upd)
+      | null (frees upd) && (Vars.sortOf vars var /= SBool) =
+        Set.singleton (Var var (Vars.sortOf vars var) `equal` upd)
       | otherwise = Set.empty
 
-generatePredicatesRPLT :: Config -> Variables -> Set Term -> IO (Set Term)
-generatePredicatesRPLT cfg vars preds = do
-  preds <- pure $ Set.filter (all (isStateVar vars) . frees) preds
-  let boolPreds = Set.map bvarT $ Set.filter ((== SBool) . sortOf vars) $ stateVars vars
+generatePredicatesRPLTL :: Config -> Variables -> Set Term -> IO (Set Term)
+generatePredicatesRPLTL cfg vars preds = do
+  preds <- pure $ Set.filter (all (Vars.isStateVar vars) . frees) preds
+  let boolPreds = Set.map bvarT $ Set.filter ((== SBool) . Vars.sortOf vars) $ Vars.stateVars vars
   preds <- pure $ preds `Set.union` guardLevel 2 boolPreds
   preds <- pure $ preds `Set.union` guardLevel 3 (Set.unions (Set.map mutate preds))
   preds <- pure $ preds `Set.union` guardLevel 1 (Set.map neg preds)
@@ -72,8 +75,11 @@ generatePredicatesRPLT cfg vars preds = do
           | otherwise -> Set.empty
         _ -> Set.empty
 
-propagatedPredicates :: Config -> Term -> [(Symbol, Term)] -> Set Term -> IO [Term]
-propagatedPredicates cfg constr upds = filterM propagate . Set.toList
+propagatedPredicatesRPLTL :: Config -> Term -> Set Term -> IO [Term]
+propagatedPredicatesRPLTL cfg constr = filterM (valid cfg . impl constr) . Set.toList
+
+propagatedPredicatesTSL :: Config -> Term -> [(Symbol, Term)] -> Set Term -> IO [Term]
+propagatedPredicatesTSL cfg constr upds = filterM propagate . Set.toList
   where
     mapping = Map.fromList upds
     --    

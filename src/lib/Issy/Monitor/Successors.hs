@@ -53,7 +53,7 @@ generateSuccessor cfg mon st assign = do
           Just tree -> pure (tree, mon)
           Nothing -> do
             lg cfg ["Compute Expansion", stateName mon st, strL (strP smtLib2 show) assign]
-            tree <- computeExpansion cfg (predicates mon) expState assign
+            tree <- computeExpansion cfg (hasUpdates mon) (predicates mon) expState assign
             pure
               (tree, mon {expansionCache = Map.insert (expState, assign) tree (expansionCache mon)})
       (trans, newCtx) <- applySucessorRules cfg oldState (ctx mon) expansionTree
@@ -80,21 +80,23 @@ applySucessorRules cfg oldState =
 
 computeExpansion ::
      Config
+  -> Bool
   -> Set Term
   -> ExpansionState
   -> [(Term, Bool)]
   -> IO (Trans [(Term, [(Bool, Symbol, Term)], ExpansionState)])
-computeExpansion cfg preds st assign =
+computeExpansion cfg hasUpd preds st assign =
   let constr = map polTerm assign
-   in computeBranching cfg preds constr $ replacesSt assign $ expandSt st
+   in computeBranching cfg hasUpd preds constr $ replacesSt assign $ expandSt st
 
 computeBranching ::
      Config
+  -> Bool
   -> Set Term
   -> [Term]
   -> ExpansionState
   -> IO (Trans [(Term, [(Bool, Symbol, Term)], ExpansionState)])
-computeBranching cfg preds = go
+computeBranching cfg hasUpd preds = go
   where
     go constr st =
       case pickFreeSt st of
@@ -110,7 +112,12 @@ computeBranching cfg preds = go
                 recP <- go (query True) stTrue
                 recN <- go (query False) stFalse
                 pure $ trIf p recP recN
-        Nothing -> TrSucc <$> computeUpdates cfg preds (andf constr) st
+        Nothing
+          | hasUpd -> TrSucc <$> computeUpdates cfg preds (andf constr) st
+          | otherwise -> do
+            prop <- andf <$> propagatedPredicatesRPLTL cfg (andf constr) preds
+            prop <- simplify cfg prop
+            pure $ TrSucc [(prop, [], normESt (shiftSt st))]
 
 computeUpdates ::
      Config
@@ -130,7 +137,7 @@ computeUpdates cfg preds constr = go []
           pure (this ++ none)
         Nothing -> do
           let upds = (\(_, v, u) -> (v, u)) <$> filter (\(pol, _, _) -> pol) choices
-          prop <- andf <$> propagatedPredicates cfg constr upds preds
+          prop <- andf <$> propagatedPredicatesTSL cfg constr upds preds
           prop <- simplify cfg prop
           pure [(prop, choices, normESt (shiftSt st))]
 

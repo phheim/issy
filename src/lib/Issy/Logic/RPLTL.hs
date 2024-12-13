@@ -3,7 +3,11 @@ module Issy.Logic.RPLTL
   , Spec(..)
   , toFormula
   , isSafety
+  , preds
   ) where
+
+import Data.Set (Set)
+import qualified Data.Set as Set
 
 import Issy.Base.Variables (Variables)
 import Issy.Logic.FOL (Term)
@@ -21,6 +25,8 @@ data Spec = Spec
 toFormula :: Spec -> Formula
 toFormula spec = TLOr [TLNot (TLAnd (assumptions spec)), TLAnd (guarantees spec)]
 
--- TODO: enhance safety check beyond this simple one!
 isSafety :: Spec -> Bool
-isSafety spec = null (assumptions spec) && all TL.isSafety (guarantees spec)
+isSafety spec = all TL.isTemporalBounded (assumptions spec) && all TL.isSafety (guarantees spec)
+
+preds :: Spec -> Set Term
+preds spec = Set.unions $ map TL.tlAtoms $ assumptions spec ++ guarantees spec

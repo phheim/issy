@@ -75,6 +75,7 @@ data Monitor = Monitor
   , expansionCache :: Map
       (ExpansionState, [(Term, Bool)])
       (Trans [(Term, [(Bool, Symbol, Term)], ExpansionState)])
+  , hasUpdates :: Bool
   }
 
 label :: Monitor -> State -> M.State
