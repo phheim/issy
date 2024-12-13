@@ -92,7 +92,7 @@ stateVars :: Game -> Set Symbol
 stateVars = liftG (Set.fromList . RPG.outputs) (Vars.stateVars . Sym.variables)
 
 boundedVar :: Game -> Symbol -> Bool
-boundedVar g var = liftG ((var `elem`) . RPG.boundedCells) (`Sym.boundedVar` var) g
+boundedVar = liftG (flip elem . RPG.boundedCells) (Vars.isBounded . Sym.variables)
 
 locName :: Game -> Loc -> String
 locName = liftG RPG.locName Sym.locName

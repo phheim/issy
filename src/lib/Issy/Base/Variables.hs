@@ -14,6 +14,7 @@ module Issy.Base.Variables
   , addInput
   , addStateVar
   , addVariable
+  , setBounded
   , forallI
   , forallX
   , forallX'
@@ -25,6 +26,7 @@ module Issy.Base.Variables
   , sortOf
   , isInput
   , isStateVar
+  , isBounded
   , allSymbols
   , primeT
   , unprime
@@ -49,6 +51,7 @@ data Variables = Variables
   { inputs :: Set Symbol
   , stateVars :: Set Symbol
   , ioTypes :: Map Symbol Sort
+  , bounded :: Set Symbol
   } deriving (Eq, Ord, Show)
 
 data Type
@@ -60,7 +63,8 @@ allVars :: Variables -> Set Symbol
 allVars vars = inputs vars `Set.union` stateVars vars
 
 empty :: Variables
-empty = Variables {inputs = Set.empty, stateVars = Set.empty, ioTypes = Map.empty}
+empty =
+  Variables {inputs = Set.empty, stateVars = Set.empty, ioTypes = Map.empty, bounded = Set.empty}
 
 sortOf :: Variables -> Symbol -> Sort
 sortOf vars var =
@@ -78,6 +82,9 @@ isInput vars var = var `elem` inputs vars
 
 isStateVar :: Variables -> Symbol -> Bool
 isStateVar vars var = var `elem` stateVars vars
+
+isBounded :: Variables -> Symbol -> Bool
+isBounded vars = (`elem` bounded vars)
 
 inputL :: Variables -> [Symbol]
 inputL = Set.toList . inputs
@@ -114,6 +121,11 @@ addVariable vars var =
   \case
     TInput sort -> addInput vars var sort
     TOutput sort -> addStateVar vars var sort
+
+setBounded :: Variables -> Symbol -> Variables
+setBounded vars var
+  | isStateVar vars var = vars {bounded = Set.insert var (bounded vars)}
+  | otherwise = vars
 
 forallI :: Variables -> Term -> Term
 forallI vars = FOL.forAll (inputL vars)

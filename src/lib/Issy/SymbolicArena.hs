@@ -16,7 +16,6 @@ module Issy.SymbolicArena
   , cpreEnv
   , cpreSys
   , variables
-  , boundedVar
   , loopArena
   , simplifySG
   , setTrans
@@ -124,9 +123,6 @@ usedSymbols arena =
   Vars.allSymbols (variables arena)
     `Set.union` Set.unions (map FOL.symbols (concatMap Map.elems (Map.elems (transRel arena))))
 
-boundedVar :: Arena -> Symbol -> Bool
-boundedVar _ _ = False --TODO: Implement: Maybe into variables!!!
-
 addLoc :: Arena -> String -> (Arena, Loc)
 addLoc arena name =
   let (newLoc, newStore) = Locs.add (locations arena) name
@@ -159,7 +155,8 @@ redirectTransTo arena src trg =
 
 addSink :: Arena -> (Arena, Loc)
 addSink arena =
-  let (arena0, sink) = addLoc arena "sink" --TODO: maybe generate unique name?
+  let sinkName = FOL.uniqueName "sink" $ Set.map (locName arena) $ locSet arena
+      (arena0, sink) = addLoc arena sinkName
       arena1 = setDomain arena0 sink FOL.true
    in (setTrans arena1 sink sink FOL.true, sink)
 
@@ -233,20 +230,9 @@ check cfg a = go $ Set.toList $ locSet a
       \case
         [] -> pure Nothing
         l:lr -> do
-                -- Check conditions from symbolic game structure definition
-                -- Condition 1: At most on successor location for evironment choice
-                -- TODO CHECK PAPER CONDITON W.R.T domain restrictions for X'
-          c1 <-
-            SMT.valid cfg
-              $ Vars.forallX v
-              $ FOL.impl (domain a l)
-              $ Vars.forallI v
-              $ Vars.forallX' v
-              $ FOL.atMostOne
-              $ flip map (Set.toList (locSet a))
-              $ \l' -> Vars.primeT v (domain a l') `FOL.impl` trans a l l'
-                -- Condition 2: Successor exists
-          c2 <-
+                -- Check non-blocking condition from symbolic game structure definition
+                -- The other one is uneccesary restrictive!
+          c <-
             SMT.valid cfg
               $ Vars.forallX v
               $ FOL.impl (domain a l)
@@ -254,10 +240,9 @@ check cfg a = go $ Set.toList $ locSet a
               $ Vars.existsX' v
               $ FOL.orfL (Set.toList (locSet a))
               $ \l' -> FOL.andf [Vars.primeT v (domain a l'), trans a l l']
-          case (c1, c2) of
-            (False, _) -> pure $ Just $ locName a l ++ "violates (1) in game definition"
-            (_, False) -> pure $ Just $ locName a l ++ "violates (2) in game definition"
-            _ -> go lr
+          if c
+            then go lr
+            else pure $ Just $ locName a l ++ "might be blocking!"
 
 --
 -- Simplification
@@ -276,7 +261,6 @@ simplifySG :: Config -> (Arena, Objective) -> IO (Arena, Objective)
 simplifySG cfg (arena, obj) = do
   arena <- simplifyArena cfg arena
   let notReachable = locSet arena `Set.difference` reachables arena (initialLoc obj)
-    -- TODO: maybe properly remove the locations from the arena
   arena <- pure $ foldl (\a l -> setDomain a l FOL.false) arena notReachable
   let wc =
         Obj.mapWC
