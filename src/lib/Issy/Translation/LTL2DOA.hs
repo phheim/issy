@@ -32,6 +32,7 @@ import qualified Hanoi as HOA (State, parse, printHOA)
 
 import Issy.Config (Config, ltl2tgba)
 import qualified Issy.Translation.DOA as DOA
+import qualified Issy.Logic.Temporal as TL
 import Issy.Utils.Logging
 
 -- TODO: Make ltl2tgba more configurable by just adding full command
@@ -43,9 +44,37 @@ spotHOA cfg options ltlstr = do
     Left err -> error err
     Right hoa -> return hoa
 
--- TODO: Make this some temporal logic business
-translate :: Config -> String -> IO (DOA.DOA String)
-translate cfg ltlstr = do
+toLTLStr :: (a -> String) -> TL.Formula a -> String
+toLTLStr ap2str = go
+  where
+    go =
+      \case
+        TL.Atom atom -> ap2str atom
+        TL.And fs -> nop "&" "true" $ map go fs
+        TL.Or fs -> nop "|" "false" $ map go fs
+        TL.Not f -> "(! " ++ go f ++ ")"
+        TL.UExp op f -> "(" ++ uop2str op ++ " " ++ go f ++ ")"
+        TL.BExp op f g -> "(" ++ go f ++ " " ++ bop2str op ++ " " ++ go g ++ ")"
+     --
+    nop _ neut [] = neut
+    nop op _ (f:fr) = "(" ++ f ++ concatMap (\g -> " " ++ op ++ " " ++ g) fr ++ ")"
+     -- 
+    bop2str =
+      \case
+        TL.Until -> "U"
+        TL.WeakUntil -> "W"
+        TL.Release -> "R"
+     --
+    uop2str =
+      \case
+        TL.Next -> "X"
+        TL.Globally -> "G"
+        TL.Eventually -> "F"
+
+translate :: Config -> (a -> String) -> TL.Formula a -> IO (DOA.DOA String)
+translate cfg ap2str formula = do
+  let ltlstr = toLTLStr ap2str formula
+  lg cfg ["LTL:", ltlstr]
   hoa <- spotHOA cfg ["--buchi"] ltlstr
   checkProp hoa COMPLETE
   if DETERMINISTIC `elem` properties hoa

@@ -3,7 +3,7 @@ module Issy.Translation.RPLTL2SG
   ) where
 
 import Data.Bifunctor (bimap)
-import Data.Map.Strict (Map, (!))
+import Data.Map.Strict ((!))
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Data.Tuple (swap)
@@ -26,19 +26,17 @@ import Issy.Utils.Logging
 translate :: Config -> RPLTL.Spec -> IO (Arena, Objective)
 translate cfg spec = do
   let formula = RPLTL.toFormula spec
-  let (ltlstr, apMap) = rpltlToltlStr formula
-  lg cfg ["AP-Map:", strM id show apMap]
-  lg cfg ["LTL:", ltlstr]
-  doa <- LTL2DOA.translate cfg ltlstr
+  let (atoms2ap, ap2atoms) = rpltlToltlMap formula
+  doa <- LTL2DOA.translate cfg atoms2ap formula
   lg cfg ["DOA:", show doa]
-  SG.simplifySG cfg $ doa2game (RPLTL.variables spec) (apMap !) doa
+  SG.simplifySG cfg $ doa2game (RPLTL.variables spec) ap2atoms doa
 
-rpltlToltlStr :: RPLTL.Formula -> (String, Map String Term)
-rpltlToltlStr formula =
+rpltlToltlMap :: RPLTL.Formula -> (Term -> String, String -> Term)
+rpltlToltlMap formula =
   let atomsAP = intmapSet (\n atom -> (atom, 'a' : show n)) $ TL.atoms formula
       atoms2ap = Map.fromList atomsAP
       ap2atoms = Map.fromList (map swap atomsAP)
-   in (TL.toLTLStr (atoms2ap !) formula, ap2atoms)
+   in ((atoms2ap !), (ap2atoms !))
 
 doa2game :: Variables -> (String -> Term) -> DOA.DOA String -> (Arena, Objective)
 doa2game vars atomOf doa =

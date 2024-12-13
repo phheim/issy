@@ -10,7 +10,6 @@ module Issy.Logic.Temporal
   , atoms
   , isSafety
   , isTemporalBounded
-  , toLTLStr
   ) where
 
 import Data.Set (Set)
@@ -37,6 +36,15 @@ data Formula a
   | UExp UOp (Formula a)
   | BExp BOp (Formula a) (Formula a)
   deriving (Eq, Ord, Show)
+
+next :: Formula a -> Formula a
+next = UExp Next
+
+globally :: Formula a -> Formula a
+globally = UExp Globally
+
+eventually :: Formula a -> Formula a
+eventually = UExp Eventually
 
 isTemporalBounded :: Formula a -> Bool
 isTemporalBounded =
@@ -69,42 +77,3 @@ atoms =
     Not f -> atoms f
     UExp _ f -> atoms f
     BExp _ f g -> atoms f `Set.union` atoms g
-
-toLTLStr :: (a -> String) -> Formula a -> String
-toLTLStr ap2str = go
-  where
-    go =
-      \case
-        Atom atom -> ap2str atom
-        And fs -> nop "&" "true" $ map go fs
-        Or fs -> nop "|" "false" $ map go fs
-        Not f -> "(! " ++ go f ++ ")"
-        UExp op f -> "(" ++ uop2str op ++ " " ++ go f ++ ")"
-        BExp op f g -> "(" ++ go f ++ " " ++ bop2str op ++ " " ++ go g ++ ")"
-     --
-    nop _ neut [] = neut
-    nop op _ (f:fr) = "(" ++ f ++ concatMap (\g -> " " ++ op ++ " " ++ g) fr ++ ")"
-     -- 
-    bop2str =
-      \case
-        Until -> "U"
-        WeakUntil -> "W"
-        Release -> "R"
-     --
-    uop2str =
-      \case
-        Next -> "X"
-        Globally -> "G"
-        Eventually -> "F"
-
--------------------------------------------------------------------------------
--- Construction
--------------------------------------------------------------------------------
-next :: Formula a -> Formula a
-next = UExp Next
-
-globally :: Formula a -> Formula a
-globally = UExp Globally
-
-eventually :: Formula a -> Formula a
-eventually = UExp Eventually

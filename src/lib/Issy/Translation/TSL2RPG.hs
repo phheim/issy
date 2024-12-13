@@ -53,8 +53,8 @@ exactlyOneUpd var updateTerms = map (TL.UExp TL.Globally) (atLeastOne : atMostOn
         [_] -> []
         x:y:xr -> TL.Not (TL.And [x, y]) : go (x : xr) ++ go (y : xr)
 
-tsl2ltlStr :: Variables -> TSL.Formula -> (String, Map String TSL.Atom)
-tsl2ltlStr vars tslFormula = (TL.toLTLStr (atoms2ap !) (TL.And (tslFormula : constr)), ap2atoms)
+tsl2ltlMap :: Variables -> TSL.Formula -> (TSL.Formula, TSL.Atom -> String , String -> TSL.Atom)
+tsl2ltlMap vars tslFormula = (TL.And (tslFormula : constr), (atoms2ap !), (ap2atoms !))
   where
     atoms = selfUpdates vars `Set.union` TL.atoms tslFormula
     upds = updates atoms
@@ -144,9 +144,7 @@ tsl2rpg cfg spec = do
   cfg <- pure $ setName "RPG2TSL" cfg
   lg cfg ["VARS:", show vars]
   lg cfg ["TSL:", show tsl]
-  let (ltlstr, apMap) = tsl2ltlStr vars tsl
-  lg cfg ["AP-Map:", strM id show apMap]
-  lg cfg ["LTL:", ltlstr]
-  doa <- LTL2DOA.translate cfg ltlstr
+  (tsl, ap2str, str2ap) <- pure $ tsl2ltlMap vars tsl
+  doa <- LTL2DOA.translate cfg ap2str tsl
   lg cfg ["DOA:", show doa]
-  simplifyRPG cfg $ doa2game vars (apMap !) doa
+  simplifyRPG cfg $ doa2game vars str2ap doa
