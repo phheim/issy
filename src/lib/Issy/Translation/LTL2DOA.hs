@@ -35,7 +35,6 @@ import qualified Issy.Translation.DOA as DOA
 import qualified Issy.Logic.Temporal as TL
 import Issy.Utils.Logging
 
--- TODO: Make ltl2tgba more configurable by just adding full command
 spotHOA :: Config -> [String] -> String -> IO HOA
 spotHOA cfg options ltlstr = do
   let opts = options ++ ["--deterministic", "--state-based-acceptance", "--complete", "-"]

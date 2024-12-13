@@ -5,7 +5,7 @@ module Issy.Translation.DOA
   , DOA
   , -- Printing
     stateName
-  , -- Accessor methods 
+  , -- Accession methods 
     alphabet
   , states
   , stateList
@@ -32,8 +32,9 @@ newtype State =
   State Int
   deriving (Eq, Ord, Show)
 
--- TODO: Maybe encapulate
--- TODO: This is DNF no? This MUST be documented!
+-- A Transition is a sort of DNF. It contains a disjunction of all
+-- possible successors, where a successors is a state and a transition 
+-- condition, which itself is a conjunction of atomic proposition literals
 type Transition a = Set (Set (a, Bool), State)
 
 stateName :: State -> String

@@ -87,7 +87,6 @@ z3Simplify =
   , "unit-subsume-simplify"
   ]
 
--- TODO: Move this somewhere else, it does not really fit
 argumentParser :: [String] -> Either String Config
 argumentParser = go defaultConfig
   where
