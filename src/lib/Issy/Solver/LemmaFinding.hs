@@ -69,17 +69,20 @@ replaceLemma tyc (Lemma b s c prime) (LemSyms bs ss cs) = rec
       \case
         Quant q t f -> Quant q t (rec f)
         Lambda t f -> Lambda t (rec f)
-        Func n args
-          | n == UnintF bs ->
-            let m = Map.fromList (zip (cells tyc) args)
-             in mapTermM m b
-          | n == UnintF cs ->
-            let m = Map.fromList (zip (cells tyc) args)
-             in mapTermM m c
-          | n == UnintF ss ->
-            let m = Map.fromList (zip (cells tyc ++ map (prime ++) (cells tyc)) args)
-             in mapTermM m s
-          | otherwise -> Func n (rec <$> args)
+        Func fun args ->
+          case fun of
+            CustomF n _ _
+              | n == bs ->
+                let m = Map.fromList (zip (cells tyc) args)
+                 in mapTermM m b
+              | n == cs ->
+                let m = Map.fromList (zip (cells tyc) args)
+                 in mapTermM m c
+              | n == ss ->
+                let m = Map.fromList (zip (cells tyc ++ map (prime ++) (cells tyc)) args)
+                 in mapTermM m s
+              | otherwise -> Func fun (rec <$> args)
+            _ -> Func fun (rec <$> args)
         QVar k -> QVar k
         Const c -> Const c
         Var v t -> Var v t

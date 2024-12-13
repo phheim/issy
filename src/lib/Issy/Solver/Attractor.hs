@@ -107,15 +107,18 @@ lemmaSymbols g (UsedSyms allS lems) =
       s = uniqueName "s" allS
       c = uniqueName "c" allS
       lSyms = LemSyms b s c
-   in ( uintPred g b
-      , uintPred g s
-      , uintPred g c
+   in ( uintPred b
+      , uintPred s
+      , uintPred c
       , lSyms
-      , UnintF s
+      , unintP s
       , UsedSyms (allS `union` Set.fromList [b, s, c]) (lSyms : lems))
   where
-    uintPred g f = Func (UnintF f) [Var c (sortOf g c) | c <- stateVarL g]
+    -- TODO: once variables are ported to RPG use variable functionality!
+    uintPred f = Func (unintP f) [Var c (sortOf g c) | c <- stateVarL g]
+    unintP f = CustomF f [sortOf g c | c <- stateVarL g] SBool
 
+-- TODO: once variables are ported to RPG use variable functionality!
 forallX :: Game -> Term -> Term
 forallX g = forAll (stateVarL g)
 

@@ -17,6 +17,8 @@ import qualified Data.Set as Set
 import System.Process (readProcessWithExitCode)
 import Text.Read (readMaybe)
 
+import Issy.Base.Variables (Variables)
+import qualified Issy.Base.Variables as Vars
 import Issy.Config (Config, chcMaxScript, chcMaxTimeOut, muvalScript, muvalTimeOut)
 import Issy.Logic.FOL
 import Issy.Printers.SMTLib (s2Term, smtLib2)
@@ -71,10 +73,9 @@ encTerm fpPred (qpref, qdepth, bvars) ugly =
       | otherwise -> qpref ++ show (qdepth - k - 1)
     Func f args ->
       case f of
-        UnintF name
+        CustomF name _ _
           | name == fpPred -> fpPred ++ concatMap ((" " ++) . recT) args
-          | otherwise -> error "Not supported"
-        CustomF {} -> error "Not supported"
+          | otherwise -> error "assert: cannot use non-fixpoint uninterpreted function"
         PredefF n
           | n == "or" -> encOp rec "\\/" "false" args
           | n == "and" -> encOp rec "/\\" "true" args
@@ -118,25 +119,25 @@ encTerm fpPred (qpref, qdepth, bvars) ugly =
         [o1, o2] -> "(" ++ recT o1 ++ " " ++ op ++ " " ++ recT o2 ++ ")"
         _ -> error (op ++ "is a binary operator")
 
-encFPInclusion :: Term -> Symbol -> [(Symbol, Sort)] -> Term -> String
-encFPInclusion query fpPred states fp =
+encFPInclusion :: Variables -> Term -> Symbol -> Term -> String
+encFPInclusion vars query fpPred fp =
   let qPref =
-        uniquePrefix
-          "qvar"
-          (symbols query `Set.union` symbols fp `Set.union` Set.fromList (map fst states))
+        uniquePrefix "qvar" (symbols query `Set.union` symbols fp `Set.union` Vars.allSymbols vars)
    in unlines
         [ encTerm fpPred (qPref, 0, Set.empty) False query
         , "s.t."
         , fpPred
-            ++ concatMap (\(var, sort) -> "(" ++ var ++ " : " ++ encSort sort ++ ")") states
+            ++ concatMap
+                 (\v -> "(" ++ v ++ " : " ++ encSort (Vars.sortOf vars v) ++ ")")
+                 (Vars.stateVarL vars)
             ++ ": bool =mu "
             ++ encTerm fpPred (qPref, 0, Set.empty) False fp
             ++ ";"
         ]
 
-checkFPInclusion :: Config -> Term -> Symbol -> [(Symbol, Sort)] -> Term -> IO Bool
-checkFPInclusion cfg query fpPred states fp = do
-  let muvalQuery = encFPInclusion query fpPred states fp
+checkFPInclusion :: Config -> Variables -> Term -> Symbol -> Term -> IO Bool
+checkFPInclusion cfg vars query fpPred fp = do
+  let muvalQuery = encFPInclusion vars query fpPred fp
   fromMaybe False <$> callMuval cfg muvalQuery
 
 callMuval :: Config -> String -> IO (Maybe Bool)
@@ -154,12 +155,12 @@ callMuval cfg query = do
 --
 -- TODO: assert only ints !!!
 --
-computeFP :: Config -> Symbol -> [(Symbol, Sort)] -> Term -> Term -> IO (Maybe Term)
-computeFP cfg fpPred states init trans = do
-  let query = encodeFP fpPred states init trans
+computeFP :: Config -> Variables -> Symbol -> Term -> Term -> IO (Maybe Term)
+computeFP cfg vars fpPred init trans = do
+  let query = encodeFP vars fpPred init trans
   lg cfg ["CHCMax", "running"]
   res <- callCHCMax cfg query
-  case parseFP fpPred states res of
+  case parseFP vars fpPred res of
     Left err -> do
       lg cfg ["CHCMax returned error:", err]
       pure Nothing
@@ -172,11 +173,15 @@ callCHCMax cfg query = do
   (_, stdout, _) <- readProcessWithExitCode (chcMaxScript cfg) [show (chcMaxTimeOut cfg)] query
   pure stdout
 
-encodeFP :: Symbol -> [(Symbol, Sort)] -> Term -> Term -> String
-encodeFP fpPred states init rec =
+encodeFP :: Variables -> Symbol -> Term -> Term -> String
+encodeFP vars fpPred init rec =
   unlines
     [ "(set-logic HORN)"
-    , "(declare-fun " ++ fpPred ++ "(" ++ concatMap ((" " ++) . s2Term . snd) states ++ ") Bool)"
+    , "(declare-fun "
+        ++ fpPred
+        ++ "("
+        ++ concatMap ((" " ++) . s2Term . Vars.sortOf vars) (Vars.stateVarL vars)
+        ++ ") Bool)"
     , "(assert " ++ smtLib2 init ++ ")"
     , "(assert " ++ smtLib2 rec ++ ")"
     , "(check-sat)"
@@ -251,9 +256,8 @@ fpExprToTerm varMap = go
                                         -- TODO: More operators
             _ -> Left $ "Found illegal operator: " ++ op
 
-parseFPHead ::
-     String -> [(Symbol, Sort)] -> String -> Either String (Map String (Symbol, Sort), String)
-parseFPHead fpPred states sr = do
+parseFPHead :: Variables -> String -> String -> Either String (Map String (Symbol, Sort), String)
+parseFPHead vars fpPred sr = do
   sr <- pure $ dropWhile (`elem` [' ', '\n', '\t', '\r']) sr
   sr <-
     if fpPred `isPrefixOf` sr
@@ -261,22 +265,22 @@ parseFPHead fpPred states sr = do
       else Left "Predicate is not the right one"
   case sr of
     '(':sr -> do
-      (decls, sr) <- parseDecls states sr
+      (decls, sr) <- parseDecls (Vars.stateVarL vars) sr
       pure (Map.fromList decls, sr)
     _ -> Left "Expected opening '('"
   where
-    parseDecls :: [(Symbol, Sort)] -> String -> Either String ([(String, (Symbol, Sort))], String)
+    parseDecls :: [Symbol] -> String -> Either String ([(String, (Symbol, Sort))], String)
     parseDecls states sr =
       case (states, sr) of
         ([], ')':sr) -> pure ([], sr)
         ([], _) -> Left $ "Expected closing ')' found " ++ sr
         (st:states, sr) -> do
-          (decl, sr) <- parseDecl st sr
+          (decl, sr) <- parseDecl st (Vars.sortOf vars st) sr
           (decls, sr) <- parseDecls states sr
           pure (decl : decls, sr)
     --
-    parseDecl :: (Symbol, Sort) -> String -> Either String ((Symbol, (Symbol, Sort)), String)
-    parseDecl (var, sort) sr = do
+    parseDecl :: Symbol -> Sort -> String -> Either String ((Symbol, (Symbol, Sort)), String)
+    parseDecl var sort sr = do
       sr <- expectChar '(' (removeWS sr)
       (ident, sr) <- pure $ parseID sr
       sr <- expectChar ':' (removeWS sr)
@@ -303,12 +307,12 @@ expectChar c =
 removeWS :: String -> String
 removeWS = dropWhile (`elem` [' ', '\n', '\t', '\r'])
 
-parseFP :: String -> [(Symbol, Sort)] -> String -> Either String Term
-parseFP fpPred states sr =
+parseFP :: Variables -> String -> String -> Either String Term
+parseFP vars fpPred sr =
   case gotoMaxsat sr of
     [] -> Left "No maxsat found"
     sr -> do
-      (varMap, sr) <- parseFPHead fpPred states sr
+      (varMap, sr) <- parseFPHead vars fpPred sr
       sr <- pure $ gotoAssign sr
       (expr, _) <- parseFPExpr sr
       fpExprToTerm varMap expr

@@ -16,10 +16,10 @@ import Issy.Logic.FOL (Term)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.RPLTL as RPLTL
 import qualified Issy.Logic.Temporal as TL
-import qualified Issy.Translation.DOA as DOA
-import qualified Issy.Translation.LTL2DOA as LTL2DOA
 import Issy.SymbolicArena (Arena)
 import qualified Issy.SymbolicArena as SG
+import qualified Issy.Translation.DOA as DOA
+import qualified Issy.Translation.LTL2DOA as LTL2DOA
 import Issy.Utils.Extra
 import Issy.Utils.Logging
 

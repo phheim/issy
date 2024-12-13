@@ -29,6 +29,8 @@ module Issy.Base.Variables
   , primeT
   , unprime
   , isPrimed
+  , unintPred
+  , unintPredTerm
   ) where
 
 import Data.List (isSuffixOf)
@@ -37,7 +39,8 @@ import qualified Data.Map.Strict as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
 
-import Issy.Logic.FOL (Sort, Symbol, Term, exists, forAll, mapSymbol)
+import Issy.Logic.FOL (Function, Sort, Symbol, Term)
+import qualified Issy.Logic.FOL as FOL
 
 primeSuffix :: String
 primeSuffix = "~"
@@ -113,22 +116,22 @@ addVariable vars var =
     TOutput sort -> addStateVar vars var sort
 
 forallI :: Variables -> Term -> Term
-forallI vars = forAll (inputL vars)
+forallI vars = FOL.forAll (inputL vars)
 
 existsI :: Variables -> Term -> Term
-existsI vars = exists (inputL vars)
+existsI vars = FOL.exists (inputL vars)
 
 forallX :: Variables -> Term -> Term
-forallX vars = forAll (stateVarL vars)
+forallX vars = FOL.forAll (stateVarL vars)
 
 existsX :: Variables -> Term -> Term
-existsX vars = exists (stateVarL vars)
+existsX vars = FOL.exists (stateVarL vars)
 
 existsX' :: Variables -> Term -> Term
-existsX' vars = exists (stateVarL' vars)
+existsX' vars = FOL.exists (stateVarL' vars)
 
 forallX' :: Variables -> Term -> Term
-forallX' vars = forAll (stateVarL' vars)
+forallX' vars = FOL.forAll (stateVarL' vars)
 
 isPrimed :: Symbol -> Bool
 isPrimed = isSuffixOf primeSuffix
@@ -143,7 +146,14 @@ unprime s
 
 primeT :: Variables -> Term -> Term
 primeT vars =
-  mapSymbol $ \v ->
+  FOL.mapSymbol $ \v ->
     if v `elem` stateVars vars
       then prime v
       else v
+
+unintPred :: Variables -> String -> Function
+unintPred vars name = FOL.CustomF name (map (sortOf vars) (stateVarL vars)) FOL.SBool
+
+unintPredTerm :: Variables -> String -> Term
+unintPredTerm vars name =
+  FOL.Func (unintPred vars name) [FOL.Var v (sortOf vars v) | v <- stateVarL vars]

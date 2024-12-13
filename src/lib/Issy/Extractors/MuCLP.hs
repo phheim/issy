@@ -61,7 +61,6 @@ encTerm ugly =
     QVar _ -> error "Not supported"
     Func f args ->
       case f of
-        UnintF _ -> error "Not supported"
         CustomF {} -> error "Not supported"
         PredefF n
           | n == "or" -> encOp (encTerm ugly) "\\/" "false" args

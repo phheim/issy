@@ -54,7 +54,6 @@ encTerm ugly =
     Const c -> encConst ugly c
     Func f args ->
       case f of
-        UnintF _ -> error "Not supported"
         CustomF {} -> error "Not supported"
         PredefF n
           | n == "or" && not ugly -> encOp (encTerm ugly) "||" "false" args

@@ -22,10 +22,10 @@ import Issy.Config (Config, setName)
 import Issy.Logic.FOL
 import qualified Issy.Logic.TSLMT as TSL
 import qualified Issy.Logic.Temporal as TL
-import qualified Issy.Translation.DOA as DOA
-import qualified Issy.Translation.LTL2DOA as LTL2DOA
 import Issy.RPG
 import qualified Issy.RPG as RPG
+import qualified Issy.Translation.DOA as DOA
+import qualified Issy.Translation.LTL2DOA as LTL2DOA
 import Issy.Utils.Extra
 import Issy.Utils.Logging
 
@@ -53,7 +53,7 @@ exactlyOneUpd var updateTerms = map (TL.UExp TL.Globally) (atLeastOne : atMostOn
         [_] -> []
         x:y:xr -> TL.Not (TL.And [x, y]) : go (x : xr) ++ go (y : xr)
 
-tsl2ltlMap :: Variables -> TSL.Formula -> (TSL.Formula, TSL.Atom -> String , String -> TSL.Atom)
+tsl2ltlMap :: Variables -> TSL.Formula -> (TSL.Formula, TSL.Atom -> String, String -> TSL.Atom)
 tsl2ltlMap vars tslFormula = (TL.And (tslFormula : constr), (atoms2ap !), (ap2atoms !))
   where
     atoms = selfUpdates vars `Set.union` TL.atoms tslFormula

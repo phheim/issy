@@ -21,7 +21,8 @@ import Data.Set (Set, cartesianProduct)
 import qualified Data.Set as Set
 
 -------------------------------------------------------------------------------
-import Issy.Base.Variables
+import Issy.Base.Variables (Variables)
+import qualified Issy.Base.Variables as Vars
 import Issy.Config
   ( Config
   , rulesDeduction
@@ -73,7 +74,6 @@ applyRules cfg ctx st
 -- TODO: Maybe rename
 data Context = Context
   { vars :: Variables
-  , sortedStateVarL :: [(Symbol, Sort)]
   , fixpointPred :: Symbol
   , fpPred :: Term
   , fpPred' :: Term
@@ -94,14 +94,12 @@ data Context = Context
 
 context :: Variables -> Context
 context vars =
-  let fpn = uniqueName "fixpointpred" (allSymbols vars)
-      stv = (\v -> (v, sortOf vars v)) <$> stateVarL vars
+  let fpn = uniqueName "fixpointpred" (Vars.allSymbols vars)
    in Context
         { vars = vars
-        , sortedStateVarL = stv
         , fixpointPred = fpn
-        , fpPred = Func (UnintF fpn) $ map (uncurry Var) stv
-        , fpPred' = primeT vars $ Func (UnintF fpn) $ map (uncurry Var) stv
+        , fpPred = Vars.unintPredTerm vars fpn
+        , fpPred' = Vars.primeT vars $ Vars.unintPredTerm vars fpn
             --
         , updates = False
         , aux = []
@@ -119,8 +117,9 @@ context vars =
 
 contextTSL :: Variables -> Set (Symbol, Term) -> Context
 contextTSL vars updates =
-  let complUpd = updates `Set.union` Set.map (\v -> (v, Var v (sortOf vars v))) (stateVars vars)
-      prefUpd = uniquePrefix "update" (allSymbols vars)
+  let complUpd =
+        updates `Set.union` Set.map (\v -> (v, Var v (Vars.sortOf vars v))) (Vars.stateVars vars)
+      prefUpd = uniquePrefix "update" (Vars.allSymbols vars)
       updAux = intmapSet (\n upd -> (upd, prefUpd ++ show n)) complUpd
    in (context vars)
         { updateEncodes = Map.fromList updAux
@@ -130,12 +129,13 @@ contextTSL vars updates =
             andf
               $ map
                   (\var -> exactlyOne (map (bvarT . snd) (filter ((== var) . fst . fst) updAux)))
-                  (stateVarL vars)
+                  (Vars.stateVarL vars)
         , updateEffect =
             andf
               $ map
                   (\((var, term), aux) ->
-                     bvarT aux `impl` (Var (prime var) (sortOf vars var) `equal` term))
+                     bvarT aux
+                       `impl` (Vars.primeT vars (Var var (Vars.sortOf vars var)) `equal` term))
                   updAux
         }
 
@@ -249,7 +249,8 @@ callCHC cfg ctx query = do
   case chcCache ctx !? query of
     Just res -> pure (Just res, ctx)
     Nothing -> do
-      res <- checkCHC cfg (fixpointPred ctx) (sortOf (vars ctx) <$> stateVarL (vars ctx)) query
+      res <-
+        checkCHC cfg (fixpointPred ctx) (Vars.sortOf (vars ctx) <$> Vars.stateVarL (vars ctx)) query
       pure
         $ case res of
             Nothing -> (Nothing, ctx)
@@ -461,7 +462,7 @@ deduceInv cfg ctx _ dom st = do
 genInv :: Config -> Domain -> (State, Context) -> Formula -> IO (State, Context)
 genInv cfg dom (st, ctx) alpha
   | (ftrue, alpha) `elem` impD dom st = pure (st, ctx)
-  | stateOnly (isStateVar (vars ctx)) alpha =
+  | stateOnly (Vars.isStateVar (vars ctx)) alpha =
     let fp = fpPred ctx
         fp' = fpPred' ctx
         gammaE = encode ctx $ fand $ current dom st
@@ -509,16 +510,18 @@ genReach :: Config -> Domain -> (State, Context) -> (Formula, Formula) -> IO (St
 genReach cfg dom (st, ctx) (gamma, beta)
   | (gamma, feventually beta) `elem` impD dom st = pure (st, ctx)
   | (dedInv dom st, gamma, feventually beta) `elem` muvalUnsat ctx = pure (st, ctx)
-  | stateOnly (isStateVar (vars ctx)) beta && stateOnly (isStateVar (vars ctx)) gamma = do
-    let query = forallX (vars ctx) $ encode ctx gamma `impl` fpPred ctx
+  | stateOnly (Vars.isStateVar (vars ctx)) beta && stateOnly (Vars.isStateVar (vars ctx)) gamma = do
+    let query = Vars.forallX (vars ctx) $ encode ctx gamma `impl` fpPred ctx
         fp =
           orf
             [ encode ctx beta
-            , forAll (inputL (vars ctx) ++ aux ctx ++ stateVarL' (vars ctx))
+            , Vars.forallI (vars ctx)
+                $ forAll (aux ctx)
+                $ Vars.forallX' (vars ctx)
                 $ andf (map (encode ctx) (dedInv dom st) ++ [exactlyOneUpd ctx, updateEffect ctx])
                     `impl` fpPred' ctx
             ]
-    res <- checkFPInclusion cfg query (fixpointPred ctx) (sortedStateVarL ctx) fp
+    res <- checkFPInclusion cfg (vars ctx) query (fixpointPred ctx) fp
     if res
       then do
         st <- addImp cfg "Gen-Reach" dom st (gamma, feventually beta)
@@ -542,7 +545,7 @@ genReach cfg dom (st, ctx) (gamma, beta)
 searchLiveness :: Context -> [Formula] -> [Formula] -> Set (Formula, Formula)
 searchLiveness ctx currents = Set.unions . map go
   where
-    current = fand $ filter (stateOnly (isStateVar (vars ctx))) currents
+    current = fand $ filter (stateOnly (Vars.isStateVar (vars ctx))) currents
     go =
       \case
         FGlobally f
@@ -578,20 +581,20 @@ genInvPrec cfg ctx dom st
   | otherwise = do
     let gamma = fand $ current dom st
     let base = encode ctx $ fand $ gamma : dedInv dom st
-    base <- simplify cfg $ existsI (vars ctx) $ exists (aux ctx) base
+    base <- simplify cfg $ Vars.existsI (vars ctx) $ exists (aux ctx) base
     if base == true || base == false
       then pure (st, ctx)
       else do
-        let init = forallX (vars ctx) $ func "=>" [andf [base, fpPred ctx], false]
+        let init = Vars.forallX (vars ctx) $ func "=>" [andf [base, fpPred ctx], false]
             -- Transtion condition in CHC
         let tr = andf $ exactlyOneUpd ctx : updateEffect ctx : (encode ctx <$> dedInv dom st)
         let trans =
-              forallX (vars ctx)
-                $ forallI (vars ctx)
+              Vars.forallX (vars ctx)
+                $ Vars.forallI (vars ctx)
                 $ forAll (aux ctx)
-                $ forallX' (vars ctx)
+                $ Vars.forallX' (vars ctx)
                 $ func "=>" [andf [fpPred' ctx, tr], fpPred ctx]
-        res <- computeFP cfg (fixpointPred ctx) (sortedStateVarL ctx) init trans
+        res <- computeFP cfg (vars ctx) (fixpointPred ctx) init trans
         case res of
           Just alpha -> do
             alpha <- simplify cfg alpha

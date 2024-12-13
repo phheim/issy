@@ -86,10 +86,8 @@ data Sort
   | SFunc [Sort] Sort
   deriving (Eq, Ord, Show)
 
--- TODO: Maybe remove on of UnintF and CustomF
 data Function
   = PredefF Symbol
-  | UnintF Symbol
   | CustomF Symbol [Sort] Sort
   deriving (Eq, Ord, Show)
 
@@ -196,7 +194,6 @@ mapTerm m =
       let margs = map (mapTerm m) args
        in case f of
             PredefF _ -> Func f margs
-            UnintF _ -> Func f margs
             CustomF v sargs starg ->
               case m v (SFunc sargs starg) of
                 Nothing -> Func f margs
@@ -216,7 +213,6 @@ mapSymbol m = rec
       \case
         Var v t -> Var (m v) t
         Func (PredefF f) args -> Func (PredefF f) (rec <$> args)
-        Func (UnintF f) args -> Func (UnintF (m f)) (rec <$> args)
         Func (CustomF f sig term) args -> Func (CustomF (m f) sig term) (rec <$> args)
         Quant q t f -> Quant q t (rec f)
         Lambda t f -> Lambda t (rec f)
@@ -345,7 +341,6 @@ bindingsS =
     Func f args ->
       case f of
         PredefF _ -> unions (map bindingsS args)
-        UnintF _ -> unions (map bindingsS args) --FIXME: This might break stuff
         CustomF f sarg starg -> unions (singleton (f, SFunc sarg starg) : map bindingsS args)
     Quant _ _ f -> bindingsS f
     Lambda _ f -> bindingsS f

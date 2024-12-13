@@ -42,7 +42,6 @@ t2Term a =
     Func f args ->
       let fun =
             case f of
-              UnintF name -> name
               PredefF name -> name
               CustomF name _ _ -> name
        in "(" ++ fun ++ concatMap ((" " ++) . t2Term a) args ++ ")"
