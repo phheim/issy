@@ -7,7 +7,7 @@ module Issy.Translation
 import Issy.Base.Objectives (Objective)
 import Issy.Config (Config, pruneGame)
 import qualified Issy.Logic.RPLTL as RPLTL (Spec)
-import qualified Issy.Logic.TSLMT as TSLMT (TSLSpec)
+import qualified Issy.Logic.TSLMT as TSLMT (Spec)
 import qualified Issy.Monitor as Monitor (initializeRPLTL, initializeTSL)
 import qualified Issy.Products.RPGMonitor as RPGMonitor (onTheFlyProduct)
 import qualified Issy.Products.SGMonitor as SGMonitor (onTheFlyProduct)
@@ -18,7 +18,7 @@ import qualified Issy.SymbolicArena as SG (Arena, simplifySG)
 import qualified Issy.Translation.RPLTL2SG as RPLTL2SG (translate)
 import qualified Issy.Translation.TSL2RPG as TSL2RPG (tsl2rpg)
 
-tslToRPG :: Config -> TSLMT.TSLSpec -> IO (RPG.Game, Objective)
+tslToRPG :: Config -> TSLMT.Spec -> IO (RPG.Game, Objective)
 tslToRPG cfg spec = do
   (game, obj) <- TSL2RPG.tsl2rpg cfg spec
   if pruneGame cfg

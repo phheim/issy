@@ -48,7 +48,7 @@ import qualified Issy.Base.Variables as Vars
 import Issy.Logic.FOL
 import qualified Issy.Logic.RPLTL as RPLTL
 import qualified Issy.Logic.TSLMT as TSL
-import Issy.Logic.Temporal
+import qualified Issy.Logic.Temporal as TL
 
 import Issy.Printers.SMTLib (smtLib2)
 
@@ -512,30 +512,30 @@ encodeFormula updateEncode =
 -------------------------------------------------------------------------------
 -- Conversion
 -------------------------------------------------------------------------------
-fromTL :: (a -> Formula) -> TL a -> Formula
+fromTL :: (a -> Formula) -> TL.Formula a -> Formula
 fromTL fromAtomic = go
   where
     go =
       \case
-        TLAtomic a -> fromAtomic a
-        TLAnd fs -> fand $ map go fs
-        TLOr fs -> for $ map go fs
-        TLNot f -> fnot $ go f
-        TLUnaryOp TLNext f -> fnext $ go f
-        TLUnaryOp TLGlobally f -> fglobally $ go f
-        TLUnaryOp TLEventually f -> feventually $ go f
-        TLBinaryOp op f g ->
+        TL.Atom a -> fromAtomic a
+        TL.And fs -> fand $ map go fs
+        TL.Or fs -> for $ map go fs
+        TL.Not f -> fnot $ go f
+        TL.UExp TL.Next f -> fnext $ go f
+        TL.UExp TL.Globally f -> fglobally $ go f
+        TL.UExp TL.Eventually f -> feventually $ go f
+        TL.BExp op f g ->
           let (ff, fg) = (go f, go g)
            in case op of
-                TLWeakUntil -> fweak ff fg
-                TLUntil -> fand [fweak ff fg, feventually fg]
-                TLRelease -> fweak fg (fand [ff, fg])
+                TL.WeakUntil -> fweak ff fg
+                TL.Until -> fand [fweak ff fg, feventually fg]
+                TL.Release -> fweak fg (fand [ff, fg])
 
-fromTSL :: TSL.TSL -> Formula
+fromTSL :: TSL.Formula -> Formula
 fromTSL =
   fromTL $ \case
-    TSL.TSLUpdate var term -> fupdate True var term
-    TSL.TSLPredicate term -> fpred True term
+    TSL.Update var term -> fupdate True var term
+    TSL.Predicate term -> fpred True term
 
 fromRPLTL :: RPLTL.Formula -> Formula
 fromRPLTL = fromTL (fpred True)

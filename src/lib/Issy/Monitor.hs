@@ -24,8 +24,7 @@ import Issy.Base.Variables (Variables)
 import Issy.Config (Config, setName)
 import Issy.Logic.FOL (Term)
 import qualified Issy.Logic.RPLTL as RPLTL
-import Issy.Logic.TSLMT hiding (variables)
-import qualified Issy.Logic.TSLMT as TSLMT (TSLSpec(variables))
+import qualified Issy.Logic.TSLMT as TSL
 import Issy.Monitor.Formula (Formula)
 import qualified Issy.Monitor.Formula as MF
 import Issy.Monitor.Monitor
@@ -37,18 +36,17 @@ import Issy.Monitor.Successors (generateSuccessor)
 import Issy.Printers.SMTLib (smtLib2)
 import Issy.Utils.Logging
 
-initializeTSL :: Config -> TSLSpec -> IO Monitor
+initializeTSL :: Config -> TSL.Spec -> IO Monitor
 initializeTSL cfg spec = do
   cfg <- pure $ setName "Monitor TSL" cfg
-  preds <-
-    MP.generatePredicatesTSL cfg (TSLMT.variables spec) (tslSpecPreds spec) (tslSpecUpdates spec)
+  preds <- MP.generatePredicatesTSL cfg (TSL.variables spec) (TSL.preds spec) (TSL.updates spec)
   initialize
     cfg
     True
-    (MR.contextTSL (TSLMT.variables spec) (tslSpecUpdates spec))
-    (TSLMT.variables spec)
-    (MF.fromTSL <$> assumptions spec)
-    (MF.fromTSL <$> guarantees spec)
+    (MR.contextTSL (TSL.variables spec) (TSL.updates spec))
+    (TSL.variables spec)
+    (MF.fromTSL <$> TSL.assumptions spec)
+    (MF.fromTSL <$> TSL.guarantees spec)
     preds
 
 initializeRPLTL :: Config -> RPLTL.Spec -> IO Monitor

@@ -115,25 +115,25 @@ parseFormula vars = go
   where
     go =
       \case
-        SPar _ [SId _ "ap", sub] -> TL.TLAtomic <$> parseTerm vars sub
-        SPar _ [SId _ "not", sub] -> TL.TLNot <$> go sub
-        SPar _ (SId _ "and":subs) -> TL.TLAnd <$> mapM go subs
-        SPar _ (SId _ "or":subs) -> TL.TLOr <$> mapM go subs
-        SPar _ [SId _ "X", sub] -> TL.TLUnaryOp TL.TLNext <$> go sub
-        SPar _ [SId _ "F", sub] -> TL.TLUnaryOp TL.TLEventually <$> go sub
-        SPar _ [SId _ "G", sub] -> TL.TLUnaryOp TL.TLGlobally <$> go sub
+        SPar _ [SId _ "ap", sub] -> TL.Atom <$> parseTerm vars sub
+        SPar _ [SId _ "not", sub] -> TL.Not <$> go sub
+        SPar _ (SId _ "and":subs) -> TL.And <$> mapM go subs
+        SPar _ (SId _ "or":subs) -> TL.Or <$> mapM go subs
+        SPar _ [SId _ "X", sub] -> TL.UExp TL.Next <$> go sub
+        SPar _ [SId _ "F", sub] -> TL.UExp TL.Eventually <$> go sub
+        SPar _ [SId _ "G", sub] -> TL.UExp TL.Globally <$> go sub
         SPar _ [SId _ "W", sub1, sub2] -> do
           f1 <- go sub1
           f2 <- go sub2
-          pure $ TL.TLBinaryOp TL.TLWeakUntil f1 f2
+          pure $ TL.BExp TL.WeakUntil f1 f2
         SPar _ [SId _ "U", sub1, sub2] -> do
           f1 <- go sub1
           f2 <- go sub2
-          pure $ TL.TLBinaryOp TL.TLUntil f1 f2
+          pure $ TL.BExp TL.Until f1 f2
         SPar _ [SId _ "R", sub1, sub2] -> do
           f1 <- go sub1
           f2 <- go sub2
-          pure $ TL.TLBinaryOp TL.TLRelease f1 f2
+          pure $ TL.BExp TL.Release f1 f2
         s -> perr (getPos s) "Expected RP-LTL formula"
 
 --

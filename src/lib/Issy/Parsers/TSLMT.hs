@@ -20,8 +20,8 @@ import qualified TSL (Specification(assumptions, guarantees))
 import Issy.Base.Variables hiding (empty)
 import qualified Issy.Base.Variables as Vars (empty)
 import Issy.Logic.FOL
-import Issy.Logic.TSLMT (TSL, TSLAtom(..), TSLSpec(..))
-import Issy.Logic.Temporal
+import qualified Issy.Logic.TSLMT as TSLMT (Atom(..), Formula, Spec(..))
+import qualified Issy.Logic.Temporal as TL
 import Issy.Parsers.SMTLib (tryParseInt, tryParseRat)
 
 -- Declarations have the form
@@ -142,39 +142,39 @@ translatePredTerm typ toStr =
            in (func, args ++ [translateSignalTerm typ toStr st])
         _ -> error "found illegal predicate structure"
 
-translateFormula :: (a -> Sort) -> (a -> String) -> Formula a -> TSL
+translateFormula :: (a -> Sort) -> (a -> String) -> Formula a -> TSLMT.Formula
 translateFormula typ toStr = go
   where
     go =
       \case
-        TTrue -> TLAnd []
-        FFalse -> TLOr []
-        Check p -> TLAtomic $ TSLPredicate $ translatePredTerm typ toStr p
-        Update a u -> TLAtomic $ TSLUpdate (toStr a) $ translateSignalTerm typ toStr u
-        Not f -> TLNot (go f)
+        TTrue -> TL.And []
+        FFalse -> TL.Or []
+        Check p -> TL.Atom $ TSLMT.Predicate $ translatePredTerm typ toStr p
+        Update a u -> TL.Atom $ TSLMT.Update (toStr a) $ translateSignalTerm typ toStr u
+        Not f -> TL.Not (go f)
         Implies f g -> go $ Or [Not f, g]
         Equiv f g -> go $ And [Implies f g, Implies g f]
-        And fs -> TLAnd $ map go fs
-        Or fs -> TLOr $ map go fs
-        Next f -> TLUnaryOp TLNext (go f)
-        Globally f -> TLUnaryOp TLGlobally (go f)
-        Finally f -> TLUnaryOp TLEventually (go f)
-        Until f g -> TLBinaryOp TLUntil (go f) (go g)
-        Release f g -> TLBinaryOp TLRelease (go f) (go g)
-        Weak f g -> TLBinaryOp TLWeakUntil (go f) (go g)
+        And fs -> TL.And $ map go fs
+        Or fs -> TL.Or $ map go fs
+        Next f -> TL.UExp TL.Next (go f)
+        Globally f -> TL.UExp TL.Globally (go f)
+        Finally f -> TL.UExp TL.Eventually (go f)
+        Until f g -> TL.BExp TL.Until (go f) (go g)
+        Release f g -> TL.BExp TL.Release (go f) (go g)
+        Weak f g -> TL.BExp TL.WeakUntil (go f) (go g)
         _ -> error "Found not implemented operator"
 
-translateSpec :: Variables -> Specification -> TSLSpec
+translateSpec :: Variables -> Specification -> TSLMT.Spec
 translateSpec vars spec =
   let toStr = stName (symboltable spec)
       transform = translateFormula (sortOf vars . toStr) toStr
-   in TSLSpec
-        { variables = vars
-        , assumptions = transform <$> TSL.assumptions spec
-        , guarantees = transform <$> TSL.guarantees spec
+   in TSLMT.Spec
+        { TSLMT.variables = vars
+        , TSLMT.assumptions = transform <$> TSL.assumptions spec
+        , TSLMT.guarantees = transform <$> TSL.guarantees spec
         }
 
-parseTSL :: String -> IO TSLSpec
+parseTSL :: String -> IO TSLMT.Spec
 parseTSL s =
   case parseDecls s of
     Left err -> error $ "parseTSL" ++ err

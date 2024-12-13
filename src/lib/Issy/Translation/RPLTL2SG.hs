@@ -15,7 +15,7 @@ import Issy.Config (Config)
 import Issy.Logic.FOL (Term)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.RPLTL as RPLTL
-import Issy.Logic.Temporal
+import qualified Issy.Logic.Temporal as TL
 import Issy.OmegaAutomata (DOA)
 import qualified Issy.OmegaAutomata as DOA
 import Issy.OmegaAutomata.FromHOA (ltl2doa)
@@ -36,10 +36,10 @@ translate cfg spec = do
 
 rpltlToltlStr :: RPLTL.Formula -> (String, Map String Term)
 rpltlToltlStr formula =
-  let atomsAP = intmapSet (\n atom -> (atom, 'a' : show n)) $ tlAtoms formula
+  let atomsAP = intmapSet (\n atom -> (atom, 'a' : show n)) $ TL.atoms formula
       atoms2ap = Map.fromList atomsAP
       ap2atoms = Map.fromList (map swap atomsAP)
-   in (tl2ltl (atoms2ap !) formula, ap2atoms)
+   in (TL.toLTLStr (atoms2ap !) formula, ap2atoms)
 
 doa2game :: Variables -> (String -> Term) -> DOA String -> (Arena, Objective)
 doa2game vars atomOf doa =

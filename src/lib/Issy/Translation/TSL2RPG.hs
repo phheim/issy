@@ -20,8 +20,8 @@ import Issy.Base.Variables (Variables)
 import qualified Issy.Base.Variables as Vars
 import Issy.Config (Config, setName)
 import Issy.Logic.FOL
-import Issy.Logic.TSLMT
-import Issy.Logic.Temporal
+import qualified Issy.Logic.TSLMT as TSL
+import qualified Issy.Logic.Temporal as TL
 import Issy.OmegaAutomata (DOA)
 import qualified Issy.OmegaAutomata as DOA
 import Issy.OmegaAutomata.FromHOA
@@ -30,41 +30,41 @@ import qualified Issy.RPG as RPG
 import Issy.Utils.Extra
 import Issy.Utils.Logging
 
-updates :: Set TSLAtom -> Map Symbol (Set Term)
+updates :: Set TSL.Atom -> Map Symbol (Set Term)
 updates =
   foldl
     (\mp ->
        \case
-         TSLPredicate _ -> mp
-         TSLUpdate x u -> Map.insertWith Set.union x (Set.singleton u) mp)
+         TSL.Predicate _ -> mp
+         TSL.Update x u -> Map.insertWith Set.union x (Set.singleton u) mp)
     Map.empty
 
-selfUpdates :: Variables -> Set TSLAtom
-selfUpdates vars = Set.map (\v -> TSLUpdate v (Var v (Vars.sortOf vars v))) $ Vars.stateVars vars
+selfUpdates :: Variables -> Set TSL.Atom
+selfUpdates vars = Set.map (\v -> TSL.Update v (Var v (Vars.sortOf vars v))) $ Vars.stateVars vars
 
-exactlyOneUpd :: Symbol -> Set Term -> [TSL]
-exactlyOneUpd var updateTerms = map (TLUnaryOp TLGlobally) (atLeastOne : atMostOne)
+exactlyOneUpd :: Symbol -> Set Term -> [TSL.Formula]
+exactlyOneUpd var updateTerms = map (TL.UExp TL.Globally) (atLeastOne : atMostOne)
   where
-    updates = map (TLAtomic . TSLUpdate var) (Set.toList updateTerms)
-    atLeastOne = TLOr updates
+    updates = map (TL.Atom . TSL.Update var) (Set.toList updateTerms)
+    atLeastOne = TL.Or updates
     atMostOne = go updates
     go =
       \case
         [] -> []
         [_] -> []
-        x:y:xr -> TLNot (TLAnd [x, y]) : go (x : xr) ++ go (y : xr)
+        x:y:xr -> TL.Not (TL.And [x, y]) : go (x : xr) ++ go (y : xr)
 
-tsl2ltlStr :: Variables -> TSL -> (String, Map String TSLAtom)
-tsl2ltlStr vars tslFormula = (tl2ltl (atoms2ap !) (TLAnd (tslFormula : constr)), ap2atoms)
+tsl2ltlStr :: Variables -> TSL.Formula -> (String, Map String TSL.Atom)
+tsl2ltlStr vars tslFormula = (TL.toLTLStr (atoms2ap !) (TL.And (tslFormula : constr)), ap2atoms)
   where
-    atoms = selfUpdates vars `Set.union` tlAtoms tslFormula
+    atoms = selfUpdates vars `Set.union` TL.atoms tslFormula
     upds = updates atoms
     constr = concatMap (uncurry exactlyOneUpd) (Map.toList upds)
     atomsAp = intmapSet (\n atom -> (atom, "ap" ++ show n)) atoms
     atoms2ap = Map.fromList atomsAp
     ap2atoms = Map.fromList (map swap atomsAp)
 
-doa2game :: Variables -> (String -> TSLAtom) -> DOA String -> (Game, Objective)
+doa2game :: Variables -> (String -> TSL.Atom) -> DOA String -> (Game, Objective)
 doa2game vars atomOf doa =
   let (game0, stateMap) = foldl addLocs (emptyGame, Map.empty) (DOA.states doa)
       mapState st = fromMaybe (error "unmapped DOA state") $ stateMap !? st
@@ -97,7 +97,7 @@ doa2game vars atomOf doa =
 doatran2tran ::
      [Symbol]
   -> (DOA.State -> Loc)
-  -> (String -> TSLAtom)
+  -> (String -> TSL.Atom)
   -> DOA.Transition String
   -> RPG.Transition
 doatran2tran stateVars locOf atomOf = go
@@ -129,19 +129,19 @@ doatran2tran stateVars locOf atomOf = go
             then upds
             else filtered
     --
-    isPred (TSLPredicate _) = True
+    isPred (TSL.Predicate _) = True
     isPred _ = False
     --
-    fromPred (TSLPredicate pred) = pred
-    fromPred _ = error "fromPred applied to TSLUpdate"
+    fromPred (TSL.Predicate pred) = pred
+    fromPred _ = error "fromPred applied to TSL.Update"
     --
-    fromUpdate (TSLUpdate var term) = (var, term)
-    fromUpdate _ = error "fromUpdate applied to TSLPredicate"
+    fromUpdate (TSL.Update var term) = (var, term)
+    fromUpdate _ = error "fromUpdate applied to TSL.Predicate"
 
-tsl2rpg :: Config -> TSLSpec -> IO (Game, Objective)
+tsl2rpg :: Config -> TSL.Spec -> IO (Game, Objective)
 tsl2rpg cfg spec = do
-  let tsl = toFormula spec
-  let vars = variables spec
+  let tsl = TSL.toFormula spec
+  let vars = TSL.variables spec
   cfg <- pure $ setName "RPG2TSL" cfg
   lg cfg ["VARS:", show vars]
   lg cfg ["TSL:", show tsl]

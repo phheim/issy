@@ -1,59 +1,53 @@
 {-# LANGUAGE LambdaCase #-}
 
 module Issy.Logic.TSLMT
-  ( TSLAtom(..)
-  , TSL
-  , TSLSpec(..)
+  ( Atom(..)
+  , Formula
+  , Spec(..)
+  , preds
+  , updates
   , toFormula
-  , tslSpecUpdates
-  , tslSpecPreds
   ) where
 
 import Data.Set (Set)
-import qualified Data.Set as Set (fromList, toList)
+import qualified Data.Set as Set
 
 import Issy.Base.Variables (Variables)
 import Issy.Logic.FOL (Symbol, Term)
-import Issy.Logic.Temporal (TL(TLAnd, TLNot, TLOr), tlAtoms)
+import qualified Issy.Logic.Temporal as TL
 
-data TSLAtom
-  = TSLUpdate Symbol Term
-  | TSLPredicate Term
+data Atom
+  = Update Symbol Term
+  | Predicate Term
   deriving (Eq, Ord, Show)
 
-type TSL = TL TSLAtom
+type Formula = TL.Formula Atom
 
-data TSLSpec = TSLSpec
+data Spec = Spec
   { variables :: Variables
-  , assumptions :: [TSL]
-  , guarantees :: [TSL]
+  , assumptions :: [Formula]
+  , guarantees :: [Formula]
   } deriving (Eq, Ord, Show)
 
-toFormula :: TSLSpec -> TSL
-toFormula spec = TLOr [TLNot (TLAnd (assumptions spec)), TLAnd (guarantees spec)]
+toFormula :: Spec -> Formula
+toFormula spec = TL.Or [TL.Not (TL.And (assumptions spec)), TL.And (guarantees spec)]
 
-tslUpdates :: TSL -> Set (Symbol, Term)
-tslUpdates tsl =
-  Set.fromList
-    $ concatMap
+preds :: Spec -> Set Term
+preds =
+  Set.unions
+    . Set.map
         (\case
-           TSLUpdate var upd -> [(var, upd)]
-           _ -> [])
-    $ Set.toList
-    $ tlAtoms tsl
+           Predicate pred -> Set.singleton pred
+           _ -> Set.empty)
+    . TL.atoms
+    . toFormula
 
-tslPreds :: TSL -> Set Term
-tslPreds tsl =
-  Set.fromList
-    $ concatMap
+updates :: Spec -> Set (Symbol, Term)
+updates =
+  Set.unions
+    . Set.map
         (\case
-           TSLPredicate pred -> [pred]
-           _ -> [])
-    $ Set.toList
-    $ tlAtoms tsl
-
-tslSpecUpdates :: TSLSpec -> Set (Symbol, Term)
-tslSpecUpdates = tslUpdates . toFormula
-
-tslSpecPreds :: TSLSpec -> Set Term
-tslSpecPreds = tslPreds . toFormula
+           Update var upd -> Set.singleton (var, upd)
+           _ -> Set.empty)
+    . TL.atoms
+    . toFormula
