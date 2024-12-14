@@ -1,6 +1,13 @@
 module Main where
 
-import Issy (argumentDescription, argumentParser, parseIssyFormat, printSG, specToSG)
+import Issy
+  ( argumentDescription
+  , argumentParser
+  , checkSpecification
+  , parseIssyFormat
+  , printSG
+  , specToSG
+  )
 
 import Common (checkArgs, liftErr)
 
@@ -10,5 +17,6 @@ main = do
   cfg <- liftErr $ argumentParser args
   input <- getContents
   spec <- liftErr $ parseIssyFormat input
+  checkSpecification cfg spec >>= liftErr
   game <- specToSG cfg spec
   putStrLn $ printSG game

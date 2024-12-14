@@ -1,22 +1,21 @@
 module Issy.Translation
   ( tslToRPG
-  , rpltlToSG
   , specToSG
   ) where
 
 import Issy.Base.Objectives (Objective)
 import Issy.Config (Config, pruneGame)
-import qualified Issy.Logic.RPLTL as RPLTL (Spec)
-import qualified Issy.Logic.TSLMT as TSLMT (Spec)
-import qualified Issy.Monitor as Monitor (initializeRPLTL, initializeTSL)
-import qualified Issy.Products.RPGMonitor as RPGMonitor (onTheFlyProduct)
-import qualified Issy.Products.SGMonitor as SGMonitor (onTheFlyProduct)
-import qualified Issy.Products.SymbolicGames as SGProd (intersection)
-import qualified Issy.RPG as RPG (Game)
+import qualified Issy.Logic.RPLTL as RPLTL
+import qualified Issy.Logic.TSLMT as TSLMT
+import qualified Issy.Monitor as Monitor
+import qualified Issy.Products.RPGMonitor as RPGMonitor
+import qualified Issy.Products.SGMonitor as SGMonitor
+import qualified Issy.Products.SymbolicGames as SGProd
+import qualified Issy.RPG as RPG
 import qualified Issy.Specification as Spec
-import qualified Issy.SymbolicArena as SG (Arena, simplifySG)
-import qualified Issy.Translation.RPLTL2SG as RPLTL2SG (translate)
-import qualified Issy.Translation.TSL2RPG as TSL2RPG (tsl2rpg)
+import qualified Issy.SymbolicArena as SG
+import qualified Issy.Translation.RPLTL2SG as RPLTL2SG
+import qualified Issy.Translation.TSL2RPG as TSL2RPG
 
 tslToRPG :: Config -> TSLMT.Spec -> IO (RPG.Game, Objective)
 tslToRPG cfg spec = do
@@ -39,4 +38,8 @@ rpltlToSG cfg spec = do
 specToSG :: Config -> Spec.Specification -> IO (SG.Arena, Objective)
 specToSG cfg spec = do
   translatedGames <- mapM (rpltlToSG cfg) (Spec.formulas spec)
-  SG.simplifySG cfg $ SGProd.intersection $ Spec.games spec ++ translatedGames
+  game <- SG.simplifySG cfg $ SGProd.intersection $ Spec.games spec ++ translatedGames
+  check <- SG.check cfg $ fst game
+  case check of
+    Nothing -> pure game
+    Just err -> error $ "assert: " ++ err

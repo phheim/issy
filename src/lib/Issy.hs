@@ -1,15 +1,11 @@
 module Issy
-  ( Objective(..)
-  , WinningCondition(..)
-  , Config
+  ( Config
   , argumentParser
   , argumentDescription
-  , toNumber
   , solve
   , fromRPG
   , fromSG
   , tslToRPG
-  , rpltlToSG
   , specToSG
   , printIssyFormat
   , printRPG
@@ -19,6 +15,7 @@ module Issy
   , parseIssyFormat
   , rpgToMuCLP
   , rpgToTSLT
+  , checkSpecification
   ) where
 
 -- Config
@@ -43,8 +40,7 @@ import Issy.Solver.GameInterface (fromRPG, fromSG)
 import Issy.Solver.ObjectiveSolver (solve)
 
 -- Translation (with and without pruning)
-import Issy.Translation (rpltlToSG, specToSG, tslToRPG)
+import Issy.Translation (specToSG, tslToRPG)
 
--- Misc (avoid adding too much here)
-import Issy.Base.Locations (toNumber)
-import Issy.Base.Objectives (Objective(..), WinningCondition(..))
+-- Checking
+import Issy.Specification (checkSpecification)

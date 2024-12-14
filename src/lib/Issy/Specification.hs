@@ -8,11 +8,14 @@ module Issy.Specification
     empty
   , addFormula
   , addGame
+  , -- checking
+    checkSpecification
   ) where
 
 import Issy.Base.Objectives (Objective)
 import qualified Issy.Base.Objectives as Obj
 import Issy.Base.Variables (Variables)
+import Issy.Config (Config)
 import qualified Issy.Logic.RPLTL as RPLTL
 import qualified Issy.SymbolicArena as SG
 
@@ -50,3 +53,13 @@ addGame spec arena obj
           { games = games spec ++ [(arena, obj)]
           , hadNonSafety = hadNonSafety spec || not (Obj.isSafety obj)
           }
+
+checkSpecification :: Config -> Specification -> IO (Either String ())
+checkSpecification cfg = go (1 :: Int) . games
+  where
+    go _ [] = pure $ Right ()
+    go n (g:gr) = do
+      check <- SG.check cfg (fst g)
+      case check of
+        Nothing -> go (n + 1) gr
+        Just err -> pure $ Left $ "game number " ++ show n ++ " is invalid: " ++ err

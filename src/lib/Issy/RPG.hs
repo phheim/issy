@@ -161,7 +161,7 @@ pruneUnreachables init g = foldl disableLoc g $ locations g `Set.difference` rea
       g
         { invariant = Map.insert l FOL.false (invariant g)
         , transRel = Map.insert l (selfLoop l) (transRel g)
-        , predecessors = Map.insert l (Set.singleton l) $ (Set.filter (/= l)) <$> (predecessors g)
+        , predecessors = Map.insert l (Set.singleton l) $ Set.filter (/= l) <$> predecessors g
         }
 
 usedSymbols :: Game -> Set Symbol

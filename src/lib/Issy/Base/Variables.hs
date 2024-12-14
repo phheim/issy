@@ -1,6 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
 
--- TODO: add 'bounded' variable handeling
 module Issy.Base.Variables
   ( Type(..)
   , Variables

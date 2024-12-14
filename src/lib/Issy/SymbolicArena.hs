@@ -242,7 +242,7 @@ check cfg a = go $ Set.toList $ locSet a
               $ \l' -> FOL.andf [Vars.primeT v (domain a l'), trans a l l']
           if c
             then go lr
-            else pure $ Just $ locName a l ++ "might be blocking!"
+            else pure $ Just $ locName a l ++ " might be blocking!"
 
 --
 -- Simplification
