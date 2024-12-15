@@ -5,8 +5,8 @@
 module Issy.Monitor.Rules
   ( applyRules
   , GlobalS
-  , context
-  , contextTSL
+  , globalState
+  , globalStateTSL
   , deducedInvariant
   , derivedEventually
   ) where
@@ -91,8 +91,8 @@ data GlobalS = GlobalS
   , chcMaxCache :: Map ([Formula], [Formula]) (Maybe Formula)
   } deriving (Show)
 
-context :: Variables -> GlobalS
-context vars =
+globalState :: Variables -> GlobalS
+globalState vars =
   let fpn = uniqueName "fixpointpred" (Vars.allSymbols vars)
    in GlobalS
         { vars = vars
@@ -114,13 +114,13 @@ context vars =
         , chcMaxCache = Map.empty
         }
 
-contextTSL :: Variables -> Set (Symbol, Term) -> GlobalS
-contextTSL vars updates =
+globalStateTSL :: Variables -> Set (Symbol, Term) -> GlobalS
+globalStateTSL vars updates =
   let complUpd =
         updates `Set.union` Set.map (\v -> (v, Var v (Vars.sortOf vars v))) (Vars.stateVars vars)
       prefUpd = uniquePrefix "update" (Vars.allSymbols vars)
       updAux = intmapSet (\n upd -> (upd, prefUpd ++ show n)) complUpd
-   in (context vars)
+   in (globalState vars)
         { updateEncodes = Map.fromList updAux
         , updates = True
         , aux = map snd updAux
@@ -141,7 +141,6 @@ contextTSL vars updates =
 -------------------------------------------------------------------------------
 -- Rule Apllication Framework
 -------------------------------------------------------------------------------
--- TODO: Maybe make state to (State, GlobalS) and rname context
 type Rule = Config -> GlobalS -> Set (Domain, Formula, Formula) -> State -> IO (State, GlobalS)
 
 type SRule
@@ -191,12 +190,12 @@ ruleChainAccum rules cfg gls new st
         ruleChainAccum rules cfg gls (generated `Set.union` new) st'
 
 ruleG :: Bool -> Rule -> Rule
-ruleG True = id
-ruleG False = \_ _ gls _ st -> pure (st, gls)
+ruleG g
+  | g = id
+  | otherwise = \_ _ gls _ st -> pure (st, gls)
 
 -------------------------------------------------------------------------------
 -- State Acessors / Helper Methods 
--- TODO reorganise and check with context
 -------------------------------------------------------------------------------
 deducedInvariant :: Config -> GlobalS -> Domain -> State -> IO Term
 deducedInvariant cfg gls dom st =
@@ -235,13 +234,15 @@ checkImpl cfg gls a b
         pure (res, gls {implCache = Map.insert (a, b) res (implCache gls)})
 
 checkUnsat :: Config -> GlobalS -> [Formula] -> IO (Bool, GlobalS)
-checkUnsat _ gls [] = pure (False, gls)
-checkUnsat cfg gls fs =
-  case unsatCache gls !? fs of
-    Just res -> pure (res, gls)
-    Nothing -> do
-      res <- unsat cfg $ andf $ exactlyOneUpd gls : map (encode gls) fs
-      pure (res, gls {unsatCache = Map.insert fs res (unsatCache gls)})
+checkUnsat cfg gls =
+  \case
+    [] -> pure (False, gls)
+    fs ->
+      case unsatCache gls !? fs of
+        Just res -> pure (res, gls)
+        Nothing -> do
+          res <- unsat cfg $ andf $ exactlyOneUpd gls : map (encode gls) fs
+          pure (res, gls {unsatCache = Map.insert fs res (unsatCache gls)})
 
 callCHC :: Config -> GlobalS -> [([Term], Term)] -> IO (Maybe Bool, GlobalS)
 callCHC cfg gls query = do
@@ -500,7 +501,6 @@ deduceLiveness :: SRule
 deduceLiveness cfg gls _ dom st = do
   lg cfg ["Apply Gen-Reach rules to", show dom]
   let cached = Map.findWithDefault Set.empty (dedInv dom st) (genReaches gls)
-  -- TODO: guard and don't add existing stuff
   st <- foldM (addImp cfg "Gen-Reach-Prop" dom) st cached
   let cand = searchLiveness gls (current dom st) (fset dom st ++ eset dom st)
   foldM (genReach cfg dom) (st, gls) cand

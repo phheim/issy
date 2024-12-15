@@ -42,7 +42,7 @@ initializeTSL cfg spec = do
   initialize
     cfg
     True
-    (MR.contextTSL (TSL.variables spec) (TSL.updates spec))
+    (MR.globalStateTSL (TSL.variables spec) (TSL.updates spec))
     (TSL.variables spec)
     (MF.fromTSL <$> TSL.assumptions spec)
     (MF.fromTSL <$> TSL.guarantees spec)
@@ -55,7 +55,7 @@ initializeRPLTL cfg spec = do
   initialize
     cfg
     False
-    (MR.context (RPLTL.variables spec))
+    (MR.globalState (RPLTL.variables spec))
     (RPLTL.variables spec)
     (MF.fromRPLTL <$> RPLTL.assumptions spec)
     (MF.fromRPLTL <$> RPLTL.guarantees spec)
