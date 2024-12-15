@@ -185,12 +185,14 @@ cpreEnv a d l =
   let v = variables a
       f =
         Vars.existsI v
-          $ FOL.impl (validInput a l)
-          $ Vars.forallX' v
-          $ FOL.andfL (succL a l)
-          $ \l' ->
-              FOL.andf [trans a l l', Vars.primeT v (domain a l')]
-                `FOL.impl` Vars.primeT v (SymSt.get d l')
+          $ FOL.andf
+              [ validInput a l
+              , Vars.forallX' v
+                  $ FOL.andfL (succL a l)
+                  $ \l' ->
+                      FOL.andf [trans a l l', Vars.primeT v (domain a l')]
+                        `FOL.impl` Vars.primeT v (SymSt.get d l')
+              ]
    in FOL.andf [f, domain a l]
 
 cpreSys :: Arena -> SymSt -> Loc -> Term
