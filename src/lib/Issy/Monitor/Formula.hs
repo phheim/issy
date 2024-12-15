@@ -398,7 +398,6 @@ replaceU (var, term) pol = go
         FFalse -> ffalse
         FPred p t -> fpred p t
         FUpdate p v t
-            -- TODO: Check a second time!
           | v == var && t == term && pol == p -> ftrue
           | v == var && t == term && pol /= p -> ffalse
           | v == var && t /= term && pol && p -> ffalse

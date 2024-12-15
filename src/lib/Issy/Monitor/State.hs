@@ -190,9 +190,11 @@ impD :: Domain -> State -> Set (Formula, Formula)
 impD Assumptions = impA
 impD Guarantees = impG
 
---TODO: refine? Add assumptions stuff to guaratnees?
 current :: Domain -> State -> [Formula]
-current dom = go . eset dom
+current dom st =
+  case dom of
+    Assumptions -> go $ eset Assumptions st
+    Guarantees -> go $ eset Assumptions st ++ eset Guarantees st
   where
     go =
       \case

@@ -77,7 +77,6 @@ data GlobalS = GlobalS
   , fpPred :: Term
   , fpPred' :: Term
   -- Update related
-  , updates :: Bool --TODO: Add assertion checks w.r.t to this!
   , aux :: [Symbol]
   , updateEncodes :: Map (Symbol, Term) Symbol
   , exactlyOneUpd :: Term
@@ -100,7 +99,6 @@ globalState vars =
         , fpPred = Vars.unintPredTerm vars fpn
         , fpPred' = Vars.primeT vars $ Vars.unintPredTerm vars fpn
             --
-        , updates = False
         , aux = []
         , updateEncodes = Map.empty
         , exactlyOneUpd = true
@@ -122,7 +120,6 @@ globalStateTSL vars updates =
       updAux = intmapSet (\n upd -> (upd, prefUpd ++ show n)) complUpd
    in (globalState vars)
         { updateEncodes = Map.fromList updAux
-        , updates = True
         , aux = map snd updAux
         , exactlyOneUpd =
             andf
@@ -540,7 +537,6 @@ genReach cfg dom (st, gls) (gamma, beta)
                  {muvalUnsat = (dedInv dom st, gamma, feventually beta) `Set.insert` muvalUnsat gls})
   | otherwise = pure (st, gls)
 
--- TODO: How about nested stuff?
 searchLiveness :: GlobalS -> [Formula] -> [Formula] -> Set (Formula, Formula)
 searchLiveness gls currents = Set.unions . map go
   where
@@ -552,15 +548,17 @@ searchLiveness gls currents = Set.unions . map go
           | otherwise -> go f
         FEventually f
           | notTemporal f -> Set.singleton (current, f)
-          | otherwise -> Set.empty
+          | otherwise -> go f
         FOr [f, FEventually g]
           | notTemporal f && notTemporal g -> Set.fromList [(fnot f, g), (current, g)]
-          | otherwise -> go f `Set.union` go (FEventually g)
+          | otherwise -> go g `Set.union` go f `Set.union` go (FEventually g)
         FOr [FEventually g, f]
           | notTemporal f && notTemporal g -> Set.fromList [(fnot f, g), (current, g)]
-          | otherwise -> go f `Set.union` go (FEventually g)
+          | otherwise -> go g `Set.union` go f `Set.union` go (FEventually g)
         FAnd fs -> Set.unions $ map go fs
         FOr fs -> Set.unions $ map go fs
+        FNext f -> go f
+        FWeak f g -> go g `Set.union` go f
         _ -> Set.empty
 
 deducePreciseInv :: SRule
