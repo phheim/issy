@@ -56,8 +56,8 @@ generateSuccessor cfg mon st assign = do
             tree <- computeExpansion cfg (hasUpdates mon) (predicates mon) expState assign
             pure
               (tree, mon {expansionCache = Map.insert (expState, assign) tree (expansionCache mon)})
-      (trans, newCtx) <- applySucessorRules cfg oldState (ctx mon) expansionTree
-      mon <- pure $ mon {ctx = newCtx}
+      (trans, newCtx) <- applySucessorRules cfg oldState (gls mon) expansionTree
+      mon <- pure $ mon {gls = newCtx}
       mon <- pure $ foldl addLabel mon (map snd (concat (leafs trans)))
       trans <- pure $ fmap (map (second (revlabel mon))) trans
       mon <- pure $ mon {stateTrans = Map.insert (st, assign) trans (stateTrans mon)}
@@ -66,17 +66,17 @@ generateSuccessor cfg mon st assign = do
 applySucessorRules ::
      Config
   -> M.State
-  -> Context
+  -> GlobalS
   -> Trans [(Term, [(Bool, Symbol, Term)], ExpansionState)]
-  -> IO (Trans [([(Bool, Symbol, Term)], M.State)], Context)
+  -> IO (Trans [([(Bool, Symbol, Term)], M.State)], GlobalS)
 applySucessorRules cfg oldState =
   recLeafs
     $ recList
-    $ \ctx (prop, choices, est) -> do
+    $ \gls (prop, choices, est) -> do
         let st = fromExpansionState oldState est
         st <- pure $ normSt $ addFacts [prop] st
-        (st, ctx) <- applyRules cfg ctx st
-        pure ((choices, st), ctx)
+        (st, gls) <- applyRules cfg gls st
+        pure ((choices, st), gls)
 
 computeExpansion ::
      Config

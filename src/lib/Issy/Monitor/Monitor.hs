@@ -23,7 +23,7 @@ import Data.Set (Set)
 import Issy.Base.Variables (Variables)
 import qualified Issy.Base.Variables as Vars (inputs)
 import Issy.Logic.FOL (Symbol, Term, false, true)
-import Issy.Monitor.Rules (Context)
+import Issy.Monitor.Rules (GlobalS)
 import Issy.Monitor.State (ExpansionState)
 import qualified Issy.Monitor.State as M (State)
 
@@ -60,7 +60,7 @@ leafs =
     TrSucc a -> [a]
 
 data Monitor = Monitor
-  { ctx :: Context
+  { gls :: GlobalS
   , variables :: Variables
   , predicates :: Set Term
   , initState :: State

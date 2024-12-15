@@ -62,17 +62,17 @@ initializeRPLTL cfg spec = do
     preds
 
 initialize ::
-     Config -> Bool -> MR.Context -> Variables -> [Formula] -> [Formula] -> Set Term -> IO Monitor
-initialize cfg upd ctx vars assumptions guarantees preds = do
+     Config -> Bool -> MR.GlobalS -> Variables -> [Formula] -> [Formula] -> Set Term -> IO Monitor
+initialize cfg upd gls vars assumptions guarantees preds = do
   lg cfg ["generate preds:", strS smtLib2 preds]
   let initialLabel = initSt assumptions guarantees
   lg cfg ["initalize:", "raw", stateToString initialLabel]
-  (initialLabel, ctx) <- MR.applyRules cfg ctx initialLabel
+  (initialLabel, gls) <- MR.applyRules cfg gls initialLabel
   lg cfg ["initalize:", "simple", stateToString initialLabel]
   let initialLabels = [(State 0, initialLabel), (State 1, trueSt), (State 2, falseSt)]
   return
     $ Monitor
-        { ctx = ctx
+        { gls = gls
         , variables = vars
         , predicates = preds
         , initState = State 0

@@ -66,7 +66,7 @@ dischargeGFs cfg mon = do
   eventMap <-
     mapM
       (\st -> do
-         (events, _) <- derivedEventually cfg (ctx mon) Guarantees (label mon st)
+         (events, _) <- derivedEventually cfg (gls mon) Guarantees (label mon st)
          pure (st, events))
       $ Set.toList
       $ states mon
