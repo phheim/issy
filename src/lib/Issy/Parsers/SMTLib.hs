@@ -183,7 +183,6 @@ psexpr sub acc ts = pread TLPar ts "psexpr" >>= rec acc
         TRPar:ts -> Right (acc, ts)
         ts -> sub acc ts >>= uncurry rec
 
---TODO: Include into parser
 extractModel :: Set Symbol -> String -> Model
 extractModel frees str =
   case parseModel frees (tokenize str) of

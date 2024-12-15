@@ -11,7 +11,6 @@ module Issy.Monitor
   , initial
   , generateSuccessor
   , finish
-  , toString
   , Trans(..)
   , leafs
   ) where

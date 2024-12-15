@@ -130,7 +130,6 @@ translatePredTerm typ toStr =
     BooleanInput a
       | typ a == SBool -> Var (toStr a) SBool
       | otherwise -> error "found boolean input with non-boolean sort"
-            -- TODO: this might actually be not complete!
     PredicateSymbol constp -> Const $ parseConst (toStr constp)
     term -> uncurry Func $ go term
   where

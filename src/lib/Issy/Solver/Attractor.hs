@@ -22,6 +22,7 @@ import qualified Data.Set as Set (fromList, toList)
 
 import Issy.Base.SymbolicState
 import qualified Issy.Base.SymbolicState as SymSt
+import qualified Issy.Base.Variables as Vars
 import Issy.Config (Config, generateProgram, setName)
 import Issy.Logic.FOL
 import Issy.Logic.SMT (sat, simplify, valid)
@@ -44,6 +45,7 @@ import Issy.Solver.GameInterface
   , stateVarL
   , stateVars
   , usedSymbols
+  , vars
   )
 import Issy.Solver.Heuristics
 import Issy.Solver.LemmaFinding
@@ -107,23 +109,12 @@ lemmaSymbols g (UsedSyms allS lems) =
       s = uniqueName "s" allS
       c = uniqueName "c" allS
       lSyms = LemSyms b s c
-   in ( uintPred b
-      , uintPred s
-      , uintPred c
+   in ( Vars.unintPredTerm (vars g) b
+      , Vars.unintPredTerm (vars g) s
+      , Vars.unintPredTerm (vars g) c
       , lSyms
-      , unintP s
+      , Vars.unintPred (vars g) s
       , UsedSyms (allS `union` Set.fromList [b, s, c]) (lSyms : lems))
-  where
-    -- TODO: once variables are ported to RPG use variable functionality!
-    uintPred f = Func (unintP f) [Var c (sortOf g c) | c <- stateVarL g]
-    unintP f = CustomF f [sortOf g c | c <- stateVarL g] SBool
-
--- TODO: once variables are ported to RPG use variable functionality!
-forallX :: Game -> Term -> Term
-forallX g = forAll (stateVarL g)
-
-existsX :: Game -> Term -> Term
-existsX g = exists (stateVarL g)
 
 --
 -- Step relation [EX ++ CELLS]
@@ -151,11 +142,11 @@ accReach depth p g l st uSym =
       -- } PROG GEN
       (consR, stAccR, uSym'', cfg) = iterAttr depth p gl st' l' uSym' cfg2
       -- quantSub f = forallX g (andf [g `inv` l, c, neg (st `get` l)] `impl` f) <- This is not strictly necessary
-      quantSub f = forallX g (andf [g `inv` l, c] `impl` f)
+      quantSub f = Vars.forallX (vars g) $ andf [g `inv` l, c] `impl` f
       cons = expandStep g sSym <$> consR
       stAcc = mapSymSt (expandStep g sSym) stAccR
       cons' =
-        [ forallX g (andf [g `inv` l, b] `impl` (st `get` l))
+        [ Vars.forallX (vars g) $ andf [g `inv` l, b] `impl` (st `get` l)
         , quantSub (stAcc `get` l)
         , quantSub (andf cons)
         ]
@@ -196,7 +187,7 @@ accelReach ctx limit p g l st = do
   lg ctx ["Accelerate in", locName g l, "on", lgS g st]
   let (cons, f, UsedSyms _ syms, cfg) =
         accReach (limit2depth limit) p g l st (UsedSyms (usedSymbols g) [])
-  let cons' = cons ++ [existsX g (andf [f, neg (st `get` l)])]
+  let cons' = cons ++ [Vars.existsX (vars g) (andf [f, neg (st `get` l)])]
   let tyc = TypedCells (stateVarL g) (sortOf g) (filter (boundedVar g) (stateVarL g))
   unless (all (null . frees) cons')
     $ error

@@ -14,7 +14,6 @@ module Issy.Monitor.Monitor
   , initial
   , verdict
   , inputs
-  , toString
   ) where
 
 import Data.Map.Strict (Map, (!?))
@@ -115,10 +114,4 @@ verdict mon st
 
 inputs :: Monitor -> Set Symbol
 inputs = Vars.inputs . variables
-
--------------------------------------------------------------------------------
--- Pretty printing
--------------------------------------------------------------------------------
-toString :: Monitor -> String
-toString _ = "TODO" -- TODO IMPLEMENT
 -------------------------------------------------------------------------------

@@ -5,6 +5,7 @@
 module Issy.Solver.GameInterface
   ( Game
   , Loc
+  , vars
   , inv
   , locations
   , preds
@@ -51,6 +52,9 @@ liftG _ h (Sym a) = h a
 
 liftV :: (Vars.Variables -> a) -> Game -> a
 liftV f = f . liftG RPG.variables Sym.variables
+
+vars :: Game -> Vars.Variables
+vars = liftV id
 
 inv :: Game -> Loc -> Term
 inv = liftG RPG.inv Sym.domain
