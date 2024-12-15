@@ -21,6 +21,8 @@ module Issy.RPG
   , addTransition
   , setInv
   , selfLoop
+  , addSink
+  , createLocsFor
   , -- Other
     succT
   , succs
@@ -37,9 +39,9 @@ module Issy.RPG
 
 -------------------------------------------------------------------------------
 import Control.Monad (liftM2)
-import Data.Bifunctor (first)
+import Data.Bifunctor (first, second)
 import Data.List (nub)
-import Data.Map.Strict (Map, (!?))
+import Data.Map.Strict (Map, (!), (!?))
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe)
 import Data.Set (Set)
@@ -120,6 +122,25 @@ addLocation :: Game -> String -> (Game, Loc)
 addLocation g name =
   let (newLoc, locSet) = Locs.add (locationSet g) name
    in (g {locationSet = locSet}, newLoc)
+
+createLocsFor ::
+     (Foldable t, Ord a) => Game -> (a -> String) -> (a -> Term) -> t a -> (Game, a -> Loc)
+createLocsFor game name inv =
+  second (!)
+    . foldl
+        (\(g, mp) e ->
+           let (g', l) = addLocation g (name e)
+            in (setInv g' l (inv e), Map.insert e l mp))
+        (game, Map.empty)
+
+addSink :: Game -> String -> (Game, Loc)
+addSink g name =
+  let (g', sink) = addLocation g name
+   in ( g'
+          { transRel = Map.insert sink (selfLoop sink) (transRel g')
+          , predecessors = Map.insert sink (Set.singleton sink) (predecessors g')
+          }
+      , sink)
 
 addTransition :: Game -> Loc -> Transition -> Maybe Game
 addTransition g l t

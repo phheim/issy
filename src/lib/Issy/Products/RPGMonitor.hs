@@ -8,10 +8,10 @@ import Control.Monad (unless)
 import Data.List (nub)
 import Data.Map.Strict (Map, (!), (!?))
 import qualified Data.Map.Strict as Map
-import Data.Maybe (fromJust, fromMaybe)
+import Data.Maybe (fromJust)
 import Data.Set (Set)
-import qualified Data.Set as Set (empty, filter, insert, map)
-import qualified Issy.Utils.OpenList as OL (fromList, pop, pushList)
+import qualified Data.Set as Set
+import qualified Issy.Utils.OpenList as OL
 
 import Issy.Base.Objectives (Objective(..), WinningCondition(..))
 import Issy.Config (Config, setName)
@@ -117,41 +117,23 @@ traversTransition cfg mon state = go [] mon
           case upd !? v of
             Just t -> t /= tm && validComb upd ur
             Nothing -> not (isSelfUpdate (v, tm)) && validComb upd ur
-
--- TODO: Maybe move this
-isSelfUpdate :: (Symbol, Term) -> Bool
-isSelfUpdate (v, Var s _) = s == v
-isSelfUpdate _ = False
-
--- TODO: Maybe move this to RPG construction
-createLocations :: Ord a => Game -> Set a -> (a -> String) -> (a -> Term) -> (Game, Map a Loc)
-createLocations game elems elemName elemInv = foldl add (game, Map.empty) elems
-  where
-    add (g, m) a =
-      let (g0, l) = addLocation g (elemName a)
-          g1 = setInv g0 l (elemInv a)
-       in (g1, Map.insert a l m)
-
--- TODO: Maybe move this to RPG construction
-addTrivialWins :: Game -> (Game, Loc, Loc)
-addTrivialWins game =
-  let (g0, winEnv) = addLocation game "winEnv"
-      (g1, winSys) = addLocation g0 "winSys"
-      g2 = fromJust $ addTransition g1 winSys (TSys [(Map.empty, winSys)])
-      g3 = fromJust $ addTransition g2 winEnv (TSys [(Map.empty, winEnv)])
-   in (g3, winEnv, winSys)
+    --
+    isSelfUpdate :: (Symbol, Term) -> Bool
+    isSelfUpdate =
+      \case
+        (v, Var s _) -> s == v
+        _ -> False
 
 productToGame :: Game -> Monitor -> Product -> (Game, Loc, Loc, (Loc, State) -> Loc)
 productToGame game mon prod =
-  let g0 = RPG.empty (RPG.variables game)
-      (g1, winEnv, winSys) = addTrivialWins g0
-      (g2, mp) =
-        createLocations
+  let (g0, winEnv) = RPG.addSink (RPG.empty (RPG.variables game)) "winEnv"
+      (g1, winSys) = RPG.addSink g0 "winSys"
+      (g2, oldToNew) =
+        RPG.createLocsFor
           g1
-          (explored prod)
           (\(l, q) -> locName game l ++ stateName mon q)
           (\(l, _) -> game `inv` l)
-      oldToNew old = fromMaybe (error ("assert: unmapped " ++ show old)) (mp !? old)
+          (explored prod)
       mkTrans = transToTransition winEnv winSys oldToNew (verdict mon)
       g3 =
         foldl

@@ -14,6 +14,7 @@ import Issy.Base.Variables (Variables)
 import qualified Issy.Base.Variables as Vars
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.RPLTL as RPLTL
+import qualified Issy.Logic.Temporal as TL
 import qualified Issy.Printers.SMTLib as SMTLib (smtLib2)
 import Issy.Specification (Specification)
 import qualified Issy.Specification as Spec
@@ -45,7 +46,32 @@ printSort =
     _ -> error "assert: function types should not appear here"
 
 printFSpec :: RPLTL.Spec -> String
-printFSpec _ = "TODO IMPLEMENT"
+printFSpec spec =
+  ps
+    [ mps (("\n" ++) . printFormula) (RPLTL.assumptions spec)
+    , mps (("\n" ++) . printFormula) (RPLTL.guarantees spec)
+    ]
+
+printFormula :: RPLTL.Formula -> String
+printFormula = go
+  where
+    ops op =
+      \case
+        [] -> "(" ++ op ++ ")"
+        [x] -> "(" ++ op ++ " " ++ go x ++ ")"
+        x:xr -> "(" ++ op ++ " " ++ go x ++ concatMap ((" " ++) . go) xr ++ ")"
+    go =
+      \case
+        TL.Atom ap -> "(ap " ++ printTerm ap ++ ")"
+        TL.And fs -> ops "and" fs
+        TL.Or fs -> ops "or" fs
+        TL.Not f -> ops "not" [f]
+        TL.UExp TL.Next f -> ops "X" [f]
+        TL.UExp TL.Globally f -> ops "G" [f]
+        TL.UExp TL.Eventually f -> ops "F" [f]
+        TL.BExp TL.Until f g -> ops "U" [f, g]
+        TL.BExp TL.WeakUntil f g -> ops "W" [f, g]
+        TL.BExp TL.Release f g -> ops "R" [f, g]
 
 printGame :: (SG.Arena, Objective) -> String
 printGame (arena, obj) =
