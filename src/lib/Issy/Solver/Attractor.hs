@@ -198,7 +198,9 @@ accelReach ctx limit p g l st = do
         accReach (limit2depth limit) p g l st (UsedSyms (usedSymbols g) [])
   let cons' = cons ++ [existsX g (andf [f, neg (st `get` l)])]
   let tyc = TypedCells (stateVarL g) (sortOf g) (filter (boundedVar g) (stateVarL g))
-  unless (all (null . frees) cons') (fail "Assertion: Constraint with free variables")
+  unless (all (null . frees) cons')
+    $ error
+    $ "assert: constraint with free variables " ++ strL (strS show . frees) cons'
   (res, col) <- resolve ctx limit tyc cons' f syms
   cfg <- pure $ foldl (flip (\(l, li) -> mapCFG (replaceLemma tyc li l))) cfg col
   cfg <- pure $ removePTDummy (stateVarL g) col cfg

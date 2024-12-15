@@ -72,9 +72,9 @@ module Issy.Logic.FOL
 -------------------------------------------------------------------------------
 import Data.List (isPrefixOf)
 import Data.Map (Map, (!?))
-import qualified Data.Map as Map (delete, empty, fromListWithKey, insert, keysSet)
-import Data.Set (Set, difference, empty, singleton, toList, unions)
-import qualified Data.Set as Set (map)
+import qualified Data.Map as Map
+import Data.Set (Set)
+import qualified Data.Set as Set
 
 -------------------------------------------------------------------------------
 type Symbol = String
@@ -85,6 +85,12 @@ data Sort
   | SReal
   | SFunc [Sort] Sort
   deriving (Eq, Ord, Show)
+
+isFuncSort :: Sort -> Bool
+isFuncSort =
+  \case
+    SFunc _ _ -> True
+    _ -> False
 
 data Function
   = PredefF Symbol
@@ -161,7 +167,7 @@ inlineModel (Model m) v =
             <$> Map.delete v m
 
 sanitizeModel :: Set Symbol -> Model -> Model
-sanitizeModel frees (Model m) = foldl inlineModel (Model m) (Map.keysSet m `difference` frees)
+sanitizeModel frees (Model m) = foldl inlineModel (Model m) (Map.keysSet m `Set.difference` frees)
 
 -------------------------------------------------------------------------------
 betaReduce :: Term -> Term -> Term
@@ -337,17 +343,18 @@ quantifierFree =
 bindingsS :: Term -> Set (Symbol, Sort)
 bindingsS =
   \case
-    Var v s -> singleton (v, s)
+    Var v s -> Set.singleton (v, s)
     Func f args ->
       case f of
-        PredefF _ -> unions (map bindingsS args)
-        CustomF f sarg starg -> unions (singleton (f, SFunc sarg starg) : map bindingsS args)
+        PredefF _ -> Set.unions (map bindingsS args)
+        CustomF f sarg starg ->
+          Set.unions (Set.singleton (f, SFunc sarg starg) : map bindingsS args)
     Quant _ _ f -> bindingsS f
     Lambda _ f -> bindingsS f
-    _ -> empty
+    _ -> Set.empty
 
 frees :: Term -> Set Symbol
-frees = Set.map fst . bindingsS
+frees = Set.map fst . Set.filter (not . isFuncSort . snd) . bindingsS
 
 bindings :: Term -> Map Symbol Sort
 bindings =
@@ -356,27 +363,27 @@ bindings =
        if s == s'
          then s
          else error ("Assertion: Found variable " ++ v ++ " with different sorts"))
-    . toList
+    . Set.toList
     . bindingsS
 
 symbols :: Term -> Set Symbol
 symbols =
   \case
-    Var s _ -> singleton s
-    Func (PredefF f) args -> unions (singleton f : map symbols args)
-    Func (CustomF f _ _) args -> unions (singleton f : map symbols args)
+    Var s _ -> Set.singleton s
+    Func (PredefF f) args -> Set.unions $ Set.singleton f : map symbols args
+    Func (CustomF f _ _) args -> Set.unions $ Set.singleton f : map symbols args
     Quant _ _ f -> symbols f
     Lambda _ f -> symbols f
-    _ -> empty
+    _ -> Set.empty
 
 nonBoolTerms :: Term -> Set Term
 nonBoolTerms =
   \case
-    Const (CBool _) -> empty
+    Const (CBool _) -> Set.empty
     Func (PredefF f) args
-      | f `elem` booleanFunctions -> unions $ map nonBoolTerms args
-      | otherwise -> singleton $ Func (PredefF f) args
-    f -> singleton f
+      | f `elem` booleanFunctions -> Set.unions $ map nonBoolTerms args
+      | otherwise -> Set.singleton $ Func (PredefF f) args
+    f -> Set.singleton f
 
 -------------------------------------------------------------------------------
 uniqueName :: Symbol -> Set Symbol -> Symbol
