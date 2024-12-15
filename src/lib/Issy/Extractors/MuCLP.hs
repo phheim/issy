@@ -1,6 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
 
---TODO: Add invariants!
 module Issy.Extractors.MuCLP
   ( rpgToMuCLP
   ) where
@@ -35,15 +34,15 @@ encSort =
     SFunc _ _ -> error "Function types not supported"
 
 encConst :: Bool -> Constant -> String
-encConst ugly =
+encConst upd =
   \case
     CInt n -> show n
     CReal r -> addDot $ showFixed True (fromRational r :: Nano)
     CBool True
-      | ugly -> "1"
+      | upd -> "1"
       | otherwise -> "true"
     CBool False
-      | ugly -> "0"
+      | upd -> "0"
       | otherwise -> "false"
   where
     addDot :: String -> String
@@ -61,27 +60,27 @@ encOp encA op neut =
     x:xr -> "(" ++ encA x ++ " " ++ op ++ " " ++ encOp encA op neut xr ++ ")"
 
 encTerm :: Bool -> Term -> String
-encTerm ugly =
+encTerm upd =
   \case
     Var v s
-      | s == SBool && not ugly -> "(" ++ v ++ " = 1)"
-      | s == SBool && ugly -> v
+      | s == SBool && not upd -> "(" ++ v ++ " = 1)"
+      | s == SBool && upd -> v
       | otherwise -> v
-    Const c -> encConst ugly c
+    Const c -> encConst upd c
     QVar _ -> error "Not supported"
     Func f args ->
       case f of
         CustomF {} -> error "Not supported"
         PredefF n
-          | n == "or" -> encOp (encTerm ugly) "\\/" "false" args
-          | n == "and" -> encOp (encTerm ugly) "/\\" "true" args
-          | n == "not" -> "(not " ++ encTerm ugly (head args) ++ ")"
-          | n == "+" -> encOp (encTerm ugly) "+" "0" args
-          | n == "-" && length args == 1 -> "(- " ++ encTerm ugly (head args) ++ ")"
+          | n == "or" -> encOp (encTerm upd) "\\/" "false" args
+          | n == "and" -> encOp (encTerm upd) "/\\" "true" args
+          | n == "not" -> "(not " ++ encTerm upd (head args) ++ ")"
+          | n == "+" -> encOp (encTerm upd) "+" "0" args
+          | n == "-" && length args == 1 -> "(- " ++ encTerm upd (head args) ++ ")"
           | n `elem` ["-", "=", "<", ">", ">=", "<=", "*"] -> binOp n args
           | n == "/" ->
             case args of
-              [Const (CInt c1), Const (CInt c2)] -> encConst ugly (CReal (c1 % c2))
+              [Const (CInt c1), Const (CInt c2)] -> encConst upd (CReal (c1 % c2))
               _ -> error (n ++ " only supported for constants")
           | otherwise -> error (n ++ " not supported yet")
     Quant {} -> error "Not supported"
@@ -90,7 +89,7 @@ encTerm ugly =
     binOp :: String -> [Term] -> String
     binOp op =
       \case
-        [o1, o2] -> "(" ++ encTerm ugly o1 ++ " " ++ op ++ " " ++ encTerm ugly o2 ++ ")"
+        [o1, o2] -> "(" ++ encTerm upd o1 ++ " " ++ op ++ " " ++ encTerm upd o2 ++ ")"
         _ -> error (op ++ "is a binary operator")
 
 encPred :: Game -> String -> (Symbol -> String) -> [Symbol] -> Loc -> String
@@ -123,14 +122,16 @@ encTrans pname g =
 
 encFullTrans :: String -> Game -> Loc -> String
 encFullTrans pname g l =
-  "("
+  "(("
+    ++ encTerm False (g `inv` l)
+    ++ ") /\\ ("
     ++ (if not (null (inputs g))
           then "forall"
                  ++ concatMap (\s -> " (" ++ s ++ ": " ++ encSort (sortOf g s) ++ ")") (inputs g)
                  ++ "."
           else "")
     ++ encTrans pname g (trans g l)
-    ++ ");"
+    ++ "));"
 
 encReach :: Game -> Set Loc -> Loc -> String
 encReach g reach l =
@@ -166,7 +167,9 @@ encAll :: String -> Game -> Loc -> String
 encAll pname g init =
   "forall "
     ++ concatMap (\s -> "(" ++ s ++ ": " ++ encSort (sortOf g s) ++ ")") (outputs g)
-    ++ ". "
+    ++ ". (not "
+    ++ encTerm False (g `inv` init)
+    ++ ") \\/ "
     ++ encPred g pname id (outputs g) init
 
 encReachable :: Game -> Loc -> Set Loc -> String

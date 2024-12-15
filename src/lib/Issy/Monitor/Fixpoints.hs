@@ -34,15 +34,15 @@ encSort =
     SFunc _ _ -> error "Function types not supported"
 
 encConst :: Bool -> Constant -> String
-encConst ugly =
+encConst funarg =
   \case
     CInt n -> show n
     CReal r -> addDot $ showFixed True (fromRational r :: Nano)
     CBool True
-      | ugly -> "1"
+      | funarg -> "1"
       | otherwise -> "(0 = 0)"
     CBool False
-      | ugly -> "0"
+      | funarg -> "0"
       | otherwise -> "(0 = 1)"
   where
     addDot :: String -> String
@@ -59,17 +59,17 @@ encOp encA op neut =
     [x] -> "(" ++ encA x ++ ")"
     x:xr -> "(" ++ encA x ++ " " ++ op ++ " " ++ encOp encA op neut xr ++ ")"
 
--- TODO: Rename ugly to something more understandable!
 encTerm :: Symbol -> (String, Int, Set Int) -> Bool -> Term -> String
-encTerm fpPred (qpref, qdepth, bvars) ugly =
+encTerm fpPred (qpref, qdepth, bvars) funarg =
   \case
     Var v s
-      | s == SBool && not ugly -> "(" ++ v ++ " = 1)"
-      | s == SBool && ugly -> v
+      | s == SBool && not funarg -> "(" ++ v ++ " = 1)"
+      | s == SBool && funarg -> v
       | otherwise -> v
-    Const c -> encConst ugly c
+    Const c -> encConst funarg c
     QVar k
-      | qdepth - k - 1 `elem` bvars && not ugly -> "(" ++ qpref ++ show (qdepth - k - 1) ++ " = 1)"
+      | qdepth - k - 1 `elem` bvars && not funarg ->
+        "(" ++ qpref ++ show (qdepth - k - 1) ++ " = 1)"
       | otherwise -> qpref ++ show (qdepth - k - 1)
     Func f args ->
       case f of
@@ -85,7 +85,7 @@ encTerm fpPred (qpref, qdepth, bvars) ugly =
           | n `elem` ["-", "=", "<", ">", ">=", "<=", "*"] -> binOp n args
           | n == "/" ->
             case args of
-              [Const (CInt c1), Const (CInt c2)] -> encConst ugly (CReal (c1 % c2))
+              [Const (CInt c1), Const (CInt c2)] -> encConst funarg (CReal (c1 % c2))
               _ -> error (n ++ " only supported for constants")
           | otherwise -> error (n ++ " not supported yet")
     Quant Exists sort term ->
@@ -108,10 +108,10 @@ encTerm fpPred (qpref, qdepth, bvars) ugly =
         ++ ")"
     Lambda _ _ -> error "lambdas not supported"
   where
-    rec = encTerm fpPred (qpref, qdepth, bvars) ugly
+    rec = encTerm fpPred (qpref, qdepth, bvars) funarg
     recT = encTerm fpPred (qpref, qdepth, bvars) True
-    recNest SBool = encTerm fpPred (qpref, qdepth + 1, Set.insert qdepth bvars) ugly
-    recNest _ = encTerm fpPred (qpref, qdepth + 1, bvars) ugly
+    recNest SBool = encTerm fpPred (qpref, qdepth + 1, Set.insert qdepth bvars) funarg
+    recNest _ = encTerm fpPred (qpref, qdepth + 1, bvars) funarg
     --
     binOp :: String -> [Term] -> String
     binOp op =
@@ -153,20 +153,22 @@ callMuval cfg query = do
 --
 -- Max CHC
 --
--- TODO: assert only ints !!!
---
 computeFP :: Config -> Variables -> Symbol -> Term -> Term -> IO (Maybe Term)
-computeFP cfg vars fpPred init trans = do
-  let query = encodeFP vars fpPred init trans
-  lg cfg ["CHCMax", "running"]
-  res <- callCHCMax cfg query
-  case parseFP vars fpPred res of
-    Left err -> do
-      lg cfg ["CHCMax returned error:", err]
-      pure Nothing
-    Right term -> do
-      lg cfg ["CHCMax returned result:", smtLib2 term]
-      pure (Just term)
+computeFP cfg vars fpPred init trans
+  | any ((/= SInt) . Vars.sortOf vars) (frees init `Set.union` frees trans) = do
+    lg cfg ["CHCMax", "found non ints!"]
+    pure Nothing
+  | otherwise = do
+    let query = encodeFP vars fpPred init trans
+    lg cfg ["CHCMax", "running"]
+    res <- callCHCMax cfg query
+    case parseFP vars fpPred res of
+      Left err -> do
+        lg cfg ["CHCMax returned error:", err]
+        pure Nothing
+      Right term -> do
+        lg cfg ["CHCMax returned result:", smtLib2 term]
+        pure (Just term)
 
 callCHCMax :: Config -> String -> IO String
 callCHCMax cfg query = do
@@ -248,13 +250,10 @@ fpExprToTerm varMap = go
           case op of
             "/\\" -> pure $ andf [t1, t2]
             "\\/" -> pure $ orf [t1, t2]
-            "=" -> pure $ equal t1 t2
             "!=" -> pure $ neg (equal t1 t2)
-            "<=" -> pure $ leqT t1 t2
-            ">=" -> pure $ geqT t1 t2
-            "+" -> pure $ leqT t1 t2
-                                        -- TODO: More operators
-            _ -> Left $ "Found illegal operator: " ++ op
+            _
+              | op `elem` ["+", "-", "=", "<=", ">=", "*"] -> pure $ func op [t1, t2]
+              | otherwise -> Left $ "Found illegal operator: " ++ op
 
 parseFPHead :: Variables -> String -> String -> Either String (Map String (Symbol, Sort), String)
 parseFPHead vars fpPred sr = do

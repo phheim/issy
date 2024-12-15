@@ -1,6 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
 
---TODO: Add invariants!
 module Issy.Extractors.TSLT
   ( rpgToTSLT
   ) where
@@ -15,20 +14,21 @@ import Issy.Base.Objectives (Objective(..), WinningCondition(..))
 import qualified Issy.Base.Variables as Vars
 import Issy.Logic.FOL
 import Issy.RPG
+import qualified Issy.RPG as RPG
 
 sortOf :: Game -> Symbol -> Sort
 sortOf = Vars.sortOf . variables
 
 encConst :: Bool -> Constant -> String
-encConst ugly =
+encConst upd =
   \case
     CInt n -> "i" ++ show n ++ "()"
     CReal r -> "r" ++ showFixed True (fromRational r :: Nano) ++ "()"
     CBool True
-      | ugly -> "i1()"
+      | upd -> "i1()"
       | otherwise -> "true"
     CBool False
-      | ugly -> "i0()"
+      | upd -> "i0()"
       | otherwise -> "false"
 
 encOp :: (a -> String) -> String -> String -> [a] -> String
@@ -49,28 +49,28 @@ encVar check v =
     _ -> error "Not supported"
 
 encTerm :: Bool -> Term -> String
-encTerm ugly =
+encTerm upd =
   \case
     QVar _ -> error "Not supported"
     Quant {} -> error "Not supported"
     Lambda _ _ -> error "Not supported"
     Var v s -> encVar True v s
-    Const c -> encConst ugly c
+    Const c -> encConst upd c
     Func f args ->
       case f of
         CustomF {} -> error "Not supported"
         PredefF n
-          | n == "or" && not ugly -> encOp (encTerm ugly) "||" "false" args
-          | n == "and" && not ugly -> encOp (encTerm ugly) "&&" "true" args
-          | n == "not" && not ugly -> "(! " ++ encTerm ugly (head args) ++ ")"
-          | n == "-" && length args == 1 -> "(sub i0() " ++ encTerm ugly (head args) ++ ")"
+          | n == "or" && not upd -> encOp (encTerm upd) "||" "false" args
+          | n == "and" && not upd -> encOp (encTerm upd) "&&" "true" args
+          | n == "not" && not upd -> "(! " ++ encTerm upd (head args) ++ ")"
+          | n == "-" && length args == 1 -> "(sub i0() " ++ encTerm upd (head args) ++ ")"
           | n == "+" ->
             if length args <= 2
               then op "add" args
               else "(add "
-                     ++ encTerm ugly (head args)
+                     ++ encTerm upd (head args)
                      ++ " "
-                     ++ encTerm ugly (Func (PredefF "+") (tail args))
+                     ++ encTerm upd (Func (PredefF "+") (tail args))
                      ++ ")"
           | n == "-" -> op "sub" args
           | n == "=" -> op "eq" args
@@ -81,7 +81,7 @@ encTerm ugly =
           | n == "*" -> op "mul" args
           | otherwise -> error (n ++ " not supported yet")
   where
-    op name args = "(" ++ name ++ concatMap ((" " ++) . encTerm ugly) args ++ ")"
+    op name args = "(" ++ name ++ concatMap ((" " ++) . encTerm upd) args ++ ")"
 
 encLoc :: Game -> Loc -> String
 encLoc g l = "[loc  <- i" ++ show (Locs.toNumber (locationSet g) l) ++ "()]"
@@ -128,9 +128,22 @@ encInputs g =
 encGame :: Loc -> Game -> String
 encGame init g =
   unlines
-    $ [encState g, encInputs g, "guarantee {", encLoc g init ++ ";"]
+    $ [ encState g
+      , encInputs g
+      , "guarantee {"
+      , encTerm False (RPG.inv g init)
+      , " -> "
+      , encLoc g init ++ ";"
+      ]
         ++ map
-             (\l -> "G (" ++ encLoc g l ++ " -> " ++ encTrans g (trans g l) ++ ");")
+             (\l ->
+                "G ("
+                  ++ encLoc g l
+                  ++ " -> "
+                  ++ encTerm False (RPG.inv g l)
+                  ++ " && ("
+                  ++ encTrans g (trans g l)
+                  ++ "));")
              (Set.toList (locations g))
         ++ ["}"]
 
