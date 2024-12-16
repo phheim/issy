@@ -28,6 +28,7 @@ import Issy.Logic.FOL
 import Issy.Logic.SMT (sat, simplify, valid)
 import Issy.Printers.SMTLib (smtLib2)
 import Issy.Solver.ControlFlowGraph
+import qualified Issy.Solver.ControlFlowGraph as CFG
 import Issy.Solver.GameInterface
   ( Game
   , Loc
@@ -132,7 +133,8 @@ accReach depth p g l st uSym =
       -- PROG GEN {
       cfg0 = addLoc (goalCFG st) l'
       cfg1 = mapUnmapped l (PTCopyDummy lSyms PTUnmapped) cfg0
-      cfg2 = mapUnmapped l' (PTIf (orf [st `get` l, s]) (PTJump (mapLoc cfg0 l)) PTUnmapped) cfg1
+      cfg2 =
+        mapUnmapped l' (CFG.ite (orf [st `get` l, s]) (CFG.jump (mapLoc cfg0 l)) PTUnmapped) cfg1
       -- } PROG GEN
       (consR, stAccR, uSym'', cfg) = iterAttr depth p gl st' l' uSym' cfg2
       -- quantSub f = forallX g (andf [g `inv` l, c, neg (st `get` l)] `impl` f) <- This is not strictly necessary
@@ -331,15 +333,12 @@ attractorFull ctx p g cache symst = do
         rec h o st cfg = do
           attr h o st cfg
         accelNow l fo vc = (g `cyclicIn` l) && (fo /= false) && visits2accel (visits l vc)
-        extr cfg =
-          pure
-            $ if generateProgram ctx
-                then cfg
-                else emptyCFG
-        simpCFG cfg =
-          if generateProgram ctx
-            then process ctx cfg
-            else return cfg
+        extr cfg
+          | generateProgram ctx = pure cfg
+          | otherwise = pure CFG.empty
+        simpCFG cfg
+          | generateProgram ctx = process ctx cfg
+          | otherwise = pure cfg
 
 canAccel :: Game -> Bool
 canAccel g = any (\v -> isNumber (sortOf g v) && not (boundedVar g v)) (stateVars g)

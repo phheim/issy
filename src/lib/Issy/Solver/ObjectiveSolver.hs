@@ -27,6 +27,7 @@ import Issy.Logic.SMT (sat, valid)
 import Issy.Printers.SMTLib (smtLib2)
 import Issy.Solver.Attractor
 import Issy.Solver.ControlFlowGraph
+import qualified Issy.Solver.ControlFlowGraph as CFG
 import Issy.Solver.GameInterface
   ( Game
   , Loc
@@ -94,7 +95,7 @@ solveReach ctx cache g reach init = do
       cfg <- pure $ redirectGoal g (invSymSt g) cfg
       cfg <- pure $ setInitialCFG cfg init
       return (res, cfg)
-    else return (res, emptyCFG)
+    else return (res, CFG.empty)
 
 foldLocs :: Set Loc -> (Loc -> CFG -> CFG) -> CFG -> CFG
 foldLocs locs f cfg = foldl (flip f) cfg locs
@@ -118,7 +119,7 @@ solveSafety ctx cache g safes init = do
           $ locations g
       cfg <- pure $ setInitialCFG cfg init
       return (res, cfg)
-    else return (res, emptyCFG)
+    else return (res, CFG.empty)
 
 iterBuechi :: Config -> Cache -> Ply -> Game -> Set Loc -> Loc -> IO (SymSt, SymSt)
 iterBuechi ctx cache p g accept init = iter (selectInv g accept) (0 :: Word)
@@ -166,7 +167,7 @@ solveBuechi ctx cache g accepts init = do
       cfg <- pure $ redirectGoal g attr cfg
       cfg <- pure $ setInitialCFG cfg init
       return (True, cfg)
-    else return (res, emptyCFG)
+    else return (res, CFG.empty)
 
 solveCoBuechi :: Config -> Cache -> Game -> Set Loc -> Loc -> IO (Bool, CFG)
 solveCoBuechi ctx cache g stays init = do
@@ -179,12 +180,10 @@ solveCoBuechi ctx cache g stays init = do
   lg ctx ["Game is realizable? ", show res]
   if res && generateProgram ctx
     then error "TODO IMPLEMENT: coBüchi extraction"
-    else return (res, emptyCFG)
+    else return (res, CFG.empty)
 
 solveParity :: Config -> Cache -> Game -> Map Loc Word -> Loc -> IO (Bool, CFG)
-solveParity ctx cache g colors init
-    -- TODO: add logging
- = do
+solveParity ctx cache g colors init = do
   lg ctx ["Game type Parity"]
   lg ctx ["Coloring", strM (locName g) show colors]
   (_, wsys) <- zielonka g
@@ -192,7 +191,7 @@ solveParity ctx cache g colors init
   lg ctx ["Game is realizable? ", show res]
   if res && generateProgram ctx
     then error "TODO IMPLEMENT: Parity extraction"
-    else return (res, emptyCFG)
+    else return (res, CFG.empty)
   where
     colorList = Map.toList colors
     --

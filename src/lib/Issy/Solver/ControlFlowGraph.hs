@@ -1,23 +1,35 @@
 {-# LANGUAGE LambdaCase, RecordWildCards #-}
 
-module Issy.Solver.ControlFlowGraph where
+module Issy.Solver.ControlFlowGraph
+  ( ProgTrans(PTCopyDummy, PTUnmapped)
+  , CFG
+  , CFGLoc
+  , empty
+  , addLoc
+  , goalCFG
+  , jump
+  , ite
+  , mapUnmapped
+  , removePTDummy
+  , mapCFG
+  , addUpd
+  , integrate
+  , process
+  , mapLoc
+  , setInitialCFG
+  , redirectGoal
+  , mkCFG
+  , printCFG
+  ) where
 
 import Control.Monad (foldM)
-import Data.Map.Strict (Map, (!), (!?), keys)
+import Data.Map.Strict (Map, (!), (!?))
 import qualified Data.Map.Strict as Map
-  ( adjust
-  , empty
-  , foldlWithKey
-  , fromList
-  , insert
-  , toList
-  , union
-  )
 
 import Issy.Base.SymbolicState hiding (map)
 import qualified Issy.Base.SymbolicState as SymSt
 import Issy.Config (Config)
-import Issy.Logic.FOL
+import Issy.Logic.FOL hiding (ite)
 import qualified Issy.Logic.SMT as SMT (simplify)
 import Issy.Printers.SMTLib (smtLib2)
 import Issy.Solver.GameInterface
@@ -35,8 +47,8 @@ data CFG = CFG
   , locMap :: Map Loc CFGLoc
   }
 
-emptyCFG :: CFG
-emptyCFG = CFG {cfgTrans = Map.empty, cfgLocCnt = 0, cfgLocInit = CFGLoc 0, locMap = Map.empty}
+empty :: CFG
+empty = CFG {cfgTrans = Map.empty, cfgLocCnt = 0, cfgLocInit = CFGLoc 0, locMap = Map.empty}
 
 addLoc :: CFG -> Loc -> CFG
 addLoc cfg@CFG {..} l =
@@ -59,6 +71,12 @@ data ProgTrans
   -- Acceleration related stuff
   | PTCopyDummy LemSyms ProgTrans
   | PTCopy [(Symbol, Symbol)] ProgTrans
+
+jump :: CFGLoc -> ProgTrans
+jump = PTJump
+
+ite :: Term -> ProgTrans -> ProgTrans -> ProgTrans
+ite = PTIf
 
 mapCFG :: (Term -> Term) -> CFG -> CFG
 mapCFG m cfg = cfg {cfgTrans = fmap go (cfgTrans cfg)}
@@ -205,7 +223,7 @@ process ctx cfg =
        pt <- go (cfgTrans cfg ! cl)
        return cfg {cfgTrans = Map.insert cl pt (cfgTrans cfg)})
     cfg
-    (keys $ cfgTrans cfg)
+    (Map.keys $ cfgTrans cfg)
   where
     go =
       \case
@@ -238,7 +256,7 @@ process ctx cfg =
           return $ PTUpdates $ filter (\(g, _, _) -> g /= false) upds
 
 mkCFG :: [Loc] -> CFG
-mkCFG = foldl addLoc emptyCFG
+mkCFG = foldl addLoc empty
 
 printCFG :: Game -> CFG -> String
 printCFG g cfg =
