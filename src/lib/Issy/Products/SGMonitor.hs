@@ -68,7 +68,8 @@ productArena arena mon prod =
                                  UNSAFE -> winEnv
                                  VALID -> winSys
                                  _ -> toProd lq'
-                          in SG.setTrans ar (toProd lq) next term)
+                             oldTrans = SG.trans ar (toProd lq) next
+                          in SG.setTrans ar (toProd lq) next (FOL.orf [term, oldTrans]))
                       ar
                       trans)
           arena2
