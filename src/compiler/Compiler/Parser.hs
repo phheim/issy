@@ -31,6 +31,7 @@ parseDef ts = do
     "state" -> apply2 (AstVar AState) $ parseVar ts
     "formula" -> apply1 AstLogic $ parseLogic ts
     "game" -> apply3 AstGame $ parseGame ts
+    "def" -> apply2 AstDef $ parseMacro ts
     _ -> expectErr p str "specification definition"
 
 parseVar :: [Token] -> PRes (AstSort, String, [Token])
@@ -45,6 +46,14 @@ parseVar ts = do
   (id, p, ts) <- next ts "identifier"
   checkID p id
   pure (sort, id, ts)
+
+parseMacro :: [Token] -> PRes (String, AstTerm, [Token])
+parseMacro ts = do
+  (id, p, ts) <- next ts "identifier"
+  checkID p id
+  ts <- exact ts "="
+  (term, ts) <- parseTerm ts
+  pure (id, term, ts)
 
 parseLogic :: [Token] -> PRes ([AstLogicStm], [Token])
 parseLogic ts = exact ts "{" >>= go

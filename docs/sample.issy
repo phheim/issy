@@ -2,17 +2,25 @@ input int i
 input bool stop
 state int x
 
+// A simple macro
+
+def bound = [0]
+
 /*
     First a formula
 */
 formula {
     assume [true] // this is not need, and order does not matter
-    assert F ([i = 0] || [x > 0] || stop)
+    assert F ([i = 0] || [x > bound] || stop)
 }
+
+// And another marcro
+
+def effect = [x' = x + i] || [x' = x - i]
 
 // Now a game, order does not matter either!
 game Safety from l0 {
     loc l0 1
     
-    from l0 to l0 with [x' = x + i] || [x' = x - i] 
+    from l0 to l0 with effect 
 }

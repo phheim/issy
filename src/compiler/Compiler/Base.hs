@@ -1,3 +1,5 @@
+{-# LANGUAGE LambdaCase #-}
+
 module Compiler.Base where
 
 --
@@ -5,7 +7,33 @@ module Compiler.Base where
 --
 isKeyword :: String -> Bool
 isKeyword =
-  flip elem ["assume", "assert", "input", "state", "loc", "from", "with", "game", "formula"] --TODO add all
+  flip
+    elem
+    [ "assume"
+    , "assert"
+    , "input"
+    , "state"
+    , "loc"
+    , "from"
+    , "with"
+    , "game"
+    , "formula"
+    , "int"
+    , "bool"
+    , "real"
+    , "def"
+    , "F"
+    , "X"
+    , "G"
+    , "U"
+    , "W"
+    , "R"
+    , "Safety"
+    , "Reachability"
+    , "Buechi"
+    , "CoBuechi"
+    , "ParityMaxOdd"
+    ]
 
 --
 -- Error Handeling
@@ -55,6 +83,7 @@ data AstDef
   = AstVar AstIO AstSort String
   | AstLogic [AstLogicStm]
   | AstGame AstWC String [AstGameStm]
+  | AstDef String AstTerm
   deriving (Eq, Ord, Show)
 
 data AstIO
@@ -113,3 +142,12 @@ newtype BOP =
 newtype UOP =
   UOP String
   deriving (Eq, Ord, Show)
+
+termToTF :: AstTerm -> AstTF
+termToTF =
+  \case
+    ATBool b -> AFBool b
+    ATVar str -> AFVar str
+    ATGround pred -> AFGround pred
+    ATUexp op t -> AFUexp op (termToTF t)
+    ATBexp op t1 t2 -> AFBexp op (termToTF t1) (termToTF t2)

@@ -4,13 +4,28 @@ module Compiler.Writer
   ( write
   ) where
 
+import Data.Map.Strict (Map, (!?))
+import qualified Data.Map.Strict as Map
 import Data.Maybe (mapMaybe)
 import Data.Ratio (denominator, numerator)
 
 import Compiler.Base
 
 write :: AstSpec -> String
-write spec = ps [chainWs writeVar spec, chainWs writeLogicSpec spec, chainWs writeGame spec]
+write spec =
+  let defs = getDefs spec
+   in ps [chainWs writeVar spec, chainWs (writeLogicSpec defs) spec, chainWs (writeGame defs) spec]
+
+type Defs = Map String AstTerm
+
+getDefs :: [AstDef] -> Defs
+getDefs = go Map.empty
+  where
+    go acc =
+      \case
+        [] -> acc
+        AstDef name term:sr -> go (Map.insert name term acc) sr
+        _:sr -> go acc sr
 
 writeVar :: AstDef -> Maybe String
 writeVar =
@@ -24,50 +39,54 @@ writeVar =
     sTs AInt = "Int"
     sTs AReal = "Real"
 
-writeLogicSpec :: AstDef -> Maybe String
-writeLogicSpec =
+writeLogicSpec :: Defs -> AstDef -> Maybe String
+writeLogicSpec defs =
   \case
-    AstLogic fs -> Just $ ps [chainWs writeAssumes fs, chainWs writeAsserts fs]
+    AstLogic fs -> Just $ ps [chainWs (writeAssumes defs) fs, chainWs (writeAsserts defs) fs]
     _ -> Nothing
 
-writeGame :: AstDef -> Maybe String
-writeGame =
+writeGame :: Defs -> AstDef -> Maybe String
+writeGame defs =
   \case
     AstGame (AstWC wc) init stm ->
-      Just $ ps [chainWs writeLocs stm, chainWs writeTrans stm, sexpr [init, wc] ++ "\n"]
+      Just
+        $ ps [chainWs (writeLocs defs) stm, chainWs (writeTrans defs) stm, sexpr [init, wc] ++ "\n"]
     _ -> Nothing
 
-writeAssumes :: AstLogicStm -> Maybe String
-writeAssumes =
+writeAssumes :: Defs -> AstLogicStm -> Maybe String
+writeAssumes defs =
   \case
-    AstAssume f -> Just (writeFormula f)
+    AstAssume f -> Just (writeFormula defs f)
     _ -> Nothing
 
-writeAsserts :: AstLogicStm -> Maybe String
-writeAsserts =
+writeAsserts :: Defs -> AstLogicStm -> Maybe String
+writeAsserts defs =
   \case
-    AstAssert f -> Just (writeFormula f)
+    AstAssert f -> Just (writeFormula defs f)
     _ -> Nothing
 
-writeLocs :: AstGameStm -> Maybe String
-writeLocs =
+writeLocs :: Defs -> AstGameStm -> Maybe String
+writeLocs defs =
   \case
-    ALoc name acc dom -> Just $ sexpr [name, show acc, writeTerm dom]
+    ALoc name acc dom -> Just $ sexpr [name, show acc, writeTerm defs dom]
     _ -> Nothing
 
-writeTrans :: AstGameStm -> Maybe String
-writeTrans =
+writeTrans :: Defs -> AstGameStm -> Maybe String
+writeTrans defs =
   \case
-    ATrans l1 l2 delta -> Just $ sexpr [l1, l2, writeTerm delta]
+    ATrans l1 l2 delta -> Just $ sexpr [l1, l2, writeTerm defs delta]
     _ -> Nothing
 
-writeFormula :: AstTF -> String
-writeFormula =
+writeFormula :: Defs -> AstTF -> String
+writeFormula defs =
   \case
-    AFGround pred -> sexpr ["ap", writeGround pred]
+    AFGround pred -> sexpr ["ap", writeGround defs pred]
     AFBool True -> "true"
     AFBool False -> "false"
-    AFVar name -> sexpr ["ap", changeName name]
+    AFVar name ->
+      case defs !? name of
+        Nothing -> sexpr ["ap", changeName name]
+        Just t -> writeFormula (Map.delete name defs) (termToTF t)
     AFUexp (UOP op) f ->
       let sop =
             case op of
@@ -76,10 +95,10 @@ writeFormula =
               "G" -> "G"
               "X" -> "X"
               _ -> error "assert: this should have been already checked!"
-       in sexpr [sop, writeFormula f]
+       in sexpr [sop, writeFormula defs f]
     AFBexp (BOP op) f1 f2 ->
-      let s1 = writeFormula f1
-          s2 = writeFormula f2
+      let s1 = writeFormula defs f1
+          s2 = writeFormula defs f2
           mk ops = sexpr [ops, s1, s2]
        in case op of
             "&&" -> mk "and"
@@ -93,18 +112,21 @@ writeFormula =
                 ["and", sexpr ["or", sexpr ["not", s1], s2], sexpr ["or", sexpr ["not", s2], s1]]
             _ -> error "assert: this should have been already checked!"
 
-writeTerm :: AstTerm -> String
-writeTerm =
+writeTerm :: Defs -> AstTerm -> String
+writeTerm defs =
   \case
-    ATGround pred -> writeGround pred
+    ATGround pred -> writeGround defs pred
     ATBool True -> "true"
     ATBool False -> "false"
-    ATVar name -> changeName name
-    ATUexp (UOP "!") t -> sexpr ["not", writeTerm t]
+    ATVar name ->
+      case defs !? name of
+        Nothing -> changeName name
+        Just t -> writeTerm (Map.delete name defs) t
+    ATUexp (UOP "!") t -> sexpr ["not", writeTerm defs t]
     ATUexp _ _ -> error "assert: this should have been already checked!"
     ATBexp (BOP op) t1 t2 ->
-      let s1 = writeTerm t1
-          s2 = writeTerm t2
+      let s1 = writeTerm defs t1
+          s2 = writeTerm defs t2
           mk ops = sexpr [ops, s1, s2]
        in case op of
             "&&" -> mk "and"
@@ -113,18 +135,21 @@ writeTerm =
             "<->" -> sexpr ["and", sexpr ["=>", s1, s2], sexpr ["=>", s1, s2]]
             _ -> error "assert: this should have been already checked!"
 
-writeGround :: AstGround -> String
-writeGround =
+writeGround :: Defs -> AstGround -> String
+writeGround defs =
   \case
     AConstInt n -> show n
     AConstReal n -> sexpr [show (numerator n), "/", show (denominator n)]
-    AGVar name -> changeName name
-    AGUexp (UOP "-") t -> sexpr ["-", "0", writeGround t]
-    AGUexp (UOP "abs") t -> sexpr ["abs", writeGround t]
+    AGVar name ->
+      case defs !? name of
+        Just (ATGround pred) -> writeGround (Map.delete name defs) pred
+        _ -> changeName name
+    AGUexp (UOP "-") t -> sexpr ["-", "0", writeGround defs t]
+    AGUexp (UOP "abs") t -> sexpr ["abs", writeGround defs t]
     AGUexp _ _ -> error "assert: this should have been already checked!"
     AGBexp (BOP op) t1 t2
       | op `elem` [">", "<", "=", "<=", ">=", "+", "-", "*", "/", "mod"] ->
-        sexpr [op, writeGround t1, writeGround t2]
+        sexpr [op, writeGround defs t1, writeGround defs t2]
       | otherwise -> error "assert: this should have been already checked!"
 
 changeName :: String -> String

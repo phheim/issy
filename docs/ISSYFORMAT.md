@@ -4,7 +4,7 @@ This document describes the high-level format used by the Issy tool.
 
 ## Syntax
 ```
-SPEC     : (VARDECL | GAMEDEF | LOGICDEF)*
+SPEC     : (VARDECL | GAMEDEF | LOGICDEF | MACRO)*
 ```
 
 ### Variables
@@ -55,6 +55,13 @@ with precedence (from high to low):
 ```
     {abs} > {*, /, mod} > {+, -} > {<, >, =, <=, >=}
 ```
+
+### Macros
+
+```
+MACRO   : 'def' ID '=' TERM
+```
+Note macros can be used in all RPLTL, TERM, and GROUND. However, for usage in GROUND the marco term has to be a single ground predicate term!
 
 ### Basics
 ```

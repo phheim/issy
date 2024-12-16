@@ -251,6 +251,7 @@ executable issy-compiler
 
   build-depends:
       base
+    , containers
 
   hs-source-dirs:
     src/compiler
