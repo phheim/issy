@@ -26,7 +26,7 @@ import Issy.Logic.FOL
 import Issy.Logic.SMT (sat, valid)
 import Issy.Printers.SMTLib (smtLib2)
 import Issy.Solver.Attractor
-import Issy.Solver.ControlFlowGraph
+import Issy.Solver.ControlFlowGraph (CFG)
 import qualified Issy.Solver.ControlFlowGraph as CFG
 import Issy.Solver.GameInterface
   ( Game
@@ -38,6 +38,7 @@ import Issy.Solver.GameInterface
   , locations
   , setInv
   , strSt
+  , vars
   )
 import Issy.Utils.Logging
 
@@ -58,7 +59,7 @@ solve ctx (g, obj) = do
   if res
     then do
       putStrLn "Realizable"
-      when (generateProgram ctx) (process ctx cfg >>= putStrLn . printCFG g)
+      when (generateProgram ctx) $ CFG.simplify ctx cfg >>= putStrLn . CFG.printCFG (vars g)
     else putStrLn "Unrealizable"
 
 solveCache :: Config -> Cache -> (Game, Objective) -> IO Bool
@@ -92,8 +93,8 @@ solveReach ctx cache g reach init = do
   lg ctx ["Game is realizable? ", show res]
   if res && generateProgram ctx
     then do
-      cfg <- pure $ redirectGoal g (invSymSt g) cfg
-      cfg <- pure $ setInitialCFG cfg init
+      cfg <- pure $ CFG.redirectGoal g (invSymSt g) cfg
+      cfg <- pure $ CFG.setInitialCFG cfg init
       return (res, cfg)
     else return (res, CFG.empty)
 
@@ -113,11 +114,11 @@ solveSafety ctx cache g safes init = do
     then do
       cfg <-
         pure
-          $ foldLocs (locations g) (addUpd (SymSt.map neg a) g)
-          $ mkCFG
+          $ foldLocs (locations g) (CFG.addUpd (SymSt.map neg a) g)
+          $ CFG.mkCFG
           $ Set.toList
           $ locations g
-      cfg <- pure $ setInitialCFG cfg init
+      cfg <- pure $ CFG.setInitialCFG cfg init
       return (res, cfg)
     else return (res, CFG.empty)
 
@@ -164,8 +165,8 @@ solveBuechi ctx cache g accepts init = do
   if res && generateProgram ctx
     then do
       (attr, cfg) <- attractorEx ctx cache Sys g fset
-      cfg <- pure $ redirectGoal g attr cfg
-      cfg <- pure $ setInitialCFG cfg init
+      cfg <- pure $ CFG.redirectGoal g attr cfg
+      cfg <- pure $ CFG.setInitialCFG cfg init
       return (True, cfg)
     else return (res, CFG.empty)
 

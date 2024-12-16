@@ -1,4 +1,4 @@
-{-# LANGUAGE LambdaCase, RecordWildCards #-}
+{-# LANGUAGE LambdaCase #-}
 
 module Issy.Solver.LemmaFinding
   ( Constraint
@@ -89,7 +89,7 @@ replaceLemma vars (Lemma b s c prime) (LemSyms bs ss cs) = go
 -- Lemma generation
 -------------------------------------------------------------------------------
 imap :: (Integer -> a -> b) -> [a] -> [b]
-imap m xs = map (uncurry m) $ zip [1 ..] xs
+imap m = zipWith m [1 ..]
 
 varcl :: Symbol -> Symbol -> Symbol -> Symbol
 varcl prefix subname cell = prefix ++ "_" ++ subname ++ "_" ++ cell
