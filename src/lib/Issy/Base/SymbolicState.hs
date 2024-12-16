@@ -5,17 +5,19 @@ module Issy.Base.SymbolicState
   , set
   , disj
   , disjS
-  , differenceS
-  , impliesS
-  , locsSymSt
-  , listSymSt
-  , isEmptySt
-  , simplifySymSt
-  , mapSymSt
+  , difference
+  , implies
+  , locations
+  , toList
+  , null
+  , simplify
+  , map
   , toString
   ) where
 
 -------------------------------------------------------------------------------
+import Prelude hiding (map, null)
+
 import Data.Map.Strict (Map, (!?))
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe)
@@ -51,27 +53,27 @@ disj s l f = set s l (FOL.orf [f, s `get` l])
 disjS :: SymSt -> SymSt -> SymSt
 disjS (SymSt a) b = SymSt (Map.mapWithKey (\l f -> FOL.orf [f, b `get` l]) a)
 
-differenceS :: SymSt -> SymSt -> SymSt
-differenceS (SymSt a) b = SymSt (Map.mapWithKey (\l f -> FOL.andf [f, FOL.neg (b `get` l)]) a)
+difference :: SymSt -> SymSt -> SymSt
+difference (SymSt a) b = SymSt (Map.mapWithKey (\l f -> FOL.andf [f, FOL.neg (b `get` l)]) a)
 
-impliesS :: Config -> SymSt -> SymSt -> IO Bool
-impliesS cfg (SymSt a) b =
+implies :: Config -> SymSt -> SymSt -> IO Bool
+implies cfg (SymSt a) b =
   SMT.valid cfg $ FOL.andf ((\l -> (SymSt a `get` l) `FOL.impl` (b `get` l)) <$> Map.keys a)
 
-locsSymSt :: SymSt -> [Loc]
-locsSymSt (SymSt s) = Map.keys s
+locations :: SymSt -> [Loc]
+locations (SymSt s) = Map.keys s
 
-listSymSt :: SymSt -> [(Loc, Term)]
-listSymSt (SymSt s) = Map.toList s
+toList :: SymSt -> [(Loc, Term)]
+toList (SymSt s) = Map.toList s
 
-isEmptySt :: SymSt -> Bool
-isEmptySt = all ((== FOL.false) . snd) . listSymSt
+null :: SymSt -> Bool
+null = all ((== FOL.false) . snd) . toList
 
-simplifySymSt :: Config -> SymSt -> IO SymSt
-simplifySymSt cfg (SymSt s) = SymSt <$> mapM (SMT.simplify cfg) s
+simplify :: Config -> SymSt -> IO SymSt
+simplify cfg (SymSt s) = SymSt <$> mapM (SMT.simplify cfg) s
 
-mapSymSt :: (Term -> Term) -> SymSt -> SymSt
-mapSymSt mp (SymSt s) = SymSt (fmap mp s)
+map :: (Term -> Term) -> SymSt -> SymSt
+map mp (SymSt s) = SymSt (fmap mp s)
 
 toString :: (Loc -> String) -> SymSt -> String
 toString locToStr (SymSt s) = strM locToStr SMTLib.smtLib2 s

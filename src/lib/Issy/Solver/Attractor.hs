@@ -20,7 +20,7 @@ import qualified Data.Map.Strict as Map (insertWith)
 import Data.Set (Set, union, unions)
 import qualified Data.Set as Set (fromList, toList)
 
-import Issy.Base.SymbolicState
+import Issy.Base.SymbolicState (SymSt, get, set)
 import qualified Issy.Base.SymbolicState as SymSt
 import qualified Issy.Base.Variables as Vars
 import Issy.Config (Config, generateProgram, setName)
@@ -44,6 +44,7 @@ import Issy.Solver.GameInterface
   , sortOf
   , stateVarL
   , stateVars
+  , strSt
   , usedSymbols
   , vars
   )
@@ -52,13 +53,6 @@ import Issy.Solver.LemmaFinding
 import Issy.Utils.Logging
 import Issy.Utils.OpenList (OpenList, pop, push)
 import qualified Issy.Utils.OpenList as OL (fromSet)
-
--------------------------------------------------------------------------------
--- Logging
--------------------------------------------------------------------------------
--- TODO: Rename
-lgS :: Game -> SymSt -> String
-lgS = SymSt.toString . locName
 
 -------------------------------------------------------------------------------
 -- Enforcement Relations
@@ -81,7 +75,7 @@ cpre p =
     Env -> cpreEnv
 
 cpreS :: Config -> Ply -> Game -> SymSt -> IO SymSt
-cpreS ctx p g st = simplifySymSt ctx (symSt (locations g) (cpre p g st))
+cpreS ctx p g st = SymSt.simplify ctx (SymSt.symSt (locations g) (cpre p g st))
 
 -------------------------------------------------------------------------------
 -- Visit Counting
@@ -144,7 +138,7 @@ accReach depth p g l st uSym =
       -- quantSub f = forallX g (andf [g `inv` l, c, neg (st `get` l)] `impl` f) <- This is not strictly necessary
       quantSub f = Vars.forallX (vars g) $ andf [g `inv` l, c] `impl` f
       cons = expandStep g sSym <$> consR
-      stAcc = mapSymSt (expandStep g sSym) stAccR
+      stAcc = SymSt.map (expandStep g sSym) stAccR
       cons' =
         [ Vars.forallX (vars g) $ andf [g `inv` l, b] `impl` (st `get` l)
         , quantSub (stAcc `get` l)
@@ -172,7 +166,7 @@ iterAttr depth p g st shadow = attr (OL.fromSet (preds g shadow)) (noVisits g) [
         Nothing -> (cons, st, uSym, cfg)
         Just (l, ol')
           | visits l vc < visitingThreshold ->
-            reC l ol' cons (disj st l (cpre p g st l)) uSym (addUpd st g l cfg)
+            reC l ol' cons (SymSt.disj st l (cpre p g st l)) uSym (addUpd st g l cfg)
           | visits l vc == visitingThreshold && depth > 0 ->
             let (consA, fA, uSymA, cfgSub) = accReach (depth - 1) p g l st uSym
                 cfg' = integrate cfgSub cfg
@@ -184,7 +178,7 @@ iterAttr depth p g st shadow = attr (OL.fromSet (preds g shadow)) (noVisits g) [
 accelReach :: Config -> Int -> Ply -> Game -> Loc -> SymSt -> IO (Term, CFG)
 accelReach ctx limit p g l st = do
   ctx <- pure $ setName "AccReach" ctx
-  lg ctx ["Accelerate in", locName g l, "on", lgS g st]
+  lg ctx ["Accelerate in", locName g l, "on", strSt g st]
   let (cons, f, UsedSyms _ syms, cfg) =
         accReach (limit2depth limit) p g l st (UsedSyms (usedSymbols g) [])
   let cons' = cons ++ [Vars.existsX (vars g) (andf [f, neg (st `get` l)])]
@@ -222,11 +216,10 @@ applyEntry ctx game ply cache attrSt
   | ply /= forPlayer cache = return attrSt
   | otherwise = do
     ipred <- independedPred
-    -- TODO: this check should be redundant, but check this before removing it
     check <- allM (\l -> valid ctx (andf [targ l, ipred] `impl` (attrSt `get` l))) (locations game)
     if check
-      then let newAttrSt = disjS attrSt (mapSymSt (\f -> andf [ipred, f]) (cachedSt cache))
-            in simplifySymSt ctx newAttrSt
+      then let newAttrSt = SymSt.disjS attrSt $ SymSt.map (\f -> andf [ipred, f]) (cachedSt cache)
+            in SymSt.simplify ctx newAttrSt
       else return attrSt
   where
     dependends = filter (`notElem` independendCells cache) (stateVarL game)
@@ -276,10 +269,10 @@ applyCache ctx game player cache attrSt currentLoc = go attrSt cache
 --  Otherwise the generated program does not make any sense.
 attractorFull :: Config -> Ply -> Game -> Cache -> SymSt -> IO (SymSt, CFG)
 attractorFull ctx p g cache symst = do
-  nf <- Set.fromList . map fst <$> filterM (sat ctx . snd) (listSymSt symst)
-  lg ctx ["Attractor for", show p, "from", strS (locName g) nf, "starting in", lgS g symst]
+  nf <- Set.fromList . map fst <$> filterM (sat ctx . snd) (SymSt.toList symst)
+  lg ctx ["Attractor for", show p, "from", strS (locName g) nf, "starting in", strSt g symst]
   (res, cfg) <- attr (noVisits g) (OL.fromSet (predSet g nf)) symst (goalCFG symst)
-  lg ctx ["Attractor result", lgS g res]
+  lg ctx ["Attractor result", strSt g res]
   return (res, cfg)
   where
     attr :: VisitCounter -> OpenList Loc -> SymSt -> CFG -> IO (SymSt, CFG)
@@ -310,7 +303,7 @@ attractorFull ctx p g cache symst = do
                     cached <-
                       filterM
                         (\l -> sat ctx (andf [st'' `get` l, neg (st' `get` l)]))
-                        (locsSymSt st)
+                        (SymSt.locations st)
                     return (st'', cached)
                   else return (st', [])
               lg ctx ["Cached", strL (locName g) cached]

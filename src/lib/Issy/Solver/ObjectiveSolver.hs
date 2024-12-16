@@ -15,11 +15,11 @@ module Issy.Solver.ObjectiveSolver
 import Control.Monad (when)
 import Data.Map.Strict (Map, (!))
 import qualified Data.Map.Strict as Map
-import Data.Set (Set, difference)
+import Data.Set (Set)
 import qualified Data.Set as Set
 
 import Issy.Base.Objectives (Objective(..), WinningCondition(..))
-import Issy.Base.SymbolicState
+import Issy.Base.SymbolicState (SymSt, get)
 import qualified Issy.Base.SymbolicState as SymSt
 import Issy.Config (Config, generateProgram, setName)
 import Issy.Logic.FOL
@@ -27,7 +27,17 @@ import Issy.Logic.SMT (sat, valid)
 import Issy.Printers.SMTLib (smtLib2)
 import Issy.Solver.Attractor
 import Issy.Solver.ControlFlowGraph
-import Issy.Solver.GameInterface (Game, Loc, inv, locName, locations, setInv)
+import Issy.Solver.GameInterface
+  ( Game
+  , Loc
+  , emptySt
+  , inv
+  , invSymSt
+  , locName
+  , locations
+  , setInv
+  , strSt
+  )
 import Issy.Utils.Logging
 
 -------------------------------------------------------------------------------
@@ -66,7 +76,7 @@ solveCache ctx cache (g, obj) = do
 
 selectInv :: Game -> Set Loc -> SymSt
 selectInv g locs =
-  symSt
+  SymSt.symSt
     (locations g)
     (\l ->
        if l `elem` locs
@@ -92,16 +102,20 @@ foldLocs locs f cfg = foldl (flip f) cfg locs
 solveSafety :: Config -> Cache -> Game -> Set Loc -> Loc -> IO (Bool, CFG)
 solveSafety ctx cache g safes init = do
   lg ctx ["Game type safety"]
-  let envGoal = selectInv g (locations g `difference` safes)
+  let envGoal = selectInv g (locations g `Set.difference` safes)
   a <- attractorCache ctx Env g cache envGoal
-  lg ctx ["Unsafe states are", lgS g a]
+  lg ctx ["Unsafe states are", strSt g a]
   lg ctx ["Initial formula is", smtLib2 (a `get` init)]
   res <- not <$> sat ctx (a `get` init)
   lg ctx ["Game is realizable? ", show res]
   if res && generateProgram ctx
     then do
       cfg <-
-        pure $ foldLocs (locations g) (addUpd (mapSymSt neg a) g) (mkCFG (Set.toList (locations g)))
+        pure
+          $ foldLocs (locations g) (addUpd (SymSt.map neg a) g)
+          $ mkCFG
+          $ Set.toList
+          $ locations g
       cfg <- pure $ setInitialCFG cfg init
       return (res, cfg)
     else return (res, emptyCFG)
@@ -111,19 +125,19 @@ iterBuechi ctx cache p g accept init = iter (selectInv g accept) (0 :: Word)
   where
     iter fset i = do
       lg ctx ["Iteration", show i]
-      lg ctx ["F_i =", lgS g fset]
+      lg ctx ["F_i =", strSt g fset]
       bset <- attractorCache ctx p g cache fset
-      lg ctx ["B_i =", lgS g bset]
+      lg ctx ["B_i =", strSt g bset]
       cset <- cpreS ctx p g bset
-      lg ctx ["C_i =", lgS g cset]
-      wset <- attractorCache ctx (opponent p) g cache (mapSymSt neg cset)
-      lg ctx ["W_i+1 =", lgS g wset]
-      fset' <- simplifySymSt ctx (fset `differenceS` wset)
-      lg ctx ["F_i+1 =", lgS g fset']
-      fp <- impliesS ctx fset fset'
+      lg ctx ["C_i =", strSt g cset]
+      wset <- attractorCache ctx (opponent p) g cache $ SymSt.map neg cset
+      lg ctx ["W_i+1 =", strSt g wset]
+      fset' <- SymSt.simplify ctx $ fset `SymSt.difference` wset
+      lg ctx ["F_i+1 =", strSt g fset']
+      fp <- SymSt.implies ctx fset fset'
       if fp
         then do
-          lg ctx ["Fixed point reaced", lgS g fset']
+          lg ctx ["Fixed point reaced", strSt g fset']
           return (wset, fset)
         else do
           earlyStop <-
@@ -135,7 +149,7 @@ iterBuechi ctx cache p g accept init = iter (selectInv g accept) (0 :: Word)
               lg ctx ["Early stop"]
               return (wset, fset)
             else do
-              lg ctx ["Recursion with", lgS g fset']
+              lg ctx ["Recursion with", strSt g fset']
               iter fset' (i + 1)
 
 solveBuechi :: Config -> Cache -> Game -> Set Loc -> Loc -> IO (Bool, CFG)
@@ -156,7 +170,7 @@ solveBuechi ctx cache g accepts init = do
 
 solveCoBuechi :: Config -> Cache -> Game -> Set Loc -> Loc -> IO (Bool, CFG)
 solveCoBuechi ctx cache g stays init = do
-  let rejects = locations g `difference` stays
+  let rejects = locations g `Set.difference` stays
   lg ctx ["Game type coBuechi"]
   lg ctx ["Rejecting locations", strS (locName g) rejects]
   (wsys, _) <- iterBuechi ctx cache Env g rejects init
@@ -195,30 +209,29 @@ solveParity ctx cache g colors init
     mkPlSet Env (wply, wopp) = (wply, wopp)
     mkPlSet Sys (wply, wopp) = (wopp, wply)
     removeFromGame symst g = do
-      newInv <- simplifySymSt ctx (invSymSt g `differenceS` symst)
+      newInv <- SymSt.simplify ctx (invSymSt g `SymSt.difference` symst)
       pure $ foldl (\g l -> setInv g l (newInv `get` l)) g (locations g)
     --
     zielonka :: Game -> IO (SymSt, SymSt)
     zielonka g
-     -- TODO: Check that this is really needed
-      | isEmptySt (invSymSt g) = pure (emptySt g, emptySt g)
+      | SymSt.null (invSymSt g) = pure (emptySt g, emptySt g)
       | otherwise = do
         let color = maxColor g
         let player = colorPlayer color
         let opp = opponent player
         let targ =
-              symSt
+              SymSt.symSt
                 (locations g)
                 (\l ->
                    if colors ! l == color
                      then inv g l
                      else false)
         let full = invSymSt g
-        lg ctx ["Parity on", lgS g full]
+        lg ctx ["Parity on", strSt g full]
         lg ctx ["Parity color", show color]
-        lg ctx ["Parity target", lgS g targ]
+        lg ctx ["Parity target", strSt g targ]
         aset <- attractorCache ctx player g cache targ
-        eqiv <- impliesS ctx full aset
+        eqiv <- SymSt.implies ctx full aset
         if eqiv
           then do
             lg ctx ["Parity return 0"]
@@ -227,8 +240,8 @@ solveParity ctx cache g colors init
             g' <- removeFromGame aset g
             lg ctx ["Parity Recurse 1"]
             winOp' <- playerSet opp <$> zielonka g'
-            winOp' <- simplifySymSt ctx winOp'
-            if isEmptySt winOp'
+            winOp' <- SymSt.simplify ctx winOp'
+            if SymSt.null winOp'
               then do
                 lg ctx ["Parity return 1"]
                 pure $ mkPlSet player (full, emptySt g)
@@ -238,18 +251,5 @@ solveParity ctx cache g colors init
                 lg ctx ["Parity Recurse 2"]
                 winPl'' <- playerSet player <$> zielonka g''
                 lg ctx ["Parity return 2"]
-                pure $ mkPlSet player (winPl'', full `differenceS` winPl'')
-
--------------------------------------------------------------------------------
--- Notions
--------------------------------------------------------------------------------
-invSymSt :: Game -> SymSt
-invSymSt g = symSt (locations g) (inv g)
-
-emptySt :: Game -> SymSt
-emptySt g = symSt (locations g) (const false)
-
--- TODO: Rename
-lgS :: Game -> SymSt -> String
-lgS = SymSt.toString . locName
+                pure $ mkPlSet player (winPl'', full `SymSt.difference` winPl'')
 -------------------------------------------------------------------------------

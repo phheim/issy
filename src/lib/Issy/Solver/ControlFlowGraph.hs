@@ -14,10 +14,11 @@ import qualified Data.Map.Strict as Map
   , union
   )
 
-import Issy.Base.SymbolicState
+import Issy.Base.SymbolicState hiding (map)
+import qualified Issy.Base.SymbolicState as SymSt
 import Issy.Config (Config)
 import Issy.Logic.FOL
-import Issy.Logic.SMT (simplify)
+import qualified Issy.Logic.SMT as SMT (simplify)
 import Issy.Printers.SMTLib (smtLib2)
 import Issy.Solver.GameInterface
 import Issy.Solver.LemmaFinding
@@ -162,11 +163,11 @@ addUpd symSt g l cfg = cfg {cfgTrans = Map.adjust go (mapLoc cfg l) (cfgTrans cf
 
 -- DO NOT READ BEFORE GOAL
 goalCFG :: SymSt -> CFG
-goalCFG symSt =
+goalCFG st =
   foldl
     (\cfg (l, t) -> mapUnmapped l (PTIf t PTGoal PTUnmapped) cfg)
-    (mkCFG (locsSymSt symSt))
-    (listSymSt symSt)
+    (mkCFG (SymSt.locations st))
+    (SymSt.toList st)
 
 redirectGoal :: Game -> SymSt -> CFG -> CFG
 redirectGoal g symSt cfg = mapGoal (makeTrans cfg g symSt) cfg
@@ -209,7 +210,7 @@ process ctx cfg =
     go =
       \case
         PTIf p tt tf -> do
-          p <- simplify ctx p
+          p <- SMT.simplify ctx p
           if p == true
             then go tt
             else if p == false
@@ -231,7 +232,7 @@ process ctx cfg =
           upds <-
             mapM
               (\(g, u, l) -> do
-                 g <- simplify ctx g
+                 g <- SMT.simplify ctx g
                  return (g, u, l))
               upds
           return $ PTUpdates $ filter (\(g, _, _) -> g /= false) upds

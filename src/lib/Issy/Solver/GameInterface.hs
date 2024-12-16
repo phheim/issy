@@ -24,6 +24,9 @@ module Issy.Solver.GameInterface
   , sortOf
   , fromRPG
   , fromSG
+  , strSt
+  , invSymSt
+  , emptySt
   ) where
 
 import Data.Bifunctor (first)
@@ -31,8 +34,10 @@ import Data.Set (Set)
 
 import Issy.Base.Locations (Loc)
 import Issy.Base.SymbolicState (SymSt)
+import qualified Issy.Base.SymbolicState as SymSt
 import qualified Issy.Base.Variables as Vars
 import Issy.Logic.FOL (Sort, Symbol, Term)
+import qualified Issy.Logic.FOL as FOL
 import qualified Issy.RPG as RPG
 import qualified Issy.SymbolicArena as Sym
 
@@ -105,3 +110,15 @@ locName = liftG RPG.locName Sym.locName
 
 sortOf :: Game -> Symbol -> Sort
 sortOf = liftV Vars.sortOf
+
+--
+-- Game related symbolic state handeling
+--
+strSt :: Game -> SymSt -> String
+strSt = SymSt.toString . locName
+
+invSymSt :: Game -> SymSt
+invSymSt g = SymSt.symSt (locations g) (inv g)
+
+emptySt :: Game -> SymSt
+emptySt g = SymSt.symSt (locations g) (const FOL.false)
