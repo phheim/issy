@@ -119,7 +119,7 @@ removePTDummy cells col cfg = cfg {cfgTrans = fmap go (cfgTrans cfg)}
         PTCopyDummy l t ->
           case mapping !? l of
             Nothing -> error ("Assertion: " ++ show l ++ " not mapped")
-            Just (Lemma _ _ _ prime) -> PTCopy (map (\v -> (prime ++ v, v)) cells) (go t)
+            Just lemma -> PTCopy (map (\v -> (prime lemma ++ v, v)) cells) (go t)
 
 mapLoc :: CFG -> Loc -> CFGLoc
 mapLoc cfg l =

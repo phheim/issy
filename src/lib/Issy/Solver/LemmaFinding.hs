@@ -3,18 +3,20 @@
 module Issy.Solver.LemmaFinding
   ( Constraint
   , LemSyms(..)
-  , Lemma(..)
-  , TypedCells(..)
+  , Lemma
+  , prime
   , resolve
   , replaceLemma
   ) where
 
 import Data.Bifunctor (second)
-import qualified Data.Map.Strict as Map (fromList)
+import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe)
-import Data.Set (Set, unions)
-import qualified Data.Set as Set (fromList, toList)
+import Data.Set (Set)
+import qualified Data.Set as Set
 
+import Issy.Base.Variables (Variables)
+import qualified Issy.Base.Variables as Vars
 import Issy.Config (Config, generateProgram, setName, skolemizeOnly)
 import Issy.Logic.FOL
 import Issy.Logic.SMT
@@ -33,17 +35,11 @@ data LemSyms =
 data Lemma =
   Lemma Term Term Term Symbol
 
+prime :: Lemma -> Symbol
+prime (Lemma _ _ _ p) = p
+
 mapL :: (Term -> Term) -> Lemma -> Lemma
 mapL m (Lemma b s c prime) = Lemma (m b) (m s) (m c) prime
-
-data TypedCells = TypedCells
-  { cells :: [Symbol]
-  , ty :: Symbol -> Sort
-  , bounded :: [Symbol]
-  }
-
-cellsS :: TypedCells -> Set Symbol
-cellsS = Set.fromList . cells
 
 data LemInst =
   LemInst Constraint Lemma
@@ -51,38 +47,40 @@ data LemInst =
 -------------------------------------------------------------------------------
 -- Instantiation
 -------------------------------------------------------------------------------
-primeT :: TypedCells -> Symbol -> Term -> Term
-primeT tyc prim =
+primeT :: Variables -> Symbol -> Term -> Term
+primeT vars prim =
   mapSymbol
     (\s ->
-       if s `elem` cells tyc
+       if Vars.isStateVar vars s
          then prim ++ s
          else s)
 
 extInt :: Symbol -> Integer -> Symbol
 extInt prefix i = prefix ++ "_" ++ show i ++ "_"
 
-replaceLemma :: TypedCells -> Lemma -> LemSyms -> Term -> Term
-replaceLemma tyc (Lemma b s c prime) (LemSyms bs ss cs) = rec
+replaceLemma :: Variables -> Lemma -> LemSyms -> Term -> Term
+replaceLemma vars (Lemma b s c prime) (LemSyms bs ss cs) = go
   where
-    rec =
+    go =
       \case
-        Quant q t f -> Quant q t (rec f)
-        Lambda t f -> Lambda t (rec f)
+        Quant q t f -> Quant q t (go f)
+        Lambda t f -> Lambda t (go f)
         Func fun args ->
           case fun of
             CustomF n _ _
               | n == bs ->
-                let m = Map.fromList (zip (cells tyc) args)
+                let m = Map.fromList $ zip (Vars.stateVarL vars) args
                  in mapTermM m b
               | n == cs ->
-                let m = Map.fromList (zip (cells tyc) args)
+                let m = Map.fromList $ zip (Vars.stateVarL vars) args
                  in mapTermM m c
               | n == ss ->
-                let m = Map.fromList (zip (cells tyc ++ map (prime ++) (cells tyc)) args)
+                let m =
+                      Map.fromList
+                        $ zip (Vars.stateVarL vars ++ map (prime ++) (Vars.stateVarL vars)) args
                  in mapTermM m s
-              | otherwise -> Func fun (rec <$> args)
-            _ -> Func fun (rec <$> args)
+              | otherwise -> Func fun $ map go args
+            _ -> Func fun $ map go args
         QVar k -> QVar k
         Const c -> Const c
         Var v t -> Var v t
@@ -91,7 +89,7 @@ replaceLemma tyc (Lemma b s c prime) (LemSyms bs ss cs) = rec
 -- Lemma generation
 -------------------------------------------------------------------------------
 imap :: (Integer -> a -> b) -> [a] -> [b]
-imap m xs = uncurry m <$> zip [1 ..] xs
+imap m xs = map (uncurry m) $ zip [1 ..] xs
 
 varcl :: Symbol -> Symbol -> Symbol -> Symbol
 varcl prefix subname cell = prefix ++ "_" ++ subname ++ "_" ++ cell
@@ -99,16 +97,19 @@ varcl prefix subname cell = prefix ++ "_" ++ subname ++ "_" ++ cell
 varcn :: Symbol -> Symbol -> Symbol
 varcn prefix subname = prefix ++ "_" ++ subname ++ "_"
 
-rankingFunc :: TypedCells -> Symbol -> (Term, [Term])
-rankingFunc (TypedCells {..}) prf =
+numbers :: Variables -> [Symbol]
+numbers vars = filter (isNumber . Vars.sortOf vars) $ Vars.stateVarL vars
+
+rankingFunc :: Variables -> Symbol -> (Term, [Term])
+rankingFunc vars prf =
   let constVar =
-        if any ((== SReal) . ty) cells
+        if any ((== SReal) . Vars.sortOf vars) (Vars.stateVars vars)
           then rvarT (varcn prf "c")
           else ivarT (varcn prf "c")
-      cellL = filter (isNumber . ty) $ filter (`notElem` bounded) cells
+      cellL = filter (not . Vars.isBounded vars) $ numbers vars
    in ( addT
           (constVar
-             : [br "a" c (br "b" c (Var c (ty c)) (func "-" [Var c (ty c)])) zeroT | c <- cellL])
+             : [br "a" c (br "b" c (Vars.mk vars c) (func "-" [Vars.mk vars c])) zeroT | c <- cellL])
       , [ constVar `leqT` Const (CInt 5)
         , Const (CInt (-5)) `leqT` constVar
         , addBools (bvarT . varcl prf "a" <$> cellL) 2 -- Might want to remove again!
@@ -117,22 +118,22 @@ rankingFunc (TypedCells {..}) prf =
   where
     br n c = ite (bvarT (varcl prf n c))
 
-rankLemma :: TypedCells -> Symbol -> (Lemma, [Term])
-rankLemma tyc@(TypedCells {..}) prf =
+rankLemma :: Variables -> Symbol -> (Lemma, [Term])
+rankLemma vars prf =
   let prim = prf ++ "_nv_"
-      (r, conR) = rankingFunc tyc prf
+      (r, conR) = rankingFunc vars prf
       (diff, conD) =
-        if any ((== SReal) . ty) cells
+        if any ((== SReal) . Vars.sortOf vars) (Vars.stateVars vars)
           then let eps = rvarT (varcn prf "epislon")
                 in (eps, [func ">" [eps, zeroT], eps `leqT` oneT])
           else (oneT, [])
-   in (Lemma (r `leqT` zeroT) (addT [diff, primeT tyc prim r] `leqT` r) true prim, conR ++ conD)
+   in (Lemma (r `leqT` zeroT) (addT [diff, primeT vars prim r] `leqT` r) true prim, conR ++ conD)
 
-invc :: Integer -> TypedCells -> Symbol -> (Term, [Term])
-invc restr (TypedCells {..}) prf =
+invc :: Integer -> Variables -> Symbol -> (Term, [Term])
+invc restr vars prf =
   let constVar = ivarT (varcn prf "c")
-      cellL = filter (isNumber . ty) cells
-   in ( addT [br "a" c (br "b" c (Var c (ty c)) (func "-" [Var c (ty c)])) zeroT | c <- cellL]
+      cellL = numbers vars
+   in ( addT [br "a" c (br "b" c (Vars.mk vars c) (func "-" [Vars.mk vars c])) zeroT | c <- cellL]
           `leqT` constVar
       , [ addBools (bvarT . varcl prf "a" <$> cellL) restr
         , constVar `leqT` Const (CInt 5)
@@ -144,9 +145,9 @@ invc restr (TypedCells {..}) prf =
 addBools :: [Term] -> Integer -> Term
 addBools bools bound = addT (map (\b -> ite b oneT zeroT) bools) `leqT` Const (CInt bound)
 
-constCompInv :: Integer -> TypedCells -> Symbol -> (Term, [Term])
-constCompInv rest (TypedCells {..}) prf =
-  let cellL = filter (isNumber . ty) cells
+constCompInv :: Integer -> Variables -> Symbol -> (Term, [Term])
+constCompInv rest vars prf =
+  let cellL = numbers vars
    in ( andf (map comp cellL)
       , addBools [orf [neg (vara c), neg (varb c)] | c <- cellL] rest
           : map (geqT oneT . varc) cellL
@@ -158,48 +159,48 @@ constCompInv rest (TypedCells {..}) prf =
     varc = ivarT . varcl prf "c"
     comp c =
       let cc = varc c
-          var = Var c (ty c)
+          var = Vars.mk vars c
           br n = ite (bvarT (varcl prf n c))
        in br "a" (br "b" true (func "=" [cc, var])) (br "b" (cc `leqT` var) (var `leqT` cc))
 
-genInstH :: Int -> TypedCells -> Symbol -> LemInst
-genInstH limit tyc pref =
+genInstH :: Int -> Variables -> Symbol -> LemInst
+genInstH limit vars pref =
   let (ccomp, cinvc) = templateConfig limit
       act = bvarT (pref ++ "_act")
-      (Lemma bi si ci prime, cnr) = rankLemma tyc (pref ++ "_r_")
-      (invs, cnis) = unzip $ imap (\i l -> invc l tyc (extInt pref i)) cinvc
-      (inv0, cni0) = constCompInv ccomp tyc (pref ++ "_i0_")
+      (Lemma bi si ci prime, cnr) = rankLemma vars (pref ++ "_r_")
+      (invs, cnis) = unzip $ imap (\i l -> invc l vars (extInt pref i)) cinvc
+      (inv0, cni0) = constCompInv ccomp vars (pref ++ "_i0_")
       inv = andf (inv0 : invs)
    in LemInst
         (cnr ++ cni0 ++ concat cnis)
         (Lemma
            (andf [act, bi, inv])
-           (andf [act, si, primeT tyc prime inv])
+           (andf [act, si, primeT vars prime inv])
            (andf [act, ci, inv])
            prime)
 
-genInst :: Int -> TypedCells -> Symbol -> LemSyms -> Constraint -> Term -> (Constraint, Term, Lemma)
-genInst limit tyc pref l cons f =
-  let LemInst consL li = genInstH limit tyc pref
-      rep = replaceLemma tyc li l
+genInst :: Int -> Variables -> Symbol -> LemSyms -> Constraint -> Term -> (Constraint, Term, Lemma)
+genInst limit vars pref l cons f =
+  let LemInst consL li = genInstH limit vars pref
+      rep = replaceLemma vars li l
    in (consL ++ map rep cons, rep f, li)
 
-skolemize :: Int -> TypedCells -> Set Symbol -> Term -> Term
-skolemize limit (TypedCells {..}) metas =
+skolemize :: Int -> Variables -> Set Symbol -> Term -> Term
+skolemize limit vars metas =
   mapTerm
     (\v s ->
        if v `elem` metas && (s == SBool || limit2skolemNum limit) --TODO: HACKY
-         then Just (Func (CustomF v (map ty cells) s) ((\v -> Var v (ty v)) <$> cells))
+         then Just $ Vars.unintPredTerm vars v
          else Nothing)
 
 instantiate ::
-     Int -> TypedCells -> Constraint -> Term -> [LemSyms] -> (Constraint, Term, [(LemSyms, Lemma)])
-instantiate limit tyc cons f ls =
-  let syms = unions (cellsS tyc : symbols f : (symbols <$> cons))
+     Int -> Variables -> Constraint -> Term -> [LemSyms] -> (Constraint, Term, [(LemSyms, Lemma)])
+instantiate limit vars cons f ls =
+  let syms = Set.unions (Vars.stateVars vars : symbols f : (symbols <$> cons))
       pref = uniquePrefix "p" syms
    in foldl
         (\(c, f, col) (l, i) ->
-           let (c', f', li) = genInst limit tyc (extInt pref i) l c f
+           let (c', f', li) = genInst limit vars (extInt pref i) l c f
             in (c', f', (l, li) : col))
         (cons, f, [])
         (zip ls [1 ..])
@@ -208,9 +209,9 @@ instantiate limit tyc cons f ls =
 -- Search
 -------------------------------------------------------------------------------
 resolveQE ::
-     Config -> Int -> TypedCells -> Constraint -> Term -> [LemSyms] -> IO (Term, [(LemSyms, Lemma)])
-resolveQE cfg limit tyc cons f ls =
-  let (cons', f', _) = instantiate limit tyc cons f ls
+     Config -> Int -> Variables -> Constraint -> Term -> [LemSyms] -> IO (Term, [(LemSyms, Lemma)])
+resolveQE cfg limit vars cons f ls =
+  let (cons', f', _) = instantiate limit vars cons f ls
       meta = Set.toList (frees (andf cons'))
       query = exists meta (andf (f' : cons'))
    in do
@@ -226,15 +227,15 @@ resolveQE cfg limit tyc cons f ls =
             return (false, [])
 
 resolveSk ::
-     Config -> Int -> TypedCells -> Constraint -> Term -> [LemSyms] -> IO (Term, [(LemSyms, Lemma)])
-resolveSk cfg limit tyc cons f ls = do
+     Config -> Int -> Variables -> Constraint -> Term -> [LemSyms] -> IO (Term, [(LemSyms, Lemma)])
+resolveSk cfg limit vars cons f ls = do
   cfg <- pure $ setName "Resolve SK" cfg
-  let (cons', f', col) = instantiate limit tyc cons f ls
+  let (cons', f', col) = instantiate limit vars cons f ls
   let meta = frees (andf cons')
   let theta = andf (f' : cons')
-  let sk = skolemize limit tyc meta
+  let sk = skolemize limit vars meta
   thetaSk <- fromMaybe (sk theta) <$> trySimplifyUF cfg (limit2to limit) (sk theta)
-  let query = forAll (cells tyc) (exists (Set.toList meta) theta `impl` thetaSk)
+  let query = Vars.forallX vars $ exists (Set.toList meta) theta `impl` thetaSk
   lg cfg ["Try sat on", smtLib2 query]
   resSAT <- satModelTO cfg (Just (limit2toextract limit)) query
   case resSAT of
@@ -250,12 +251,12 @@ resolveSk cfg limit tyc cons f ls = do
       return (res, map (second (mapL (setModel m . sk))) col)
 
 resolveBoth ::
-     Config -> Int -> TypedCells -> Constraint -> Term -> [LemSyms] -> IO (Term, [(LemSyms, Lemma)])
-resolveBoth cfg limit tyc cons f ls =
-  let (cons', f', col) = instantiate limit tyc cons f ls
+     Config -> Int -> Variables -> Constraint -> Term -> [LemSyms] -> IO (Term, [(LemSyms, Lemma)])
+resolveBoth cfg limit vars cons f ls =
+  let (cons', f', col) = instantiate limit vars cons f ls
       meta = frees (andf cons')
       theta = andf (f' : cons')
-      sk = skolemize limit tyc meta
+      sk = skolemize limit vars meta
       query = exists (Set.toList meta) theta
    in do
         cfg <- pure $ setName "Resolve QE+SK" cfg
@@ -265,7 +266,7 @@ resolveBoth cfg limit tyc cons f ls =
           Just res -> do
             lg cfg ["Qelim yielded", smtLib2 res]
             thetaSk <- fromMaybe (sk theta) <$> trySimplifyUF cfg (limit2to limit) (sk theta)
-            let querySk = forAll (cells tyc) (res `impl` thetaSk)
+            let querySk = Vars.forallX vars $ res `impl` thetaSk
             resSAT <- satModelTO cfg (Just (limit2toextract limit)) querySk
             case resSAT of
               Nothing -> do
@@ -282,7 +283,7 @@ resolveBoth cfg limit tyc cons f ls =
             return (false, [])
 
 resolve ::
-     Config -> Int -> TypedCells -> Constraint -> Term -> [LemSyms] -> IO (Term, [(LemSyms, Lemma)])
+     Config -> Int -> Variables -> Constraint -> Term -> [LemSyms] -> IO (Term, [(LemSyms, Lemma)])
 resolve cfg
   | skolemizeOnly cfg = resolveSk cfg
   | generateProgram cfg = resolveBoth cfg

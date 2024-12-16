@@ -50,7 +50,7 @@ import Issy.Solver.GameInterface
   , vars
   )
 import Issy.Solver.Heuristics
-import Issy.Solver.LemmaFinding
+import Issy.Solver.LemmaFinding (Constraint, LemSyms(..), replaceLemma, resolve)
 import Issy.Utils.Logging
 import Issy.Utils.OpenList (OpenList, pop, push)
 import qualified Issy.Utils.OpenList as OL (fromSet)
@@ -184,12 +184,11 @@ accelReach ctx limit p g l st = do
   let (cons, f, UsedSyms _ syms, cfg) =
         accReach (limit2depth limit) p g l st (UsedSyms (usedSymbols g) [])
   let cons' = cons ++ [Vars.existsX (vars g) (andf [f, neg (st `get` l)])]
-  let tyc = TypedCells (stateVarL g) (sortOf g) (filter (boundedVar g) (stateVarL g))
   unless (all (null . frees) cons')
     $ error
     $ "assert: constraint with free variables " ++ strL (strS show . frees) cons'
-  (res, col) <- resolve ctx limit tyc cons' f syms
-  cfg <- pure $ foldl (flip (\(l, li) -> mapCFG (replaceLemma tyc li l))) cfg col
+  (res, col) <- resolve ctx limit (vars g) cons' f syms
+  cfg <- pure $ foldl (flip (\(l, li) -> mapCFG (replaceLemma (vars g) li l))) cfg col
   cfg <- pure $ removePTDummy (stateVarL g) col cfg
   lg ctx ["Acceleration resulted in", smtLib2 res]
   return (res, cfg)

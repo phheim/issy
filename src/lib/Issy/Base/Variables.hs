@@ -3,6 +3,7 @@
 module Issy.Base.Variables
   ( Type(..)
   , Variables
+  , mk
   , inputs
   , inputL
   , stateVars
@@ -75,6 +76,11 @@ typeOf :: Variables -> Symbol -> Type
 typeOf vars var
   | var `elem` inputs vars = TInput (sortOf vars var)
   | otherwise = TOutput (sortOf vars var)
+
+mk :: Variables -> Symbol -> Term
+mk vars name
+  | name `notElem` allSymbols vars = error $ "assert: " ++ name ++ " not found"
+  | otherwise = FOL.Var name (sortOf vars name)
 
 isInput :: Variables -> Symbol -> Bool
 isInput vars var = var `elem` inputs vars
@@ -166,5 +172,4 @@ unintPred :: Variables -> String -> Function
 unintPred vars name = FOL.CustomF name (map (sortOf vars) (stateVarL vars)) FOL.SBool
 
 unintPredTerm :: Variables -> String -> Term
-unintPredTerm vars name =
-  FOL.Func (unintPred vars name) [FOL.Var v (sortOf vars v) | v <- stateVarL vars]
+unintPredTerm vars name = FOL.Func (unintPred vars name) $ map (mk vars) (stateVarL vars)
