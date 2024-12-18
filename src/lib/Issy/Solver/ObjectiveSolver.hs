@@ -29,17 +29,6 @@ import Issy.Solver.Attractor
 import Issy.Solver.ControlFlowGraph (CFG)
 import qualified Issy.Solver.ControlFlowGraph as CFG
 import Issy.Solver.GameInterface
-  ( Game
-  , Loc
-  , emptySt
-  , inv
-  , invSymSt
-  , locName
-  , locations
-  , setInv
-  , strSt
-  , vars
-  )
 import Issy.Utils.Logging
 
 -------------------------------------------------------------------------------

@@ -1,3 +1,5 @@
+{-# LANGUAGE LambdaCase #-}
+
 -- TODO RENAME
 --  Game -> Arena
 --  inv -> domain
@@ -12,8 +14,6 @@ module Issy.Solver.GameInterface
   , cyclicIn
   , usedSymbols
   , predSet
-  , cpreEnv
-  , cpreSys
   , loopGame
   , setInv
   , stateVars
@@ -27,15 +27,27 @@ module Issy.Solver.GameInterface
   , strSt
   , invSymSt
   , emptySt
+  , Ply(..)
+  , opponent
+  , cpre
+  , cpreS
+  , -- Visit counting
+    VisitCounter
+  , noVisits
+  , visit
+  , visits
   ) where
 
 import Data.Bifunctor (first)
+import Data.Map.Strict (Map)
+import qualified Data.Map.Strict as Map
 import Data.Set (Set)
 
 import Issy.Base.Locations (Loc)
 import Issy.Base.SymbolicState (SymSt)
 import qualified Issy.Base.SymbolicState as SymSt
 import qualified Issy.Base.Variables as Vars
+import Issy.Config (Config)
 import Issy.Logic.FOL (Sort, Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.RPG as RPG
@@ -122,3 +134,44 @@ invSymSt g = SymSt.symSt (locations g) (inv g)
 
 emptySt :: Game -> SymSt
 emptySt g = SymSt.symSt (locations g) (const FOL.false)
+
+--
+-- Player
+--
+data Ply
+  = Sys
+  | Env
+  deriving (Eq, Ord, Show)
+
+opponent :: Ply -> Ply
+opponent =
+  \case
+    Sys -> Env
+    Env -> Sys
+
+--
+-- Enforcement
+--
+cpre :: Ply -> Game -> SymSt -> Loc -> Term
+cpre p =
+  case p of
+    Sys -> cpreSys
+    Env -> cpreEnv
+
+cpreS :: Config -> Ply -> Game -> SymSt -> IO SymSt
+cpreS ctx p g st = SymSt.simplify ctx (SymSt.symSt (locations g) (cpre p g st))
+
+--
+-- Visit Counting
+--
+newtype VisitCounter =
+  VC (Map Loc Int)
+
+noVisits :: Game -> VisitCounter
+noVisits = VC . Map.fromSet (const 0) . locations
+
+visit :: Loc -> VisitCounter -> VisitCounter
+visit l (VC vc) = VC $ Map.insertWith (+) l 1 vc
+
+visits :: Loc -> VisitCounter -> Int
+visits l (VC vc) = Map.findWithDefault 0 l vc

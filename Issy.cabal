@@ -56,6 +56,7 @@ library
     , Issy.Products.SGMonitor
     , Issy.Products.SymbolicGames
     , Issy.RPG
+    , Issy.Solver.Acceleration
     , Issy.Solver.Attractor
     , Issy.Solver.ControlFlowGraph
     , Issy.Solver.GameInterface
