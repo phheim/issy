@@ -258,18 +258,34 @@ validInput g l = go (trans g l)
 -------------------------------------------------------------------------------
 -- Loop Game
 -------------------------------------------------------------------------------
-loopGame :: Game -> Loc -> (Game, Loc)
-loopGame g l =
-  let (g', shadow) = addLocation g (locName g l ++ "'")
-      shadowPreds = shadow `Set.insert` preds g l
-      g'' =
-        g'
-          { transRel =
-              Map.insert shadow (selfLoop shadow) $ Map.map (replaceByE l shadow) (transRel g')
-          , predecessors = Map.insert l Set.empty . Map.insert shadow shadowPreds $ predecessors g'
-          , invariant = Map.insert shadow (g' `inv` l) (invariant g')
-          }
-   in (pruneUnreachables l g'', shadow)
+loopGame :: Maybe Int -> Game -> Loc -> (Game, Loc)
+loopGame bound arena l =
+  let (arena0, l') = addLocation arena $ locName arena l ++ "'"
+      arena1 = setInv arena0 l' $ inv arena0 l
+      (arena2, sink) = addSink arena1 "sink"
+      arena3 = arena2 {transRel = Map.insert sink (selfLoop sink) (transRel arena2)}
+      arena4 = foldl (moveTrans l l') arena3 $ preds arena l
+   in case bound of
+        Nothing -> (arena4, l')
+        Just n -> (foldl killTrans arena4 (reachMin n arena4 l'), l')
+
+killTrans :: Game -> Loc -> Game
+killTrans arena l' =
+  let (arena0, sink) = addSink arena "sink"
+      arena' = setInv arena0 sink $ inv arena0 l'
+   in foldl (moveTrans l' sink) arena' (preds arena l')
+
+moveTrans :: Loc -> Loc -> Game -> Loc -> Game
+moveTrans old new arena l
+  | inv arena old /= inv arena new = error $ "assert: moving transition only to same domain targets"
+  | otherwise =
+    arena
+      { transRel = Map.adjust (replaceByE old new) l $ transRel arena
+      , predecessors =
+          Map.adjust (Set.delete l) old
+            $ Map.insertWith Set.union new (Set.singleton l)
+            $ predecessors arena
+      }
 
 replaceByE :: Loc -> Loc -> Transition -> Transition
 replaceByE src trg = h
@@ -284,3 +300,12 @@ replaceByE src trg = h
                   then (upd, trg)
                   else (upd, l))
                <$> choices)
+
+reachMin :: Int -> Game -> Loc -> Set Loc
+reachMin bound arena goal = go bound Set.empty (Set.singleton goal)
+  where
+    go n seen next
+      | n <= 0 = next
+      | otherwise =
+        let seen' = seen `Set.union` next
+         in go (n - 1) seen' $ (Set.unions (Set.map (preds arena) next)) `Set.difference` seen'

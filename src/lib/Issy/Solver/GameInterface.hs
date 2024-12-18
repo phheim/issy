@@ -11,6 +11,7 @@ module Issy.Solver.GameInterface
   , inv
   , locations
   , preds
+  , succs
   , cyclicIn
   , usedSymbols
   , predSet
@@ -82,6 +83,9 @@ locations = liftG RPG.locations Sym.locSet
 preds :: Game -> Loc -> Set Loc
 preds = liftG RPG.preds Sym.preds
 
+succs :: Game -> Loc -> Set Loc
+succs = liftG RPG.succs Sym.succs
+
 predSet :: Game -> Set Loc -> Set Loc
 predSet = liftG RPG.predSet Sym.predSet
 
@@ -97,9 +101,9 @@ cpreEnv = liftG RPG.cpreEnv Sym.cpreEnv
 cpreSys :: Game -> SymSt -> Loc -> Term
 cpreSys = liftG RPG.cpreSys Sym.cpreSys
 
-loopGame :: Game -> Loc -> (Game, Loc)
-loopGame (RPG g) l = first RPG (RPG.loopGame g l)
-loopGame (Sym a) l = first Sym (Sym.loopArena a l)
+loopGame :: Maybe Int -> Game -> Loc -> (Game, Loc)
+loopGame bound (RPG g) l = first RPG (RPG.loopGame bound g l)
+loopGame bound (Sym a) l = first Sym (Sym.loopArena bound a l)
 
 setInv :: Game -> Loc -> Term -> Game
 setInv (RPG g) l t = RPG $ RPG.setInv g l t

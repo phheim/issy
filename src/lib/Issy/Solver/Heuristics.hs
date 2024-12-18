@@ -21,6 +21,9 @@ limit2depth k
   | k <= 10 * accelerationDist = 0 -- Try once without nesting
   | otherwise = (k `div` (100 * accelerationDist)) + 1
 
+limit2size :: Int -> Int
+limit2size k = 1 --(k `div` accelerationDist) + 1
+
 limit2to :: Int -> Int
 limit2to k = k * k
 

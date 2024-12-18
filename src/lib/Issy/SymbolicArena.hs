@@ -207,23 +207,42 @@ cpreSys a d l =
               FOL.andf [trans a l l', Vars.primeT v (domain a l'), Vars.primeT v (SymSt.get d l')]
    in FOL.andf [f, domain a l]
 
-loopArena :: Arena -> Loc -> (Arena, Loc)
-loopArena arena l =
-  let (arena0, l') = addLoc arena (Locs.name (locations arena) l ++ "'")
+loopArena :: Maybe Int -> Arena -> Loc -> (Arena, Loc)
+loopArena bound arena l =
+  let (arena0, l') = addLoc arena $ locName arena l ++ "'"
       arena1 = setDomain arena0 l' $ domain arena0 l
       (arena2, sink) = addSink arena1
-      arena' = setTrans arena2 l' sink FOL.true
-   in ( arena'
-          { transRel =
-              Map.mapKeys
-                (\loc ->
-                   if loc == l
-                     then l'
-                     else loc)
-                <$> transRel arena'
-          , predRel = Map.insert l Set.empty . Map.insert l' (preds arena l) $ predRel arena'
+      arena3 = setTrans arena2 l' sink FOL.true
+      arena4 = foldl (moveTrans l l') arena3 $ preds arena l
+   in case bound of
+        Nothing -> (arena4, l')
+        Just n -> (foldl killTrans arena4 (reachMin n arena4 l'), l')
+
+moveTrans :: Loc -> Loc -> Arena -> Loc -> Arena
+moveTrans old new arena l
+  | domain arena old /= domain arena new =
+    error $ "assert: moving transition only to same domain targets"
+  | otherwise =
+    let arena' = setTrans arena l new $ trans arena l old
+     in arena'
+          { transRel = Map.adjust (Map.delete old) l $ transRel arena'
+          , predRel = Map.adjust (Set.delete l) old $ predRel arena'
           }
-      , l')
+
+reachMin :: Int -> Arena -> Loc -> Set Loc
+reachMin bound arena goal = go bound Set.empty (Set.singleton goal)
+  where
+    go n seen next
+      | n <= 0 = next
+      | otherwise =
+        let seen' = seen `Set.union` next
+         in go (n - 1) seen' $ (Set.unions (Set.map (preds arena) next)) `Set.difference` seen'
+
+killTrans :: Arena -> Loc -> Arena
+killTrans arena l' =
+  let (arena0, sink) = addSink arena
+      arena' = setDomain arena0 sink $ domain arena0 l'
+   in foldl (moveTrans l' sink) arena' (preds arena l')
 
 --
 -- Sanitize
