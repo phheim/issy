@@ -5,21 +5,26 @@ module Issy.Solver.Acceleration
   ) where
 
 import Control.Monad (unless)
-import Data.Maybe (fromMaybe)
+import Data.Map.Strict (Map)
+import qualified Data.Map.Strict as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
 
 import Issy.Base.SymbolicState (SymSt, get, set)
 import qualified Issy.Base.SymbolicState as SymSt
+import Issy.Base.Variables (Variables)
 import qualified Issy.Base.Variables as Vars
 import Issy.Config (Config, setName)
 import Issy.Logic.FOL
+import qualified Issy.Logic.FOL as FOL
+import qualified Issy.Logic.SMT as SMT
 import Issy.Printers.SMTLib (smtLib2)
 import Issy.Solver.ControlFlowGraph (CFG)
 import qualified Issy.Solver.ControlFlowGraph as CFG
 import Issy.Solver.GameInterface
 import Issy.Solver.Heuristics
 import Issy.Solver.LemmaFinding (Constraint, LemSyms(..), replaceLemma, resolve)
+import Issy.Utils.Extra (allM)
 import Issy.Utils.Logging
 import Issy.Utils.OpenList (OpenList, pop, push)
 import qualified Issy.Utils.OpenList as OL (fromSet)
@@ -61,54 +66,89 @@ accReach ::
   -> UsedSyms
   -> IO (Constraint, Term, UsedSyms, CFG)
 accReach ctx limit depth p g loc st uSym = do
-  let target = st `get` loc
   let targetInv = g `inv` loc
+  let target = st `get` loc
   -- Compute new lemma symbols
-  (b, s, c, lSyms, sSym, uSym) <- pure $ lemmaSymbols g uSym
+  (b, s, c, lSyms, stepSymb, uSym) <- pure $ lemmaSymbols g uSym
   -- Compute loop game
   (gl, loc') <- pure $ loopGame g loc
   let subLocs = subArena (Just (limit2size limit)) gl (loc, loc')
   (gl, oldToNew) <- pure $ inducedSubGame gl subLocs
   loc <- pure $ oldToNew loc
   loc' <- pure $ oldToNew loc'
-  -- Compute loop target and fixed invariant
+  -- Copy target for loop game
   let oldSt = st
   st <- pure $ SymSt.symSt (locations gl) (const false)
-  -- TODO: FIXME this access the old loc' from oldSt which does not exists
-  st <- pure $ foldl (\st oldloc -> set st (oldToNew oldloc) (oldSt `get` oldloc)) st subLocs
-  -- indeps <- independentProgVars ctx gl 
-  let st' = set st loc' $ orf [target, s]
+  st <-
+    pure
+      $ foldl
+          (\st oldloc ->
+             if oldToNew oldloc == loc'
+               then st
+               else set st (oldToNew oldloc) (oldSt `get` oldloc))
+          st
+          subLocs
   -- Initialize loop-program
   cfg <- pure $ CFG.loopCFG (loc, loc') st lSyms s
-  -- Compute sub-attractor for loop game
+  -- Build accleration restircted target and fixed invariant
+  indeps <- independentProgVars ctx gl
+  (st, fixedInv) <- accTarget ctx (vars gl) loc indeps st
+  -- Finialize loop game target with step relation and compute loop attractor
+  let st' = set st loc' $ orf [st `get` loc, s]
   (cons, stAcc, uSym, cfg) <- iterA ctx limit depth p gl st' loc' uSym cfg
   -- Derive constraints
   let quantSub f = Vars.forallX (vars g) $ andf [targetInv, c] `impl` f
-  cons <- pure $ map (expandStep g sSym) cons
-  stAcc <- pure $ SymSt.map (expandStep g sSym) stAcc
+  cons <- pure $ map (expandStep g stepSymb) cons
+  stAcc <- pure $ SymSt.map (expandStep g stepSymb) stAcc
   cons <-
     pure
-      [ Vars.forallX (vars g) $ andf [targetInv, b] `impl` target
+      [ Vars.forallX (vars g) $ andf [targetInv, b, fixedInv] `impl` target
       , quantSub (stAcc `get` loc)
       , quantSub (andf cons)
       ]
-  pure (cons, c, uSym, cfg)
+  pure (cons, andf [c, fixedInv], uSym, cfg)
 
-accTarget :: Config -> Set Symbol -> Loc -> SymSt -> IO (SymSt, Term)
-accTarget ctx loopGame targ =
-  error
-    "TODO: implement: forall ind. (exists depend targ) -> targ; qelim if possible!; check if new + invariant implies old, otherwise return nothing"
+-- TODO: adapat SMT simplify to be able to catch uninterpreted functions or something like that !!!
+accTarget :: Config -> Variables -> Loc -> Set Symbol -> SymSt -> IO (SymSt, Term)
+accTarget ctx vars loc indeps st = do
+  let deps = Vars.stateVars vars `Set.difference` indeps
+  fixedInv <- SMT.simplify ctx $ FOL.exists (Set.toList deps) $ get st loc
+  let st' = SymSt.map (\phi -> FOL.forAll (Set.toList indeps) (fixedInv `impl` phi)) st
+  st' <- SymSt.simplify ctx st'
+  check <-
+    allM (\l -> SMT.implies ctx (andf [st' `get` l, fixedInv]) (st `get` l)) (SymSt.locations st)
+  if check
+    then pure (st', fixedInv)
+    else pure (st, FOL.true)
 
 -- TODO: this should be part of the heursitics!
 visitingThreshold :: Int
 visitingThreshold = 1
 
 -- The choosen sub-arena should contain the sucessors of 
--- the accelerated locations and all locations that are 
+-- the accelerated location and all locations that are 
 -- on a (simple) path of lenght smaller equal the bound 
 -- form loc to loc'
 subArena :: Maybe Int -> Game -> (Loc, Loc) -> Set Loc
-subArena bound loopArena (loc, loc') = error "TODO IMPLEMENT"
+subArena bound loopArena (loc, loc') =
+  let forwDist = distances bound (succs loopArena) loc
+      backDist = distances bound (preds loopArena) loc'
+      minPath = Map.intersectionWith (+) forwDist backDist
+      pathInc =
+        case bound of
+          Nothing -> Map.keysSet minPath
+          Just bound -> Map.keysSet $ Map.filter (<= bound) minPath
+   in pathInc `Set.union` succs loopArena loc `Set.union` Set.fromList [loc, loc']
+
+distances :: Ord a => Maybe Int -> (a -> Set a) -> a -> Map a Int
+distances bound next init = go 0 (Set.singleton init) (Map.singleton init 0)
+  where
+    go depth last acc
+      | null last = acc
+      | bound == Just depth = acc
+      | otherwise =
+        let new = Set.unions (Set.map next last) `Set.difference` Map.keysSet acc
+         in go (depth + 1) new $ foldl (\acc l -> Map.insert l (depth + 1) acc) acc new
 
 -- TODO add propagation bound restriction!
 iterA ::
