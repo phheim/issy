@@ -5,6 +5,7 @@ module Issy.Solver.Acceleration
   ) where
 
 import Control.Monad (unless)
+import Data.Maybe (fromMaybe)
 import Data.Set (Set)
 import qualified Data.Set as Set
 
@@ -34,8 +35,8 @@ accelReach ctx limit p g l st = do
   lg ctx ["Accelerate in", locName g l, "on", strSt g st]
   lg ctx ["Depth bound", show (limit2depth limit)]
   lg ctx ["Size bound", show (limit2size limit)]
-  let (cons, f, UsedSyms _ syms, cfg) =
-        accReach limit (limit2depth limit) p g l st (UsedSyms (usedSymbols g) [])
+  (cons, f, UsedSyms _ syms, cfg) <-
+    accReach ctx limit (limit2depth limit) p g l st (UsedSyms (usedSymbols g) [])
   cons <- pure $ cons ++ [Vars.existsX (vars g) (andf [f, neg (st `get` l)])]
   unless (all (null . frees) cons)
     $ error
@@ -46,40 +47,73 @@ accelReach ctx limit p g l st = do
   lg ctx ["Acceleration resulted in", smtLib2 res]
   return (res, cfg)
 
-accReach ::
-     Int -> Int -> Ply -> Game -> Loc -> SymSt -> UsedSyms -> (Constraint, Term, UsedSyms, CFG)
-accReach limit depth p g l st uSym =
-  let (gl, l') = loopGame (Just (limit2size limit)) g l
-      (b, s, c, lSyms, sSym, uSym') = lemmaSymbols g uSym
-      st' =
-        SymSt.symSt (locations gl) $ \loc ->
-          if loc `elem` SymSt.locations st
-            then get st loc
-            else if loc == l'
-                   then orf [st `get` l, s]
-                   else false
-      cfgInit = CFG.loopCFG (l, l') st lSyms s
-      (consR, stAccR, uSym'', cfg) = iterA limit depth p gl st' l' uSym' cfgInit
-      -- quantSub f = forallX g (andf [g `inv` l, c, neg (st `get` l)] `impl` f) <- This is not strictly necessary
-      quantSub f = Vars.forallX (vars g) $ andf [g `inv` l, c] `impl` f
-      cons = expandStep g sSym <$> consR
-      stAcc = SymSt.map (expandStep g sSym) stAccR
-      cons' =
-        [ Vars.forallX (vars g) $ andf [g `inv` l, b] `impl` (st `get` l)
-        , quantSub (stAcc `get` l)
-        , quantSub (andf cons)
-        ]
-   in (cons', c, uSym'', cfg)
-
-visitingThreshold :: Int
-visitingThreshold = 1
-
 -------------------------------------------------------------------------------
 -- IterA and accReach
 -------------------------------------------------------------------------------
+accReach ::
+     Config
+  -> Int
+  -> Int
+  -> Ply
+  -> Game
+  -> Loc
+  -> SymSt
+  -> UsedSyms
+  -> IO (Constraint, Term, UsedSyms, CFG)
+accReach ctx limit depth p g loc st uSym = do
+  let target = st `get` loc
+  let targetInv = g `inv` loc
+  -- Compute new lemma symbols
+  (b, s, c, lSyms, sSym, uSym) <- pure $ lemmaSymbols g uSym
+  -- Compute loop game
+  (gl, loc') <- pure $ loopGame g loc
+  let subLocs = subArena (Just (limit2size limit)) gl (loc, loc')
+  (gl, oldToNew) <- pure $ inducedSubGame gl subLocs
+  loc <- pure $ oldToNew loc
+  loc' <- pure $ oldToNew loc'
+  -- Compute loop target and fixed invariant
+  let oldSt = st
+  st <- pure $ SymSt.symSt (locations gl) (const false)
+  -- TODO: FIXME this access the old loc' from oldSt which does not exists
+  st <- pure $ foldl (\st oldloc -> set st (oldToNew oldloc) (oldSt `get` oldloc)) st subLocs
+  -- indeps <- independentProgVars ctx gl 
+  let st' = set st loc' $ orf [target, s]
+  -- Initialize loop-program
+  cfg <- pure $ CFG.loopCFG (loc, loc') st lSyms s
+  -- Compute sub-attractor for loop game
+  (cons, stAcc, uSym, cfg) <- iterA ctx limit depth p gl st' loc' uSym cfg
+  -- Derive constraints
+  let quantSub f = Vars.forallX (vars g) $ andf [targetInv, c] `impl` f
+  cons <- pure $ map (expandStep g sSym) cons
+  stAcc <- pure $ SymSt.map (expandStep g sSym) stAcc
+  cons <-
+    pure
+      [ Vars.forallX (vars g) $ andf [targetInv, b] `impl` target
+      , quantSub (stAcc `get` loc)
+      , quantSub (andf cons)
+      ]
+  pure (cons, c, uSym, cfg)
+
+accTarget :: Config -> Set Symbol -> Loc -> SymSt -> IO (SymSt, Term)
+accTarget ctx loopGame targ =
+  error
+    "TODO: implement: forall ind. (exists depend targ) -> targ; qelim if possible!; check if new + invariant implies old, otherwise return nothing"
+
+-- TODO: this should be part of the heursitics!
+visitingThreshold :: Int
+visitingThreshold = 1
+
+-- The choosen sub-arena should contain the sucessors of 
+-- the accelerated locations and all locations that are 
+-- on a (simple) path of lenght smaller equal the bound 
+-- form loc to loc'
+subArena :: Maybe Int -> Game -> (Loc, Loc) -> Set Loc
+subArena bound loopArena (loc, loc') = error "TODO IMPLEMENT"
+
 -- TODO add propagation bound restriction!
 iterA ::
-     Int
+     Config
+  -> Int
   -> Int
   -> Ply
   -> Game
@@ -87,8 +121,8 @@ iterA ::
   -> Loc
   -> UsedSyms
   -> CFG
-  -> (Constraint, SymSt, UsedSyms, CFG)
-iterA limit depth p g st shadow = attr (OL.fromSet (preds g shadow)) (noVisits g) [] st
+  -> IO (Constraint, SymSt, UsedSyms, CFG)
+iterA ctx limit depth p g st shadow = attr (OL.fromSet (preds g shadow)) (noVisits g) [] st
   where
     attr ::
          OpenList Loc
@@ -97,17 +131,18 @@ iterA limit depth p g st shadow = attr (OL.fromSet (preds g shadow)) (noVisits g
       -> SymSt
       -> UsedSyms
       -> CFG
-      -> (Constraint, SymSt, UsedSyms, CFG)
+      -> IO (Constraint, SymSt, UsedSyms, CFG)
     attr ol vc cons st uSym cfg =
       case pop ol of
-        Nothing -> (cons, st, uSym, cfg)
+        Nothing -> pure (cons, st, uSym, cfg)
         Just (l, ol')
-          | visits l vc < visitingThreshold ->
+          | visits l vc < visitingThreshold -> do
+            lg ctx ["Update", locName g l, "with", smtLib2 (cpre p g st l)]
             reC l ol' cons (SymSt.disj st l (cpre p g st l)) uSym (CFG.addUpd st g l cfg)
-          | visits l vc == visitingThreshold && depth > 0 ->
-            let (consA, fA, uSymA, cfgSub) = accReach limit (depth - 1) p g l st uSym
-                cfg' = CFG.integrate cfgSub cfg
-             in reC l ol' (cons ++ consA) (set st l (orf [fA, st `get` l])) uSymA cfg'
+          | visits l vc == visitingThreshold && depth > 0 -> do
+            (consA, fA, uSymA, cfgSub) <- accReach ctx limit (depth - 1) p g l st uSym
+            cfg <- pure $ CFG.integrate cfgSub cfg
+            reC l ol' (cons ++ consA) (set st l (orf [fA, st `get` l])) uSymA cfg
           | otherwise -> attr ol' vc cons st uSym cfg
       where
         reC l ol' = attr (preds g l `push` ol') (visit l vc)
@@ -115,6 +150,7 @@ iterA limit depth p g st shadow = attr (OL.fromSet (preds g shadow)) (noVisits g
 -------------------------------------------------------------------------------
 -- Symbol Management
 -------------------------------------------------------------------------------
+--TODO: add more "global acceleration state"
 data UsedSyms =
   UsedSyms (Set Symbol) [LemSyms]
 

@@ -32,6 +32,8 @@ module Issy.Solver.GameInterface
   , opponent
   , cpre
   , cpreS
+  , independentProgVars
+  , inducedSubGame
   , -- Visit counting
     VisitCounter
   , noVisits
@@ -101,9 +103,17 @@ cpreEnv = liftG RPG.cpreEnv Sym.cpreEnv
 cpreSys :: Game -> SymSt -> Loc -> Term
 cpreSys = liftG RPG.cpreSys Sym.cpreSys
 
-loopGame :: Maybe Int -> Game -> Loc -> (Game, Loc)
-loopGame bound (RPG g) l = first RPG (RPG.loopGame bound g l)
-loopGame bound (Sym a) l = first Sym (Sym.loopArena bound a l)
+loopGame :: Game -> Loc -> (Game, Loc)
+loopGame (RPG g) = first RPG . RPG.loopGame g
+loopGame (Sym a) = first Sym . Sym.loopArena a
+
+inducedSubGame :: Game -> Set Loc -> (Game, Loc -> Loc)
+inducedSubGame (RPG g) = first RPG . RPG.inducedSubGame g
+inducedSubGame (Sym a) = first Sym . Sym.inducedSubArena a
+
+independentProgVars :: Config -> Game -> IO (Set Symbol)
+independentProgVars cfg (RPG g) = RPG.independentProgVars cfg g
+independentProgVars cfg (Sym a) = Sym.independentProgVars cfg a
 
 setInv :: Game -> Loc -> Term -> Game
 setInv (RPG g) l t = RPG $ RPG.setInv g l t

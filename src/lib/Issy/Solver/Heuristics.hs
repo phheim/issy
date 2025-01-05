@@ -2,6 +2,7 @@ module Issy.Solver.Heuristics where
 
 import Data.List (genericReplicate)
 
+-- TODO: Add a more generaal acceleartion heurisitc tracker
 -- This constant is a bit vodoo, its size depends on the acceperation/loop size
 -- and size of the game combined in order to ensure sufficent 
 -- information proagation. We picked 4 as a reasonable choice, as 
@@ -11,7 +12,7 @@ accelerationDist :: Int
 accelerationDist = 4
 
 visits2accel :: Int -> Bool
-visits2accel k = (k >= accelerationDist) && (k `mod` accelerationDist == 0)
+visits2accel k = True --(k >= accelerationDist) && (k `mod` accelerationDist == 0)
 
 limit2skolemNum :: Int -> Bool
 limit2skolemNum k = k `mod` 8 == 0

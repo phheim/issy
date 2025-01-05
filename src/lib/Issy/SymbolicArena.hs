@@ -26,10 +26,14 @@ module Issy.SymbolicArena
   , empty
   , succs
   , check
+  , -- Solving
+    independentProgVars
+  , inducedSubArena
   ) where
 
+import Control.Monad (foldM)
 import Data.Bifunctor (second)
-import Data.Map.Strict (Map, (!))
+import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
@@ -163,7 +167,7 @@ addSink arena =
 createLocsFor ::
      (Foldable t, Ord a) => Arena -> (a -> String) -> (a -> Term) -> t a -> (Arena, a -> Loc)
 createLocsFor arena name dom =
-  second (!)
+  second (flip (Map.findWithDefault (error "assert: lookup non-mapped element")))
     . foldl
         (\(a, mp) e ->
            let (a', l) = addLoc a (name e)
@@ -207,21 +211,19 @@ cpreSys a d l =
               FOL.andf [trans a l l', Vars.primeT v (domain a l'), Vars.primeT v (SymSt.get d l')]
    in FOL.andf [f, domain a l]
 
-loopArena :: Maybe Int -> Arena -> Loc -> (Arena, Loc)
-loopArena bound arena l =
+loopArena :: Arena -> Loc -> (Arena, Loc)
+loopArena arena l =
   let (arena0, l') = addLoc arena $ locName arena l ++ "'"
       arena1 = setDomain arena0 l' $ domain arena0 l
       (arena2, sink) = addSink arena1
       arena3 = setTrans arena2 l' sink FOL.true
       arena4 = foldl (moveTrans l l') arena3 $ preds arena l
-   in case bound of
-        Nothing -> (arena4, l')
-        Just n -> (foldl killTrans arena4 (reachMin n arena4 l'), l')
+   in (arena4, l')
 
 moveTrans :: Loc -> Loc -> Arena -> Loc -> Arena
 moveTrans old new arena l
   | domain arena old /= domain arena new =
-    error $ "assert: moving transition only to same domain targets"
+    error "assert: moving transition only to same domain targets"
   | otherwise =
     let arena' = setTrans arena l new $ trans arena l old
      in arena'
@@ -229,20 +231,54 @@ moveTrans old new arena l
           , predRel = Map.adjust (Set.delete l) old $ predRel arena'
           }
 
-reachMin :: Int -> Arena -> Loc -> Set Loc
-reachMin bound arena goal = go bound Set.empty (Set.singleton goal)
-  where
-    go n seen next
-      | n <= 0 = next
-      | otherwise =
-        let seen' = seen `Set.union` next
-         in go (n - 1) seen' $ (Set.unions (Set.map (preds arena) next)) `Set.difference` seen'
+inducedSubArena :: Arena -> Set Loc -> (Arena, Loc -> Loc)
+inducedSubArena arena locs
+  | not (locs `Set.isSubsetOf` locSet arena) =
+    error "assert: can only induced sub-arena on subset of locations!"
+  | otherwise =
+    let locsC = Set.unions (Set.map (succs arena) locs) `Set.union` locs
+        (arena0, oldToNew) =
+          createLocsFor (empty (variables arena)) (locName arena) (domain arena) locsC
+        -- Add transitions 
+        arena1 =
+          foldl (\ar old -> setTrans ar (oldToNew old) (oldToNew old) FOL.true) arena0
+            $ locsC `Set.difference` locs
+        arena2 =
+          foldl
+            (\ar old ->
+               foldl
+                 (\ar old' -> setTrans ar (oldToNew old) (oldToNew old') (trans arena old old'))
+                 ar
+                 (succs arena old))
+            arena1
+            locs
+        -- Create mappings for restricting locations only, not for the sinks
+        mOldToNew l
+          | l `elem` locs = oldToNew l
+          | otherwise = error "assert: cannot map non-restricing location"
+     in (arena2, mOldToNew)
 
-killTrans :: Arena -> Loc -> Arena
-killTrans arena l' =
-  let (arena0, sink) = addSink arena
-      arena' = setDomain arena0 sink $ domain arena0 l'
-   in foldl (moveTrans l' sink) arena' (preds arena l')
+independentProgVars :: Config -> Arena -> IO (Set Symbol)
+independentProgVars cfg arena = do
+  let depends = Set.unions $ Set.map (FOL.frees . domain arena) (locSet arena)
+  depends <- foldM indepTerm depends $ map (\(_, _, term) -> term) $ transList arena
+  pure $ Vars.stateVars vars `Set.difference` depends
+  where
+    vars = variables arena
+    indepTerm depends term =
+      foldM
+        (indepVar term)
+        depends
+        (Set.filter (Vars.isStateVar (variables arena)) (FOL.frees term))
+    indepVar term depends v
+      | v `elem` depends = pure depends
+      | otherwise = do
+        let vt = FOL.Var v (Vars.sortOf vars v)
+        res <- SMT.valid cfg $ term `FOL.impl` FOL.equal vt (Vars.primeT vars vt)
+        pure
+          $ if res
+              then depends
+              else Set.insert v depends
 
 --
 -- Sanitize
