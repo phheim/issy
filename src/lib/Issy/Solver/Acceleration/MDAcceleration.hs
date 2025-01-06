@@ -16,7 +16,7 @@ import Issy.Solver.GameInterface
 import qualified Issy.Utils.OpenList as OL (fromSet, pop, push)
 
 -------------------------------------------------------------------------------
-accReach :: Config -> Int -> Ply -> Game -> Loc -> SymSt -> IO (Term -> ([Term], Term, CFG))
+accReach :: Config -> Int -> Player -> Game -> Loc -> SymSt -> IO (Term -> ([Term], Term, CFG))
 accReach ctx limit player g loc st = do
   let targetInv = g `inv` loc
   (gl, loc, loc', st, fixedInv) <- loopScenario ctx (Just (limit2size limit)) g loc st
@@ -30,7 +30,7 @@ accReach ctx limit player g loc st = do
           ]
      in (cons, andf [conc, fixedInv, invar], cfg)
 
-iterA :: Ply -> Game -> SymSt -> Loc -> CFG -> (SymSt, CFG)
+iterA :: Player -> Game -> SymSt -> Loc -> CFG -> (SymSt, CFG)
 iterA player arena attr shadow = go (noVisits arena) (OL.fromSet (preds arena shadow)) attr
   where
     go vcnt open attr cfgl =

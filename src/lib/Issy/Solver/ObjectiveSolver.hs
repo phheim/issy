@@ -33,152 +33,152 @@ import Issy.Utils.Logging
 -------------------------------------------------------------------------------
 -- Solving
 -------------------------------------------------------------------------------
-solve :: Config -> (Game, Objective) -> IO ()
-solve ctx (g, obj) = do
-  ctx <- pure $ setName "Solve" ctx
+solve :: Config -> (Arena, Objective) -> IO ()
+solve cfg (arena, obj) = do
+  cfg <- pure $ setName "Solve" cfg
   let init = initialLoc obj
-  (res, cfg) <-
+  (res, prog) <-
     case winningCond obj of
-      Reachability ls -> solveReach ctx g ls init
-      Safety ls -> solveSafety ctx g ls init
-      Buechi ls -> solveBuechi ctx g ls init
-      CoBuechi ls -> solveCoBuechi ctx g ls init
-      Parity rank -> solveParity ctx g rank init
+      Reachability ls -> solveReach cfg arena ls init
+      Safety ls -> solveSafety cfg arena ls init
+      Buechi ls -> solveBuechi cfg arena ls init
+      CoBuechi ls -> solveCoBuechi cfg arena ls init
+      Parity rank -> solveParity cfg arena rank init
   if res
     then do
       putStrLn "Realizable"
-      when (generateProgram ctx) $ CFG.simplify ctx cfg >>= putStrLn . CFG.printCFG (vars g)
+      when (generateProgram cfg) $ CFG.simplify cfg prog >>= putStrLn . CFG.printCFG (vars arena)
     else putStrLn "Unrealizable"
 
-selectInv :: Game -> Set Loc -> SymSt
-selectInv g locs =
+selectInv :: Arena -> Set Loc -> SymSt
+selectInv arena locs =
   SymSt.symSt
-    (locations g)
+    (locations arena)
     (\l ->
        if l `elem` locs
-         then g `inv` l
+         then arena `inv` l
          else false)
 
-solveReach :: Config -> Game -> Set Loc -> Loc -> IO (Bool, CFG)
-solveReach ctx g reach init = do
-  lg ctx ["Game type reachability"]
-  (a, cfg) <- attractorEx ctx Sys g $ selectInv g reach
-  res <- valid ctx $ inv g init `impl` (a `get` init)
-  lg ctx ["Game is realizable? ", show res]
-  if res && generateProgram ctx
+solveReach :: Config -> Arena -> Set Loc -> Loc -> IO (Bool, CFG)
+solveReach cfg arena reach init = do
+  lg cfg ["Game type reachability"]
+  (a, prog) <- attractorEx cfg Sys arena $ selectInv arena reach
+  res <- valid cfg $ inv arena init `impl` (a `get` init)
+  lg cfg ["Game is realizable? ", show res]
+  if res && generateProgram cfg
     then do
-      cfg <- pure $ CFG.redirectGoal g (invSymSt g) cfg
-      cfg <- pure $ CFG.setInitialCFG cfg init
-      return (res, cfg)
+      prog <- pure $ CFG.redirectGoal arena (invSymSt arena) prog
+      prog <- pure $ CFG.setInitialCFG prog init
+      return (res, prog)
     else return (res, CFG.empty)
 
 foldLocs :: Set Loc -> (Loc -> CFG -> CFG) -> CFG -> CFG
-foldLocs locs f cfg = foldl (flip f) cfg locs
+foldLocs locs f prog = foldl (flip f) prog locs
 
-solveSafety :: Config -> Game -> Set Loc -> Loc -> IO (Bool, CFG)
-solveSafety ctx g safes init = do
-  lg ctx ["Game type safety"]
-  let envGoal = selectInv g $ locations g `Set.difference` safes
-  a <- attractor ctx Env g envGoal
-  lg ctx ["Unsafe states are", strSt g a]
-  lg ctx ["Initial formula is", smtLib2 (a `get` init)]
-  res <- not <$> sat ctx (andf [inv g init, a `get` init])
-  lg ctx ["Game is realizable? ", show res]
-  if res && generateProgram ctx
+solveSafety :: Config -> Arena -> Set Loc -> Loc -> IO (Bool, CFG)
+solveSafety cfg arena safes init = do
+  lg cfg ["Game type safety"]
+  let envGoal = selectInv arena $ locations arena `Set.difference` safes
+  a <- attractor cfg Env arena envGoal
+  lg cfg ["Unsafe states are", strSt arena a]
+  lg cfg ["Initial formula is", smtLib2 (a `get` init)]
+  res <- not <$> sat cfg (andf [inv arena init, a `get` init])
+  lg cfg ["Game is realizable? ", show res]
+  if res && generateProgram cfg
     then do
-      cfg <-
+      prog <-
         pure
-          $ foldLocs (locations g) (CFG.addUpd (SymSt.map neg a) g)
+          $ foldLocs (locations arena) (CFG.addUpd (SymSt.map neg a) arena)
           $ CFG.mkCFG
           $ Set.toList
-          $ locations g
-      cfg <- pure $ CFG.setInitialCFG cfg init
-      return (res, cfg)
+          $ locations arena
+      prog <- pure $ CFG.setInitialCFG prog init
+      return (res, prog)
     else return (res, CFG.empty)
 
-iterBuechi :: Config -> Ply -> Game -> Set Loc -> Loc -> IO (SymSt, SymSt)
-iterBuechi ctx p g accept init = iter (selectInv g accept) (0 :: Word)
+iterBuechi :: Config -> Player -> Arena -> Set Loc -> Loc -> IO (SymSt, SymSt)
+iterBuechi cfg player arena accept init = iter (selectInv arena accept) (0 :: Word)
   where
     iter fset i = do
-      lg ctx ["Iteration", show i]
-      lg ctx ["F_i =", strSt g fset]
-      bset <- attractor ctx p g fset
-      lg ctx ["B_i =", strSt g bset]
-      cset <- cpreS ctx p g bset
-      lg ctx ["C_i =", strSt g cset]
-      wset <- attractor ctx (opponent p) g $ SymSt.map neg cset
-      lg ctx ["W_i+1 =", strSt g wset]
-      fset' <- SymSt.simplify ctx $ fset `SymSt.difference` wset
-      lg ctx ["F_i+1 =", strSt g fset']
-      fp <- SymSt.implies ctx fset fset'
+      lg cfg ["Iteration", show i]
+      lg cfg ["F_i =", strSt arena fset]
+      bset <- attractor cfg player arena fset
+      lg cfg ["B_i =", strSt arena bset]
+      cset <- cpreS cfg player arena bset
+      lg cfg ["C_i =", strSt arena cset]
+      wset <- attractor cfg (opponent player) arena $ SymSt.map neg cset
+      lg cfg ["W_i+1 =", strSt arena wset]
+      fset' <- SymSt.simplify cfg $ fset `SymSt.difference` wset
+      lg cfg ["F_i+1 =", strSt arena fset']
+      fp <- SymSt.implies cfg fset fset'
       if fp
         then do
-          lg ctx ["Fixed point reaced", strSt g fset']
+          lg cfg ["Fixed point reaced", strSt arena fset']
           return (wset, fset)
         else do
           earlyStop <-
-            case p of
-              Sys -> sat ctx (wset `get` init)
-              Env -> valid ctx (wset `get` init)
+            case player of
+              Sys -> sat cfg (wset `get` init)
+              Env -> valid cfg (wset `get` init)
           if earlyStop
             then do
-              lg ctx ["Early stop reached"]
+              lg cfg ["Early stop reached"]
               return (wset, fset)
             else do
-              lg ctx ["Recursion with", strSt g fset']
+              lg cfg ["Recursion with", strSt arena fset']
               iter fset' (i + 1)
 
-solveBuechi :: Config -> Game -> Set Loc -> Loc -> IO (Bool, CFG)
-solveBuechi ctx g accepts init = do
-  lg ctx ["Game type Buechi"]
-  lg ctx ["Acceptings locations", strS (locName g) accepts]
-  (wenv, fset) <- iterBuechi ctx Sys g accepts init
-  res <- not <$> sat ctx (andf [inv g init, wenv `get` init])
-  lg ctx ["Environment result in initial location", smtLib2 (wenv `get` init)]
-  lg ctx ["Game is realizable? ", show res]
-  if res && generateProgram ctx
+solveBuechi :: Config -> Arena -> Set Loc -> Loc -> IO (Bool, CFG)
+solveBuechi cfg arena accepts init = do
+  lg cfg ["Game type Buechi"]
+  lg cfg ["Acceptings locations", strS (locName arena) accepts]
+  (wenv, fset) <- iterBuechi cfg Sys arena accepts init
+  res <- not <$> sat cfg (andf [inv arena init, wenv `get` init])
+  lg cfg ["Environment result in initial location", smtLib2 (wenv `get` init)]
+  lg cfg ["Game is realizable? ", show res]
+  if res && generateProgram cfg
     then do
-      (attr, cfg) <- attractorEx ctx Sys g fset
-      cfg <- pure $ CFG.redirectGoal g attr cfg
-      cfg <- pure $ CFG.setInitialCFG cfg init
-      return (True, cfg)
+      (attr, prog) <- attractorEx cfg Sys arena fset
+      prog <- pure $ CFG.redirectGoal arena attr prog
+      prog <- pure $ CFG.setInitialCFG prog init
+      return (True, prog)
     else return (res, CFG.empty)
 
-solveCoBuechi :: Config -> Game -> Set Loc -> Loc -> IO (Bool, CFG)
-solveCoBuechi ctx g stays init = do
-  let rejects = locations g `Set.difference` stays
-  lg ctx ["Game type coBuechi"]
-  lg ctx ["Rejecting locations", strS (locName g) rejects]
-  (wsys, _) <- iterBuechi ctx Env g rejects init
-  res <- valid ctx $ inv g init `impl` (wsys `get` init)
-  lg ctx ["Environment result in initial location", smtLib2 (wsys `get` init)]
-  lg ctx ["Game is realizable? ", show res]
-  if res && generateProgram ctx
+solveCoBuechi :: Config -> Arena -> Set Loc -> Loc -> IO (Bool, CFG)
+solveCoBuechi cfg arena stays init = do
+  let rejects = locations arena `Set.difference` stays
+  lg cfg ["Game type coBuechi"]
+  lg cfg ["Rejecting locations", strS (locName arena) rejects]
+  (wsys, _) <- iterBuechi cfg Env arena rejects init
+  res <- valid cfg $ inv arena init `impl` (wsys `get` init)
+  lg cfg ["Environment result in initial location", smtLib2 (wsys `get` init)]
+  lg cfg ["Game is realizable? ", show res]
+  if res && generateProgram cfg
     then do
-      safeSt <- SymSt.map neg <$> attractor ctx Env g (selectInv g rejects)
-      (_, cfg) <- attractorEx ctx Sys g $ SymSt.map neg safeSt
-      cfg <- pure $ CFG.redirectGoal g safeSt cfg
-      cfg <- pure $ CFG.setInitialCFG cfg init
-      return (True, cfg)
+      safeSt <- SymSt.map neg <$> attractor cfg Env arena (selectInv arena rejects)
+      (_, prog) <- attractorEx cfg Sys arena $ SymSt.map neg safeSt
+      prog <- pure $ CFG.redirectGoal arena safeSt prog
+      prog <- pure $ CFG.setInitialCFG prog init
+      return (True, prog)
     else return (res, CFG.empty)
 
-solveParity :: Config -> Game -> Map Loc Word -> Loc -> IO (Bool, CFG)
-solveParity ctx g colors init = do
-  lg ctx ["Game type Parity"]
-  lg ctx ["Coloring", strM (locName g) show colors]
-  (_, wsys) <- zielonka g
-  res <- valid ctx $ inv g init `impl` (wsys `get` init)
-  lg ctx ["Game is realizable? ", show res]
-  if res && generateProgram ctx
+solveParity :: Config -> Arena -> Map Loc Word -> Loc -> IO (Bool, CFG)
+solveParity cfg arena colors init = do
+  lg cfg ["Game type Parity"]
+  lg cfg ["Coloring", strM (locName arena) show colors]
+  (_, wsys) <- zielonka arena
+  res <- valid cfg $ inv arena init `impl` (wsys `get` init)
+  lg cfg ["Game is realizable? ", show res]
+  if res && generateProgram cfg
     then error "TODO IMPLEMENT: Parity extraction"
     else return (res, CFG.empty)
   where
     colorList = Map.toList colors
     --
-    maxColor :: Game -> Word
-    maxColor g = maximum [col | (l, col) <- colorList, inv g l /= false]
+    maxColor :: Arena -> Word
+    maxColor arena = maximum [col | (l, col) <- colorList, inv arena l /= false]
     --
-    colorPlayer :: Word -> Ply
+    colorPlayer :: Word -> Player
     colorPlayer col
       | even col = Env
       | otherwise = Sys
@@ -187,48 +187,48 @@ solveParity ctx g colors init = do
     playerSet Sys = snd
     mkPlSet Env (wply, wopp) = (wply, wopp)
     mkPlSet Sys (wply, wopp) = (wopp, wply)
-    removeFromGame symst g = do
-      newInv <- SymSt.simplify ctx (invSymSt g `SymSt.difference` symst)
-      pure $ foldl (\g l -> setInv g l (newInv `get` l)) g (locations g)
+    removeFromGame symst arena = do
+      newInv <- SymSt.simplify cfg (invSymSt arena `SymSt.difference` symst)
+      pure $ foldl (\arena l -> setInv arena l (newInv `get` l)) arena (locations arena)
     --
-    zielonka :: Game -> IO (SymSt, SymSt)
-    zielonka g
-      | SymSt.null (invSymSt g) = pure (emptySt g, emptySt g)
+    zielonka :: Arena -> IO (SymSt, SymSt)
+    zielonka arena
+      | SymSt.null (invSymSt arena) = pure (emptySt arena, emptySt arena)
       | otherwise = do
-        let color = maxColor g
+        let color = maxColor arena
         let player = colorPlayer color
         let opp = opponent player
         let targ =
               SymSt.symSt
-                (locations g)
+                (locations arena)
                 (\l ->
                    if colors ! l == color
-                     then inv g l
+                     then inv arena l
                      else false)
-        let full = invSymSt g
-        lg ctx ["Parity on", strSt g full]
-        lg ctx ["Parity color", show color]
-        lg ctx ["Parity target", strSt g targ]
-        aset <- attractor ctx player g targ
-        eqiv <- SymSt.implies ctx full aset
+        let full = invSymSt arena
+        lg cfg ["Parity on", strSt arena full]
+        lg cfg ["Parity color", show color]
+        lg cfg ["Parity target", strSt arena targ]
+        aset <- attractor cfg player arena targ
+        eqiv <- SymSt.implies cfg full aset
         if eqiv
           then do
-            lg ctx ["Parity return 0"]
-            pure $ mkPlSet player (full, emptySt g)
+            lg cfg ["Parity return 0"]
+            pure $ mkPlSet player (full, emptySt arena)
           else do
-            g' <- removeFromGame aset g
-            lg ctx ["Parity Recurse 1"]
-            winOp' <- playerSet opp <$> zielonka g'
-            winOp' <- SymSt.simplify ctx winOp'
+            arena' <- removeFromGame aset arena
+            lg cfg ["Parity Recurse 1"]
+            winOp' <- playerSet opp <$> zielonka arena'
+            winOp' <- SymSt.simplify cfg winOp'
             if SymSt.null winOp'
               then do
-                lg ctx ["Parity return 1"]
-                pure $ mkPlSet player (full, emptySt g)
+                lg cfg ["Parity return 1"]
+                pure $ mkPlSet player (full, emptySt arena)
               else do
-                remove <- attractor ctx opp g winOp'
-                g'' <- removeFromGame remove g
-                lg ctx ["Parity Recurse 2"]
-                winPl'' <- playerSet player <$> zielonka g''
-                lg ctx ["Parity return 2"]
+                remove <- attractor cfg opp arena winOp'
+                arena'' <- removeFromGame remove arena
+                lg cfg ["Parity Recurse 2"]
+                winPl'' <- playerSet player <$> zielonka arena''
+                lg cfg ["Parity return 2"]
                 pure $ mkPlSet player (winPl'', full `SymSt.difference` winPl'')
 -------------------------------------------------------------------------------

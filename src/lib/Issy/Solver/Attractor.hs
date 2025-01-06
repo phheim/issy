@@ -15,101 +15,106 @@ import Issy.Logic.FOL (Term)
 import qualified Issy.Logic.FOL as FOL
 import Issy.Logic.SMT (sat, simplify, valid)
 import Issy.Printers.SMTLib (smtLib2)
-import Issy.Solver.Acceleration (accelReach)
-import Issy.Solver.Acceleration.Heuristics (visits2accel)
+import Issy.Solver.Acceleration (accelReach, canAccel)
 import Issy.Solver.ControlFlowGraph (CFG)
 import qualified Issy.Solver.ControlFlowGraph as CFG
 import Issy.Solver.GameInterface
 import Issy.Utils.Logging
-import Issy.Utils.OpenList (OpenList, pop, push)
-import qualified Issy.Utils.OpenList as OL (fromSet)
+import Issy.Utils.OpenList (OpenList)
+import qualified Issy.Utils.OpenList as OL
 
 -------------------------------------------------------------------------------
 -- | 'attractor' compute the attractor for a given player, game, and symbolic
 -- state
-attractor :: Config -> Ply -> Game -> SymSt -> IO SymSt
-attractor ctx p g target = do
-  ctx <- pure $ setName "Attr" $ ctx {generateProgram = False}
-  fst <$> attractorFull ctx p g target
+attractor :: Config -> Player -> Arena -> SymSt -> IO SymSt
+attractor cfg player arena target = do
+  cfg <- pure $ setName "Attr" $ cfg {generateProgram = False}
+  fst <$> attractorFull cfg player arena target
 
 -------------------------------------------------------------------------------
 -- | 'attractorEx' compute the attractor for a given player, game, and symbolic
 -- state and does program extraction if indicated in the 'Config'.
-attractorEx :: Config -> Ply -> Game -> SymSt -> IO (SymSt, CFG)
-attractorEx ctx p g target = do
-  ctx <-
+attractorEx :: Config -> Player -> Arena -> SymSt -> IO (SymSt, CFG)
+attractorEx cfg player arena target = do
+  cfg <-
     pure
-      $ if generateProgram ctx
-          then setName "AttrE" ctx
-          else setName "Attr" ctx
-  attractorFull ctx p g target
+      $ if generateProgram cfg
+          then setName "AttrE" cfg
+          else setName "Attr" cfg
+  attractorFull cfg player arena target
 
 -------------------------------------------------------------------------------
 -- | 'attractorFull' does the complete attractor computation and is later used
 -- for the different type of attractor computations (with/without extraction)
 --
-attractorFull :: Config -> Ply -> Game -> SymSt -> IO (SymSt, CFG)
-attractorFull ctx p g target = do
-  satLocs <- Set.fromList . map fst <$> filterM (sat ctx . snd) (SymSt.toList target)
-  lg ctx ["Attractor for", show p, "from", strS (locName g) satLocs, "to reach", strSt g target]
-  (res, cfg) <- attr (noVisits g) (OL.fromSet (predSet g satLocs)) target (CFG.goalCFG target)
-  lg ctx ["Result", strSt g res]
-  return (res, cfg)
+attractorFull :: Config -> Player -> Arena -> SymSt -> IO (SymSt, CFG)
+attractorFull cfg player arena target = do
+  satLocs <- Set.fromList . map fst <$> filterM (sat cfg . snd) (SymSt.toList target)
+  lg cfg ["Attractor for", show player, "from", strLocs satLocs, "to reach", strStA target]
+  (res, prog) <-
+    attr (noVisits arena) (OL.fromSet (predSet arena satLocs)) target (CFG.goalCFG target)
+  lg cfg ["Result", strStA res]
+  return (res, prog)
   where
     attr :: VisitCounter -> OpenList Loc -> SymSt -> CFG -> IO (SymSt, CFG)
-    attr vcnt open reach cfg =
-      case pop open of
-        Nothing -> return (reach, cfg)
+    attr vcnt open reach prog =
+      case OL.pop open of
+        Nothing -> return (reach, prog)
         Just (l, open) -> do
           vcnt <- pure $ visit l vcnt
           let old = reach `get` l
-          lg ctx ["Step in", locName g l, "with", smtLib2 old]
+          lg cfg ["Step in", locName arena l, "with", smtLib2 old]
           -- Enforcable predecessor step
-          new <- simplify ctx $ FOL.orf [cpre p g reach l, old]
-          lg ctx ["Compute new", smtLib2 new]
+          new <- simplify cfg $ FOL.orf [cpre player arena reach l, old]
+          lg cfg ["Compute new", smtLib2 new]
           -- Check if this changed something in this location
-          unchanged <- valid ctx $ new `FOL.impl` old
-          lg ctx ["which has changed?", show (not unchanged)]
+          unchanged <- valid cfg $ new `FOL.impl` old
+          lg cfg ["which has changed?", show (not unchanged)]
           if unchanged
-            then attr vcnt open reach cfg
+            then attr vcnt open reach prog
             else do
-              cfg <- extr $ CFG.addUpd reach g l cfg
-              cfg <- simpCFG cfg
+              prog <- extr $ CFG.addUpd reach arena l prog
+              prog <- simpCFG prog
               reach <- pure $ set reach l new
-              open <- pure $ preds g l `push` open
+              open <- pure $ preds arena l `OL.push` open
               -- Check if we accelerate
-              if accelerate ctx && canAccel g l && accelNow l old vcnt
+              if accelerate cfg && canAccel arena l && accelNow l old vcnt
                   -- Acceleration
                 then do
-                  lg ctx ["Attempt reachability acceleration"]
-                  (acc, cfgSub) <- accelReach ctx (visits l vcnt) p g l reach
-                  lg ctx ["Accleration formula", smtLib2 acc]
-                  res <- simplify ctx $ FOL.orf [new, acc]
-                  succ <- not <$> valid ctx (res `FOL.impl` new)
-                  lg ctx ["Accelerated:", show succ]
+                  lg cfg ["Attempt reachability acceleration"]
+                  (acc, progSub) <- accelReach cfg (visits l vcnt) player arena l reach
+                  lg cfg ["Accleration formula", smtLib2 acc]
+                  res <- simplify cfg $ FOL.orf [new, acc]
+                  succ <- not <$> valid cfg (res `FOL.impl` new)
+                  lg cfg ["Accelerated:", show succ]
                   if succ
                       -- Acceleration succeed
                     then do
-                      cfg <- extr $ CFG.integrate cfgSub cfg
-                      cfg <- simpCFG cfg
-                      attr vcnt open (set reach l res) cfg
-                    else attr vcnt open reach cfg
-                else attr vcnt open reach cfg
-      where
-        extr cfg
-          | generateProgram ctx = pure cfg
-          | otherwise = pure CFG.empty
-        simpCFG cfg
-          | generateProgram ctx = CFG.simplify ctx cfg
-          | otherwise = pure cfg
-
-canAccel :: Game -> Loc -> Bool
-canAccel g l =
-  any (\v -> FOL.isNumber (sortOf g v) && not (boundedVar g v)) (stateVars g) && (g `cyclicIn` l)
+                      prog <- extr $ CFG.integrate progSub prog
+                      prog <- simpCFG prog
+                      attr vcnt open (set reach l res) prog
+                    else attr vcnt open reach prog
+                else attr vcnt open reach prog
+    -- Logging helper
+    strLocs = strS (locName arena)
+    strStA = strSt arena
+    -- Extraction helpers
+    extr prog
+      | generateProgram cfg = pure prog
+      | otherwise = pure CFG.empty
+    simpCFG prog
+      | generateProgram cfg = CFG.simplify cfg prog
+      | otherwise = pure prog
 
 -------------------------------------------------------------------------------
 -- Heuristics
 -------------------------------------------------------------------------------
 accelNow :: Loc -> Term -> VisitCounter -> Bool
 accelNow l f vcnt = (f /= FOL.false) && visits2accel (visits l vcnt)
+
+accelerationDist :: Int
+accelerationDist = 4
+
+visits2accel :: Int -> Bool
+visits2accel k = (k >= accelerationDist) && (k `mod` accelerationDist == 0)
 -------------------------------------------------------------------------------

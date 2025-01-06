@@ -6,6 +6,7 @@
 --  ...
 module Issy.Solver.GameInterface
   ( Game
+  , Arena
   , Loc
   , vars
   , inv
@@ -27,7 +28,7 @@ module Issy.Solver.GameInterface
   , strSt
   , invSymSt
   , emptySt
-  , Ply(..)
+  , Player(..)
   , opponent
   , cpre
   , cpreS
@@ -59,6 +60,8 @@ data Game
   = RPG RPG.Game
   | Sym Sym.Arena
   deriving (Show)
+
+type Arena = Game
 
 fromRPG :: (RPG.Game, a) -> (Game, a)
 fromRPG = first RPG
@@ -149,12 +152,12 @@ emptySt g = SymSt.symSt (locations g) (const FOL.false)
 --
 -- Player
 --
-data Ply
+data Player
   = Sys
   | Env
   deriving (Eq, Ord, Show)
 
-opponent :: Ply -> Ply
+opponent :: Player -> Player
 opponent =
   \case
     Sys -> Env
@@ -163,13 +166,13 @@ opponent =
 --
 -- Enforcement
 --
-cpre :: Ply -> Game -> SymSt -> Loc -> Term
+cpre :: Player -> Game -> SymSt -> Loc -> Term
 cpre p =
   case p of
     Sys -> cpreSys
     Env -> cpreEnv
 
-cpreS :: Config -> Ply -> Game -> SymSt -> IO SymSt
+cpreS :: Config -> Player -> Game -> SymSt -> IO SymSt
 cpreS ctx p g st = SymSt.simplify ctx (SymSt.symSt (locations g) (cpre p g st))
 
 --
