@@ -60,6 +60,7 @@ module Issy.Logic.FOL
     bindings
   , frees
   , quantifierFree
+  , ufFree
   , symbols
   , nonBoolTerms
   , --
@@ -339,6 +340,17 @@ quantifierFree =
     Func _ fs -> all quantifierFree fs
     Quant {} -> False
     _ -> True
+
+ufFree :: Term -> Bool
+ufFree =
+  \case
+    Var _ _ -> True
+    Const _ -> True
+    QVar _ -> True
+    Func (PredefF _) fs -> all ufFree fs
+    Func _ _ -> False
+    Quant _ _ f -> ufFree f
+    Lambda _ f -> ufFree f
 
 bindingsS :: Term -> Set (Symbol, Sort)
 bindingsS =

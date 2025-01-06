@@ -119,14 +119,16 @@ z3TacticList =
     t:tr -> "(and-then " ++ t ++ " " ++ z3TacticList tr ++ ")"
 
 simplifyTO :: Config -> Maybe Int -> Term -> IO (Maybe Term)
-simplifyTO cfg to f = do
-  let query = toSMTLib2 f ++ "(apply " ++ z3TacticList (smtSimplifyZ3Tacs cfg) ++ ")"
-  let (solver, args) = ("z3", ["--smt2", "--in"])
-  ifLog cfg "simplifyTO:" query
-  out <- runTO to solver args query
-  case out of
-    Nothing -> pure Nothing
-    Just res -> pure $ Just $ readTransformZ3 (bindings f !?) (tokenize res)
+simplifyTO cfg to f
+  | ufFree f = do
+    let query = toSMTLib2 f ++ "(apply " ++ z3TacticList (smtSimplifyZ3Tacs cfg) ++ ")"
+    let (solver, args) = ("z3", ["--smt2", "--in"])
+    ifLog cfg "simplifyTO:" query
+    out <- runTO to solver args query
+    case out of
+      Nothing -> pure Nothing
+      Just res -> pure $ Just $ readTransformZ3 (bindings f !?) (tokenize res)
+  | otherwise = pure $ Just f
 
 simplify :: Config -> Term -> IO Term
 simplify cfg = fmap (fromMaybe undefined) . simplifyTO cfg Nothing

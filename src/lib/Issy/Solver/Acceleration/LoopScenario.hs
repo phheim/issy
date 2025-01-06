@@ -42,7 +42,6 @@ loopScenario ctx pathBound arena loc target = do
   (loopTarget, fixedInv) <- accTarget ctx (vars loopAr) loc indeps loopTarget
   pure (loopAr, loc, loc', loopTarget, fixedInv)
 
--- TODO: adapat SMT simplify to be able to catch uninterpreted functions or something like that !!!
 accTarget :: Config -> Variables -> Loc -> Set Symbol -> SymSt -> IO (SymSt, Term)
 accTarget ctx vars loc indeps st = do
   let deps = Vars.stateVars vars `Set.difference` indeps
@@ -72,7 +71,6 @@ subArena bound loopArena (loc, loc') =
           Just bound -> Map.keysSet $ Map.filter (<= bound) minPath
    in pathInc `Set.union` succs loopArena loc `Set.union` Set.fromList [loc, loc']
 
--- TODO: Move to seprate utils module!
 distances :: Ord a => Maybe Int -> (a -> Set a) -> a -> Map a Int
 distances bound next init = go 0 (Set.singleton init) (Map.singleton init 0)
   where
