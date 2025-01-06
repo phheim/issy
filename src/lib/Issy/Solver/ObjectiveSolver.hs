@@ -154,7 +154,12 @@ solveCoBuechi ctx g stays init = do
   lg ctx ["Environment result in initial location", smtLib2 (wsys `get` init)]
   lg ctx ["Game is realizable? ", show res]
   if res && generateProgram ctx
-    then error "TODO IMPLEMENT: coBüchi extraction"
+    then do
+      safeSt <- SymSt.map neg <$> attractor ctx Env g (selectInv g rejects)
+      (_, cfg) <- attractorEx ctx Sys g $ SymSt.map neg safeSt
+      cfg <- pure $ CFG.redirectGoal g safeSt cfg
+      cfg <- pure $ CFG.setInitialCFG cfg init
+      return (True, cfg)
     else return (res, CFG.empty)
 
 solveParity :: Config -> Game -> Map Loc Word -> Loc -> IO (Bool, CFG)
