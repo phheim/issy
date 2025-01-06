@@ -16,10 +16,10 @@ import qualified Issy.Logic.FOL as FOL
 import Issy.Logic.SMT (sat, simplify, valid)
 import Issy.Printers.SMTLib (smtLib2)
 import Issy.Solver.Acceleration (accelReach)
+import Issy.Solver.Acceleration.Heuristics (visits2accel)
 import Issy.Solver.ControlFlowGraph (CFG)
 import qualified Issy.Solver.ControlFlowGraph as CFG
 import Issy.Solver.GameInterface
-import Issy.Solver.Heuristics (visits2accel)
 import Issy.Utils.Logging
 import Issy.Utils.OpenList (OpenList, pop, push)
 import qualified Issy.Utils.OpenList as OL (fromSet)

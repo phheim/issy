@@ -14,9 +14,11 @@ format:
 	hindent --line-length 100 */*/*.hs
 	hindent --line-length 100 */*/*/*.hs
 	hindent --line-length 100 */*/*/*/*.hs
+	hindent --line-length 100 */*/*/*/*/*.hs
 
 lint:
 	${LINTING} */*/*.hs
 	${LINTING} */*/*/*.hs
 	${LINTING} */*/*/*/*.hs
+	${LINTING} */*/*/*/*/*.hs
 

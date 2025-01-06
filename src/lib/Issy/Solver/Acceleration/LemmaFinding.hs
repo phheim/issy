@@ -1,6 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 
-module Issy.Solver.LemmaFinding
+module Issy.Solver.Acceleration.LemmaFinding
   ( Constraint
   , LemSyms(..)
   , Lemma
@@ -21,7 +21,7 @@ import Issy.Config (Config, generateProgram, setName, skolemizeOnly)
 import Issy.Logic.FOL
 import Issy.Logic.SMT
 import Issy.Printers.SMTLib (smtLib2)
-import Issy.Solver.Heuristics
+import Issy.Solver.Acceleration.Heuristics
 import Issy.Utils.Logging
 
 -------------------------------------------------------------------------------

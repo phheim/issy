@@ -57,11 +57,14 @@ library
     , Issy.Products.SymbolicGames
     , Issy.RPG
     , Issy.Solver.Acceleration
+    , Issy.Solver.Acceleration.Heuristics
+    , Issy.Solver.Acceleration.LemmaFinding
+    , Issy.Solver.Acceleration.LoopScenario
+    , Issy.Solver.Acceleration.MDAcceleration
+    , Issy.Solver.Acceleration.UFLAcceleration
     , Issy.Solver.Attractor
     , Issy.Solver.ControlFlowGraph
     , Issy.Solver.GameInterface
-    , Issy.Solver.Heuristics
-    , Issy.Solver.LemmaFinding
     , Issy.Solver.ObjectiveSolver
     , Issy.Specification
     , Issy.SymbolicArena

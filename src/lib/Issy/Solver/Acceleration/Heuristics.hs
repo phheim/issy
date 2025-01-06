@@ -1,4 +1,4 @@
-module Issy.Solver.Heuristics where
+module Issy.Solver.Acceleration.Heuristics where
 
 import Data.List (genericReplicate)
 

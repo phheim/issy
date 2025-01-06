@@ -33,8 +33,8 @@ import Issy.Logic.FOL (Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.SMT as SMT
 import Issy.Printers.SMTLib (smtLib2)
+import Issy.Solver.Acceleration.LemmaFinding (LemSyms(..), Lemma, prime)
 import Issy.Solver.GameInterface
-import Issy.Solver.LemmaFinding (LemSyms(..), Lemma, prime)
 
 newtype CFGLoc =
   CFGLoc Int
