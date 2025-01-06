@@ -14,7 +14,7 @@ import Issy.Base.SymbolicState (SymSt, get, set)
 import qualified Issy.Base.SymbolicState as SymSt
 import Issy.Base.Variables (Variables)
 import qualified Issy.Base.Variables as Vars
-import Issy.Config (Config, setName)
+import Issy.Config (Config, setName, nestAcceleration)
 import Issy.Logic.FOL
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.SMT as SMT
@@ -84,7 +84,8 @@ unnest acst = doVisit $ acst {visitCounters = tail (visitCounters acst), depth =
 
 nest :: Loc -> AccState -> Bool
 nest l acst =
-  (depth acst - 1 > limit2depth (limit acst))
+      nestAcceleration (config acst)
+    && (depth acst - 1 > limit2depth (limit acst))
     && (visitingThreshold == visits l (head (visitCounters acst)))
 
 visiting :: Loc -> AccState -> Bool

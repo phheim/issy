@@ -17,7 +17,7 @@ import qualified Data.Set as Set
 import Issy.Base.SymbolicState (SymSt, get, set)
 import qualified Issy.Base.SymbolicState as SymSt
 import qualified Issy.Base.Variables as Vars
-import Issy.Config (Config, generateProgram, setName)
+import Issy.Config (Config, generateProgram, setName, accelerate)
 import Issy.Logic.FOL (Symbol)
 import qualified Issy.Logic.FOL as FOL
 import Issy.Logic.SMT (sat, simplify, valid)
@@ -153,7 +153,7 @@ attractorFull ctx p g cache symst = do
               -- Compute potential new locations 
               let on' = Set.unions (preds g <$> cached) `push` (preds g l `push` no)
               -- Check if we accelerate
-              if accelNow l fo vc' && canAccel g && null cached --DEBUG!
+              if accelerate ctx && accelNow l fo vc' && canAccel g && null cached --DEBUG!
                   -- Acceleration
                 then do
                   lg ctx ["Attempt reachability acceleration"]
