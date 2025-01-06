@@ -170,6 +170,7 @@ goalToJump mp = mapTrans (map . go)
         st -> st
 
 -- TODO: this need for sure something that maps some parts of the main stuff to the sub initial location!!!
+-- TODO: this needs to take into account the empty CFG
 integrate :: CFG -> CFG -> CFG
 integrate sub main =
   let merged =

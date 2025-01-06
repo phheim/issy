@@ -35,13 +35,15 @@ module Issy.RPG
     cpreEnv
   , cpreSys
   , loopGame
+  , independentProgVars
+  , inducedSubGame
   ) where
 
 -------------------------------------------------------------------------------
 import Control.Monad (liftM2)
 import Data.Bifunctor (first, second)
 import Data.List (nub)
-import Data.Map.Strict (Map, (!), (!?))
+import Data.Map.Strict (Map, (!?))
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe)
 import Data.Set (Set)
@@ -126,7 +128,7 @@ addLocation g name =
 createLocsFor ::
      (Foldable t, Ord a) => Game -> (a -> String) -> (a -> Term) -> t a -> (Game, a -> Loc)
 createLocsFor game name inv =
-  second (!)
+  second (flip (Map.findWithDefault (error "assert: lookup non-mapped element")))
     . foldl
         (\(g, mp) e ->
            let (g', l) = addLocation g (name e)
@@ -259,17 +261,25 @@ validInput g l = go (trans g l)
 -- Loop Game
 -------------------------------------------------------------------------------
 loopGame :: Game -> Loc -> (Game, Loc)
-loopGame g l =
-  let (g', shadow) = addLocation g (locName g l ++ "'")
-      shadowPreds = shadow `Set.insert` preds g l
-      g'' =
-        g'
-          { transRel =
-              Map.insert shadow (selfLoop shadow) $ Map.map (replaceByE l shadow) (transRel g')
-          , predecessors = Map.insert l Set.empty . Map.insert shadow shadowPreds $ predecessors g'
-          , invariant = Map.insert shadow (g' `inv` l) (invariant g')
-          }
-   in (pruneUnreachables l g'', shadow)
+loopGame arena l =
+  let (arena0, l') = addLocation arena $ locName arena l ++ "'"
+      arena1 = setInv arena0 l' $ inv arena0 l
+      (arena2, sink) = addSink arena1 "sink"
+      arena3 = arena2 {transRel = Map.insert sink (selfLoop sink) (transRel arena2)}
+      arena4 = foldl (moveTrans l l') arena3 $ preds arena l
+   in (arena4, l')
+
+moveTrans :: Loc -> Loc -> Game -> Loc -> Game
+moveTrans old new arena l
+  | inv arena old /= inv arena new = error "assert: moving transition only to same domain targets"
+  | otherwise =
+    arena
+      { transRel = Map.adjust (replaceByE old new) l $ transRel arena
+      , predecessors =
+          Map.adjust (Set.delete l) old
+            $ Map.insertWith Set.union new (Set.singleton l)
+            $ predecessors arena
+      }
 
 replaceByE :: Loc -> Loc -> Transition -> Transition
 replaceByE src trg = h
@@ -284,3 +294,53 @@ replaceByE src trg = h
                   then (upd, trg)
                   else (upd, l))
                <$> choices)
+
+inducedSubGame :: Game -> Set Loc -> (Game, Loc -> Loc)
+inducedSubGame arena locs
+  | not (locs `Set.isSubsetOf` locations arena) =
+    error "assert: can only induce subgame on subset of locations!"
+  | otherwise =
+    let locsC = Set.unions (Set.map (succs arena) locs) `Set.union` locs
+        (arena0, oldToNew) =
+          createLocsFor (empty (variables arena)) (locName arena) (inv arena) locsC
+        -- Add transitions 
+        repTrans tr = foldl (\tr old -> replaceByE old (oldToNew old) tr) tr locsC
+        arena1 =
+          foldl
+            (\ar old ->
+               let new = oldToNew old
+                in fromMaybe
+                     (error "assert: transition exists")
+                     (addTransition
+                        ar
+                        new
+                        (if old `elem` locs
+                           then repTrans (trans arena old)
+                           else selfLoop new)))
+            arena0
+            locsC
+        -- Create mappings for restricting locations only, not for the sinks
+        mOldToNew l
+          | l `elem` locs = oldToNew l
+          | otherwise = error "assert: cannot map non-restricing location"
+     in (arena1, mOldToNew)
+
+independentProgVars :: Config -> Game -> IO (Set Symbol)
+independentProgVars _ arena =
+  pure
+    $ Set.difference (Vars.stateVars (variables arena))
+    $ Set.unions
+    $ Set.map (go . trans arena)
+    $ locations arena
+  where
+    go =
+      \case
+        TIf _ tt tf -> go tt `Set.union` go tf
+        TSys upds ->
+          Set.fromList $ concatMap (map fst . filter (not . isSelfUpd) . Map.toList . fst) upds
+
+isSelfUpd :: (Symbol, Term) -> Bool
+isSelfUpd =
+  \case
+    (v, FOL.Var v' _) -> v == v'
+    _ -> False

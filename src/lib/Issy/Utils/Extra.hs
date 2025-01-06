@@ -27,6 +27,9 @@ ifQuery c t f = do
     then pure (t, a)
     else pure (f, a)
 
+allM :: (Foldable f, Monad m) => (a -> m Bool) -> f a -> m Bool
+allM pred = foldl (\acc elem -> ifM acc (pred elem) (pure False)) (pure True)
+
 predecessorRelation :: Ord a => (a -> Set a) -> Set a -> Map a (Set a)
 predecessorRelation succ base =
   let init = Map.fromSet (const Set.empty) base

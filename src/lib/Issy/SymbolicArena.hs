@@ -26,10 +26,14 @@ module Issy.SymbolicArena
   , empty
   , succs
   , check
+  , -- Solving
+    independentProgVars
+  , inducedSubArena
   ) where
 
+import Control.Monad (foldM)
 import Data.Bifunctor (second)
-import Data.Map.Strict (Map, (!))
+import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
@@ -163,7 +167,7 @@ addSink arena =
 createLocsFor ::
      (Foldable t, Ord a) => Arena -> (a -> String) -> (a -> Term) -> t a -> (Arena, a -> Loc)
 createLocsFor arena name dom =
-  second (!)
+  second (flip (Map.findWithDefault (error "assert: lookup non-mapped element")))
     . foldl
         (\(a, mp) e ->
            let (a', l) = addLoc a (name e)
@@ -209,21 +213,71 @@ cpreSys a d l =
 
 loopArena :: Arena -> Loc -> (Arena, Loc)
 loopArena arena l =
-  let (arena0, l') = addLoc arena (Locs.name (locations arena) l ++ "'")
+  let (arena0, l') = addLoc arena $ locName arena l ++ "'"
       arena1 = setDomain arena0 l' $ domain arena0 l
       (arena2, sink) = addSink arena1
-      arena' = setTrans arena2 l' sink FOL.true
-   in ( arena'
-          { transRel =
-              Map.mapKeys
-                (\loc ->
-                   if loc == l
-                     then l'
-                     else loc)
-                <$> transRel arena'
-          , predRel = Map.insert l Set.empty . Map.insert l' (preds arena l) $ predRel arena'
+      arena3 = setTrans arena2 l' sink FOL.true
+      arena4 = foldl (moveTrans l l') arena3 $ preds arena l
+   in (arena4, l')
+
+moveTrans :: Loc -> Loc -> Arena -> Loc -> Arena
+moveTrans old new arena l
+  | domain arena old /= domain arena new =
+    error "assert: moving transition only to same domain targets"
+  | otherwise =
+    let arena' = setTrans arena l new $ trans arena l old
+     in arena'
+          { transRel = Map.adjust (Map.delete old) l $ transRel arena'
+          , predRel = Map.adjust (Set.delete l) old $ predRel arena'
           }
-      , l')
+
+inducedSubArena :: Arena -> Set Loc -> (Arena, Loc -> Loc)
+inducedSubArena arena locs
+  | not (locs `Set.isSubsetOf` locSet arena) =
+    error "assert: can only induced sub-arena on subset of locations!"
+  | otherwise =
+    let locsC = Set.unions (Set.map (succs arena) locs) `Set.union` locs
+        (arena0, oldToNew) =
+          createLocsFor (empty (variables arena)) (locName arena) (domain arena) locsC
+        -- Add transitions 
+        arena1 =
+          foldl (\ar old -> setTrans ar (oldToNew old) (oldToNew old) FOL.true) arena0
+            $ locsC `Set.difference` locs
+        arena2 =
+          foldl
+            (\ar old ->
+               foldl
+                 (\ar old' -> setTrans ar (oldToNew old) (oldToNew old') (trans arena old old'))
+                 ar
+                 (succs arena old))
+            arena1
+            locs
+        -- Create mappings for restricting locations only, not for the sinks
+        mOldToNew l
+          | l `elem` locs = oldToNew l
+          | otherwise = error "assert: cannot map non-restricing location"
+     in (arena2, mOldToNew)
+
+independentProgVars :: Config -> Arena -> IO (Set Symbol)
+independentProgVars cfg arena = do
+  depends <- foldM indepTerm Set.empty $ map (\(_, _, term) -> term) $ transList arena
+  pure $ Vars.stateVars vars `Set.difference` depends
+  where
+    vars = variables arena
+    indepTerm depends term =
+      foldM
+        (indepVar term)
+        depends
+        (Set.filter (Vars.isStateVar (variables arena)) (FOL.frees term))
+    indepVar term depends v
+      | v `elem` depends = pure depends
+      | otherwise = do
+        let vt = FOL.Var v (Vars.sortOf vars v)
+        res <- SMT.valid cfg $ term `FOL.impl` FOL.equal vt (Vars.primeT vars vt)
+        pure
+          $ if res
+              then depends
+              else Set.insert v depends
 
 --
 -- Sanitize

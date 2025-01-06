@@ -11,13 +11,13 @@ module Issy.Solver.GameInterface
   , inv
   , locations
   , preds
+  , succs
   , cyclicIn
   , usedSymbols
   , predSet
   , loopGame
   , setInv
   , stateVars
-  , stateVarL
   , inputL
   , boundedVar
   , locName
@@ -31,6 +31,8 @@ module Issy.Solver.GameInterface
   , opponent
   , cpre
   , cpreS
+  , independentProgVars
+  , inducedSubGame
   , -- Visit counting
     VisitCounter
   , noVisits
@@ -56,6 +58,7 @@ import qualified Issy.SymbolicArena as Sym
 data Game
   = RPG RPG.Game
   | Sym Sym.Arena
+  deriving (Show)
 
 fromRPG :: (RPG.Game, a) -> (Game, a)
 fromRPG = first RPG
@@ -82,6 +85,9 @@ locations = liftG RPG.locations Sym.locSet
 preds :: Game -> Loc -> Set Loc
 preds = liftG RPG.preds Sym.preds
 
+succs :: Game -> Loc -> Set Loc
+succs = liftG RPG.succs Sym.succs
+
 predSet :: Game -> Set Loc -> Set Loc
 predSet = liftG RPG.predSet Sym.predSet
 
@@ -98,8 +104,16 @@ cpreSys :: Game -> SymSt -> Loc -> Term
 cpreSys = liftG RPG.cpreSys Sym.cpreSys
 
 loopGame :: Game -> Loc -> (Game, Loc)
-loopGame (RPG g) l = first RPG (RPG.loopGame g l)
-loopGame (Sym a) l = first Sym (Sym.loopArena a l)
+loopGame (RPG g) = first RPG . RPG.loopGame g
+loopGame (Sym a) = first Sym . Sym.loopArena a
+
+inducedSubGame :: Game -> Set Loc -> (Game, Loc -> Loc)
+inducedSubGame (RPG g) = first RPG . RPG.inducedSubGame g
+inducedSubGame (Sym a) = first Sym . Sym.inducedSubArena a
+
+independentProgVars :: Config -> Game -> IO (Set Symbol)
+independentProgVars cfg (RPG g) = RPG.independentProgVars cfg g
+independentProgVars cfg (Sym a) = Sym.independentProgVars cfg a
 
 setInv :: Game -> Loc -> Term -> Game
 setInv (RPG g) l t = RPG $ RPG.setInv g l t
@@ -107,9 +121,6 @@ setInv (Sym a) l t = Sym $ Sym.setDomain a l t
 
 inputL :: Game -> [Symbol]
 inputL = liftV Vars.inputL
-
-stateVarL :: Game -> [Symbol]
-stateVarL = liftV Vars.stateVarL
 
 stateVars :: Game -> Set Symbol
 stateVars = liftV Vars.stateVars

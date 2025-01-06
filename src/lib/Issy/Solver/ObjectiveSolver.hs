@@ -8,7 +8,6 @@
 -------------------------------------------------------------------------------
 module Issy.Solver.ObjectiveSolver
   ( solve
-  , solveCache
   ) where
 
 -------------------------------------------------------------------------------
@@ -40,30 +39,16 @@ solve ctx (g, obj) = do
   let init = initialLoc obj
   (res, cfg) <-
     case winningCond obj of
-      Reachability ls -> solveReach ctx [] g ls init
-      Safety ls -> solveSafety ctx [] g ls init
-      Buechi ls -> solveBuechi ctx [] g ls init
-      CoBuechi ls -> solveCoBuechi ctx [] g ls init
-      Parity rank -> solveParity ctx [] g rank init
+      Reachability ls -> solveReach ctx g ls init
+      Safety ls -> solveSafety ctx g ls init
+      Buechi ls -> solveBuechi ctx g ls init
+      CoBuechi ls -> solveCoBuechi ctx g ls init
+      Parity rank -> solveParity ctx g rank init
   if res
     then do
       putStrLn "Realizable"
       when (generateProgram ctx) $ CFG.simplify ctx cfg >>= putStrLn . CFG.printCFG (vars g)
     else putStrLn "Unrealizable"
-
-solveCache :: Config -> Cache -> (Game, Objective) -> IO Bool
-solveCache ctx cache (g, obj) = do
-  ctx <- pure $ setName "SolveCache" ctx
-  ctx <- pure $ ctx {generateProgram = False}
-  let init = initialLoc obj
-  (res, _) <-
-    case winningCond obj of
-      Reachability ls -> solveReach ctx cache g ls init
-      Safety ls -> solveSafety ctx cache g ls init
-      Buechi ls -> solveBuechi ctx cache g ls init
-      CoBuechi ls -> solveCoBuechi ctx cache g ls init
-      Parity rank -> solveParity ctx cache g rank init
-  return res
 
 selectInv :: Game -> Set Loc -> SymSt
 selectInv g locs =
@@ -74,10 +59,10 @@ selectInv g locs =
          then g `inv` l
          else false)
 
-solveReach :: Config -> Cache -> Game -> Set Loc -> Loc -> IO (Bool, CFG)
-solveReach ctx cache g reach init = do
+solveReach :: Config -> Game -> Set Loc -> Loc -> IO (Bool, CFG)
+solveReach ctx g reach init = do
   lg ctx ["Game type reachability"]
-  (a, cfg) <- attractorEx ctx cache Sys g (selectInv g reach)
+  (a, cfg) <- attractorEx ctx Sys g $ selectInv g reach
   res <- valid ctx (a `get` init)
   lg ctx ["Game is realizable? ", show res]
   if res && generateProgram ctx
@@ -90,11 +75,11 @@ solveReach ctx cache g reach init = do
 foldLocs :: Set Loc -> (Loc -> CFG -> CFG) -> CFG -> CFG
 foldLocs locs f cfg = foldl (flip f) cfg locs
 
-solveSafety :: Config -> Cache -> Game -> Set Loc -> Loc -> IO (Bool, CFG)
-solveSafety ctx cache g safes init = do
+solveSafety :: Config -> Game -> Set Loc -> Loc -> IO (Bool, CFG)
+solveSafety ctx g safes init = do
   lg ctx ["Game type safety"]
-  let envGoal = selectInv g (locations g `Set.difference` safes)
-  a <- attractorCache ctx Env g cache envGoal
+  let envGoal = selectInv g $ locations g `Set.difference` safes
+  a <- attractor ctx Env g envGoal
   lg ctx ["Unsafe states are", strSt g a]
   lg ctx ["Initial formula is", smtLib2 (a `get` init)]
   res <- not <$> sat ctx (a `get` init)
@@ -111,17 +96,17 @@ solveSafety ctx cache g safes init = do
       return (res, cfg)
     else return (res, CFG.empty)
 
-iterBuechi :: Config -> Cache -> Ply -> Game -> Set Loc -> Loc -> IO (SymSt, SymSt)
-iterBuechi ctx cache p g accept init = iter (selectInv g accept) (0 :: Word)
+iterBuechi :: Config -> Ply -> Game -> Set Loc -> Loc -> IO (SymSt, SymSt)
+iterBuechi ctx p g accept init = iter (selectInv g accept) (0 :: Word)
   where
     iter fset i = do
       lg ctx ["Iteration", show i]
       lg ctx ["F_i =", strSt g fset]
-      bset <- attractorCache ctx p g cache fset
+      bset <- attractor ctx p g fset
       lg ctx ["B_i =", strSt g bset]
       cset <- cpreS ctx p g bset
       lg ctx ["C_i =", strSt g cset]
-      wset <- attractorCache ctx (opponent p) g cache $ SymSt.map neg cset
+      wset <- attractor ctx (opponent p) g $ SymSt.map neg cset
       lg ctx ["W_i+1 =", strSt g wset]
       fset' <- SymSt.simplify ctx $ fset `SymSt.difference` wset
       lg ctx ["F_i+1 =", strSt g fset']
@@ -143,28 +128,28 @@ iterBuechi ctx cache p g accept init = iter (selectInv g accept) (0 :: Word)
               lg ctx ["Recursion with", strSt g fset']
               iter fset' (i + 1)
 
-solveBuechi :: Config -> Cache -> Game -> Set Loc -> Loc -> IO (Bool, CFG)
-solveBuechi ctx cache g accepts init = do
+solveBuechi :: Config -> Game -> Set Loc -> Loc -> IO (Bool, CFG)
+solveBuechi ctx g accepts init = do
   lg ctx ["Game type Buechi"]
   lg ctx ["Acceptings locations", strS (locName g) accepts]
-  (wenv, fset) <- iterBuechi ctx cache Sys g accepts init
+  (wenv, fset) <- iterBuechi ctx Sys g accepts init
   res <- not <$> sat ctx (wenv `get` init)
   lg ctx ["Environment result in initial location", smtLib2 (wenv `get` init)]
   lg ctx ["Game is realizable? ", show res]
   if res && generateProgram ctx
     then do
-      (attr, cfg) <- attractorEx ctx cache Sys g fset
+      (attr, cfg) <- attractorEx ctx Sys g fset
       cfg <- pure $ CFG.redirectGoal g attr cfg
       cfg <- pure $ CFG.setInitialCFG cfg init
       return (True, cfg)
     else return (res, CFG.empty)
 
-solveCoBuechi :: Config -> Cache -> Game -> Set Loc -> Loc -> IO (Bool, CFG)
-solveCoBuechi ctx cache g stays init = do
+solveCoBuechi :: Config -> Game -> Set Loc -> Loc -> IO (Bool, CFG)
+solveCoBuechi ctx g stays init = do
   let rejects = locations g `Set.difference` stays
   lg ctx ["Game type coBuechi"]
   lg ctx ["Rejecting locations", strS (locName g) rejects]
-  (wsys, _) <- iterBuechi ctx cache Env g rejects init
+  (wsys, _) <- iterBuechi ctx Env g rejects init
   res <- valid ctx (wsys `get` init)
   lg ctx ["Environment result in initial location", smtLib2 (wsys `get` init)]
   lg ctx ["Game is realizable? ", show res]
@@ -172,8 +157,8 @@ solveCoBuechi ctx cache g stays init = do
     then error "TODO IMPLEMENT: coBüchi extraction"
     else return (res, CFG.empty)
 
-solveParity :: Config -> Cache -> Game -> Map Loc Word -> Loc -> IO (Bool, CFG)
-solveParity ctx cache g colors init = do
+solveParity :: Config -> Game -> Map Loc Word -> Loc -> IO (Bool, CFG)
+solveParity ctx g colors init = do
   lg ctx ["Game type Parity"]
   lg ctx ["Coloring", strM (locName g) show colors]
   (_, wsys) <- zielonka g
@@ -219,7 +204,7 @@ solveParity ctx cache g colors init = do
         lg ctx ["Parity on", strSt g full]
         lg ctx ["Parity color", show color]
         lg ctx ["Parity target", strSt g targ]
-        aset <- attractorCache ctx player g cache targ
+        aset <- attractor ctx player g targ
         eqiv <- SymSt.implies ctx full aset
         if eqiv
           then do
@@ -235,7 +220,7 @@ solveParity ctx cache g colors init = do
                 lg ctx ["Parity return 1"]
                 pure $ mkPlSet player (full, emptySt g)
               else do
-                remove <- attractorCache ctx opp g cache winOp'
+                remove <- attractor ctx opp g winOp'
                 g'' <- removeFromGame remove g
                 lg ctx ["Parity Recurse 2"]
                 winPl'' <- playerSet player <$> zielonka g''

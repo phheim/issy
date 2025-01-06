@@ -2,6 +2,10 @@ module Issy.Solver.Heuristics where
 
 import Data.List (genericReplicate)
 
+visitingThreshold :: Int
+visitingThreshold = 1
+
+-- TODO: Add a more generaal acceleartion heurisitc tracker
 -- This constant is a bit vodoo, its size depends on the acceperation/loop size
 -- and size of the game combined in order to ensure sufficent 
 -- information proagation. We picked 4 as a reasonable choice, as 
@@ -20,6 +24,9 @@ limit2depth :: Int -> Int
 limit2depth k
   | k <= 10 * accelerationDist = 0 -- Try once without nesting
   | otherwise = (k `div` (100 * accelerationDist)) + 1
+
+limit2size :: Int -> Int
+limit2size k = 1 --(k `div` accelerationDist) + 1
 
 limit2to :: Int -> Int
 limit2to k = k * k

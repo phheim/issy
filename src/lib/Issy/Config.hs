@@ -25,8 +25,10 @@ data Config = Config
   , smtQueryLogging :: Bool
   , smtSimplifyZ3Tacs :: [String]
     -- Game Solving
-  , skolemizeOnly :: Bool
   , generateProgram :: Bool
+  , skolemizeOnly :: Bool
+  , accelerate :: Bool
+  , nestAcceleration :: Bool
     -- Formula to Game translation
   , ltl2tgba :: String
   , pruneGame :: Bool
@@ -53,6 +55,8 @@ defaultConfig =
     , smtModelGenCommand = "(check-sat-using (and-then simplify (! default :macro-finder true)))"
     , smtQueryLogging = False
     , smtSimplifyZ3Tacs = z3Simplify
+    , accelerate = True
+    , nestAcceleration = False
     , skolemizeOnly = False
     , generateProgram = False
     , ltl2tgba = "ltl2tgba"
@@ -84,6 +88,7 @@ z3Simplify =
   , "propagate-ineqs"
   , "ctx-solver-simplify"
   , "propagate-ineqs"
+  , "solver-subsumption"
   , "unit-subsume-simplify"
   ]
 
@@ -99,6 +104,8 @@ argumentParser = go defaultConfig
         "--solver-cvc5":ar -> go (cfg {smtSolver = SMTSolverCVC5}) ar
         "--generate-program":sr -> go (cfg {generateProgram = True}) sr
         "--skolemize-only":sr -> go (cfg {skolemizeOnly = True}) sr
+        "--disable-acceleration":sr -> go (cfg {accelerate = False}) sr
+        "--nest-acceleration":sr -> go (cfg {nestAcceleration = True}) sr
         "--prune":ar -> go (cfg {pruneGame = True}) ar
         "--rules-disable-unsat-check":ar -> go (cfg {rulesUnsatChecks = False}) ar
         "--rules-disable-substitution":ar -> go (cfg {rulesSubsitution = False}) ar
@@ -139,9 +146,11 @@ argumentDescription =
     , "                  remark: z3 is still needed for executing queries"
     , ""
     , " Game solving options:"
-    , "  --generate-program   : generated a program if realizable (default: disabled)"
-    , "  --skolemize-only     : don't use QE but compute skolem functions directly "
-    , "                         (default: disabled)"
+    , "  --generate-program     : generated a program if realizable (default: disabled)"
+    , "  --disable-acceleration : disables acceleration (default: enabled)"
+    , "  --nest-acceleration    : enables nested acceleration (default: disabled)"
+    , "  --skolemize-only       : don't use QE but compute skolem functions directly "
+    , "                           (default: disabled)"
     , ""
     , " Formula to game options:"
     , "  --prune                      : enables monitor-base pruning (default: no)"
