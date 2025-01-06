@@ -63,7 +63,7 @@ solveReach :: Config -> Game -> Set Loc -> Loc -> IO (Bool, CFG)
 solveReach ctx g reach init = do
   lg ctx ["Game type reachability"]
   (a, cfg) <- attractorEx ctx Sys g $ selectInv g reach
-  res <- valid ctx (a `get` init)
+  res <- valid ctx $ inv g init `impl` (a `get` init)
   lg ctx ["Game is realizable? ", show res]
   if res && generateProgram ctx
     then do
@@ -82,7 +82,7 @@ solveSafety ctx g safes init = do
   a <- attractor ctx Env g envGoal
   lg ctx ["Unsafe states are", strSt g a]
   lg ctx ["Initial formula is", smtLib2 (a `get` init)]
-  res <- not <$> sat ctx (a `get` init)
+  res <- not <$> sat ctx (andf [inv g init, a `get` init])
   lg ctx ["Game is realizable? ", show res]
   if res && generateProgram ctx
     then do
@@ -120,9 +120,9 @@ iterBuechi ctx p g accept init = iter (selectInv g accept) (0 :: Word)
             case p of
               Sys -> sat ctx (wset `get` init)
               Env -> valid ctx (wset `get` init)
-          if False && earlyStop -- TODO FIXME what does this even do?
+          if earlyStop
             then do
-              lg ctx ["Early stop"]
+              lg ctx ["Early stop reached"]
               return (wset, fset)
             else do
               lg ctx ["Recursion with", strSt g fset']
@@ -133,7 +133,7 @@ solveBuechi ctx g accepts init = do
   lg ctx ["Game type Buechi"]
   lg ctx ["Acceptings locations", strS (locName g) accepts]
   (wenv, fset) <- iterBuechi ctx Sys g accepts init
-  res <- not <$> sat ctx (wenv `get` init)
+  res <- not <$> sat ctx (andf [inv g init, wenv `get` init])
   lg ctx ["Environment result in initial location", smtLib2 (wenv `get` init)]
   lg ctx ["Game is realizable? ", show res]
   if res && generateProgram ctx
@@ -150,7 +150,7 @@ solveCoBuechi ctx g stays init = do
   lg ctx ["Game type coBuechi"]
   lg ctx ["Rejecting locations", strS (locName g) rejects]
   (wsys, _) <- iterBuechi ctx Env g rejects init
-  res <- valid ctx (wsys `get` init)
+  res <- valid ctx $ inv g init `impl` (wsys `get` init)
   lg ctx ["Environment result in initial location", smtLib2 (wsys `get` init)]
   lg ctx ["Game is realizable? ", show res]
   if res && generateProgram ctx
@@ -162,7 +162,7 @@ solveParity ctx g colors init = do
   lg ctx ["Game type Parity"]
   lg ctx ["Coloring", strM (locName g) show colors]
   (_, wsys) <- zielonka g
-  res <- valid ctx (wsys `get` init)
+  res <- valid ctx $ inv g init `impl` (wsys `get` init)
   lg ctx ["Game is realizable? ", show res]
   if res && generateProgram ctx
     then error "TODO IMPLEMENT: Parity extraction"
