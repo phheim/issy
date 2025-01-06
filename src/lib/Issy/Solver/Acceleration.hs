@@ -99,48 +99,27 @@ doIterA :: AccState -> Game -> AccState
 doIterA acst arena =
   acst {visitCounters = noVisits arena : visitCounters acst, depth = depth acst + 1}
 
-accReach :: AccState -> Game -> Loc -> SymSt -> IO (Constraint, Term, CFG, AccState)
-accReach acst g loc st = do
-  let targetInv = g `inv` loc
-  -- Compute new lemma symbols
-  (base, step, conc, lsym, stepSym, acst) <- pure $ lemmaSymbols (vars g) acst
-  -- Compute loop arena
-  (gl, loc') <- pure $ loopGame g loc
-  let subs = subArena (sizeLimit acst) gl (loc, loc')
-  (gl, oldToNew) <- pure $ inducedSubGame gl subs
+-- TODO: Move to separate module
+loopScenario :: Config -> Maybe Int -> Game -> Loc -> SymSt -> IO (Game, Loc, Loc, SymSt, Term)
+loopScenario ctx pathBound arena loc target = do
+  (loopAr, loc') <- pure $ loopGame arena loc
+  let subs = subArena pathBound loopAr (loc, loc')
+  (loopAr, oldToNew) <- pure $ inducedSubGame loopAr subs
   loc <- pure $ oldToNew loc
   loc' <- pure $ oldToNew loc'
-  -- Copy target for loop game
-  let oldSt = st
-  st <- pure $ SymSt.symSt (locations gl) (const false)
-  st <-
+  let loopTarget = SymSt.symSt (locations loopAr) (const false)
+  loopTarget <-
     pure
       $ foldl
           (\st oldloc ->
              if oldToNew oldloc == loc'
                then st
-               else set st (oldToNew oldloc) (oldSt `get` oldloc))
-          st
+               else set st (oldToNew oldloc) (target `get` oldloc))
+          loopTarget
           subs
-  -- Initialize loop-program
-  cfg <- pure $ CFG.loopCFG (loc, loc') st lsym step
-  -- Build accleration restircted target and fixed invariant
-  indeps <- independentProgVars (config acst) gl
-  (st, fixedInv) <- accTarget (config acst) (vars gl) loc indeps st
-  -- Finialize loop game target with step relation and compute loop attractor
-  let st' = set st loc' $ orf [st `get` loc, step]
-  (cons, stAcc, cfg, acst) <- iterA acst gl st' loc' cfg
-  -- Derive constraints
-  let quantSub f = Vars.forallX (vars g) $ andf [targetInv, conc] `impl` f
-  cons <- pure $ map (expandStep (vars g) stepSym) cons
-  stAcc <- pure $ SymSt.map (expandStep (vars g) stepSym) stAcc
-  cons <-
-    pure
-      [ Vars.forallX (vars g) $ andf [targetInv, base] `impl` (st `get` loc)
-      , quantSub (stAcc `get` loc)
-      , quantSub (andf cons)
-      ]
-  pure (cons, andf [conc, fixedInv], cfg, acst)
+  indeps <- independentProgVars ctx loopAr
+  (loopTarget, fixedInv) <- accTarget ctx (vars loopAr) loc indeps loopTarget
+  pure (loopAr, loc, loc', loopTarget, fixedInv)
 
 -- TODO: adapat SMT simplify to be able to catch uninterpreted functions or something like that !!!
 accTarget :: Config -> Variables -> Loc -> Set Symbol -> SymSt -> IO (SymSt, Term)
@@ -181,6 +160,59 @@ distances bound next init = go 0 (Set.singleton init) (Map.singleton init 0)
         let new = Set.unions (Set.map next last) `Set.difference` Map.keysSet acc
          in go (depth + 1) new $ foldl (\acc l -> Map.insert l (depth + 1) acc) acc new
 
+accReach :: AccState -> Game -> Loc -> SymSt -> IO (Constraint, Term, CFG, AccState)
+accReach acst g loc st = do
+  let targetInv = g `inv` loc
+  -- Compute loop scenario
+  (gl, loc, loc', st, fixedInv) <- loopScenario (config acst) (sizeLimit acst) g loc st
+  -- Compute new lemma symbols
+  (base, step, conc, lsym, stepSym, acst) <- pure $ lemmaSymbols (vars g) acst
+  -- Initialize loop-program
+  cfg <- pure $ CFG.loopCFG (loc, loc') st lsym step
+  -- Finialize loop game target with step relation and compute loop attractor
+  let st' = set st loc' $ orf [st `get` loc, step]
+  (cons, stAcc, cfg, acst) <- iterA acst gl st' loc' cfg
+  -- Derive constraints
+  let quantSub f = Vars.forallX (vars g) $ andf [targetInv, conc] `impl` f
+  cons <- pure $ map (expandStep (vars g) stepSym) cons
+  stAcc <- pure $ SymSt.map (expandStep (vars g) stepSym) stAcc
+  cons <-
+    pure
+      [ Vars.forallX (vars g) $ andf [targetInv, base] `impl` (st `get` loc)
+      , quantSub (stAcc `get` loc)
+      , quantSub (andf cons)
+      ]
+  pure (cons, andf [conc, fixedInv], cfg, acst)
+
+accReachS :: AccState -> Game -> Loc -> SymSt -> IO (Term -> (Constraint, Term, CFG))
+accReachS acst g loc st = do
+  let targetInv = g `inv` loc
+  (gl, loc, loc', st, fixedInv) <- loopScenario (config acst) (sizeLimit acst) g loc st
+  let (base, step, conc, lsym) = error "TODO IMPLEMENT: Probably without lsym!!!"
+  pure $ \invar ->
+    let st' = set st loc' $ orf [st `get` loc, FOL.andf [step, Vars.primeT (vars gl) invar]]
+        (stAcc, cfg) = iterAS acst gl st' loc' $ CFG.loopCFG (loc, loc') st lsym step
+        cons =
+          [ Vars.forallX (vars g) $ andf [targetInv, base, invar] `impl` (st `get` loc)
+          , Vars.forallX (vars g) $ andf [targetInv, conc, invar] `impl` (stAcc `get` loc)
+          ]
+     in (cons, andf [conc, fixedInv, invar], cfg)
+
+iterAS :: AccState -> Game -> SymSt -> Loc -> CFG -> (SymSt, CFG)
+iterAS acst g attr shadow = go (doIterA acst g) (OL.fromSet (preds g shadow)) attr
+  where
+    go acst open attr cfgl =
+      case OL.pop open of
+        Nothing -> (attr, cfgl)
+        Just (l, open)
+          | visiting l acst ->
+            go
+              (doVisit acst l)
+              (preds g l `OL.push` open)
+              (SymSt.disj attr l $ cpre (player acst) g attr l)
+              (CFG.addUpd attr g l cfgl)
+          | otherwise -> go acst open attr cfgl
+
 iterA :: AccState -> Game -> SymSt -> Loc -> CFG -> IO (Constraint, SymSt, CFG, AccState)
 iterA acst g attr shadow = go (doIterA acst g) (OL.fromSet (preds g shadow)) [] attr
   where
@@ -191,8 +223,8 @@ iterA acst g attr shadow = go (doIterA acst g) (OL.fromSet (preds g shadow)) [] 
           -- Normal IterA update
           | visiting l acst -> do
             open <- pure $ preds g l `OL.push` open
-            attr <- pure $ SymSt.disj attr l $ cpre (player acst) g attr l
             cfgl <- pure $ CFG.addUpd attr g l cfgl
+            attr <- pure $ SymSt.disj attr l $ cpre (player acst) g attr l
             go (doVisit acst l) open cons attr cfgl
           -- Nested IterA update
           | nest l acst -> do
@@ -240,3 +272,25 @@ expandStep vars func = go
           | otherwise -> Func f $ map go args
         atom -> atom
 -------------------------------------------------------------------------------
+{-
+estimateTarget :: Config -> Term -> IO Term
+estimateTarget = error "TODO IMPLEMENT"
+
+generateTerms :: Config -> Variables -> Term -> [Term]
+generateTerms = error "TODO IMPLEMENT"
+
+boundIn :: Config -> Term -> Term -> IO Bool
+boundIn = error "TODO IMPLEMENT"
+
+type Box = [(Term, Just Integer, Just Integer)]
+
+mkBox :: Config -> Term -> [Term] -> IO Box
+mkBox = error "TODO IMPLEMENT"
+
+mkManhatten :: Config -> Term -> Box -> IO Term
+mkManhatten = error "TODO IMPLEMENT"
+
+lemmaGuess :: Config -> Term -> IO (Term, Term, Term)
+lemmaGuess = error "TODO IMPLEMENT"
+
+-}
