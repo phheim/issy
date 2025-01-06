@@ -260,8 +260,7 @@ inducedSubArena arena locs
 
 independentProgVars :: Config -> Arena -> IO (Set Symbol)
 independentProgVars cfg arena = do
-  let depends = Set.unions $ Set.map (FOL.frees . domain arena) (locSet arena)
-  depends <- foldM indepTerm depends $ map (\(_, _, term) -> term) $ transList arena
+  depends <- foldM indepTerm Set.empty $ map (\(_, _, term) -> term) $ transList arena
   pure $ Vars.stateVars vars `Set.difference` depends
   where
     vars = variables arena

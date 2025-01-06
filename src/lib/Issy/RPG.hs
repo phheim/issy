@@ -330,12 +330,12 @@ independentProgVars _ arena =
   pure
     $ Set.difference (Vars.stateVars (variables arena))
     $ Set.unions
-    $ Set.map (\l -> FOL.frees (inv arena l) `Set.union` go (trans arena l))
+    $ Set.map (go . trans arena)
     $ locations arena
   where
     go =
       \case
-        TIf p tt tf -> FOL.frees p `Set.union` go tt `Set.union` go tf
+        TIf _ tt tf -> go tt `Set.union` go tf
         TSys upds ->
           Set.fromList $ concatMap (map fst . filter (not . isSelfUpd) . Map.toList . fst) upds
 

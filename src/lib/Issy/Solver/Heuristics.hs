@@ -12,7 +12,7 @@ accelerationDist :: Int
 accelerationDist = 4
 
 visits2accel :: Int -> Bool
-visits2accel k = True --(k >= accelerationDist) && (k `mod` accelerationDist == 0)
+visits2accel k = (k >= accelerationDist) && (k `mod` accelerationDist == 0)
 
 limit2skolemNum :: Int -> Bool
 limit2skolemNum k = k `mod` 8 == 0

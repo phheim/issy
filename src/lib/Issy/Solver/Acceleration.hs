@@ -67,7 +67,6 @@ accReach ::
   -> IO (Constraint, Term, UsedSyms, CFG)
 accReach ctx limit depth p g loc st uSym = do
   let targetInv = g `inv` loc
-  let target = st `get` loc
   -- Compute new lemma symbols
   (b, s, c, lSyms, stepSymb, uSym) <- pure $ lemmaSymbols g uSym
   -- Compute loop game
@@ -76,6 +75,7 @@ accReach ctx limit depth p g loc st uSym = do
   (gl, oldToNew) <- pure $ inducedSubGame gl subLocs
   loc <- pure $ oldToNew loc
   loc' <- pure $ oldToNew loc'
+  lg ctx ["Loop game", show gl]
   -- Copy target for loop game
   let oldSt = st
   st <- pure $ SymSt.symSt (locations gl) (const false)
@@ -92,7 +92,10 @@ accReach ctx limit depth p g loc st uSym = do
   cfg <- pure $ CFG.loopCFG (loc, loc') st lSyms s
   -- Build accleration restircted target and fixed invariant
   indeps <- independentProgVars ctx gl
+  lg ctx ["Full state", SymSt.toString (locName gl) st]
   (st, fixedInv) <- accTarget ctx (vars gl) loc indeps st
+  lg ctx ["Reduced state", SymSt.toString (locName gl) st]
+  lg ctx ["Fixed invariant", smtLib2 fixedInv]
   -- Finialize loop game target with step relation and compute loop attractor
   let st' = set st loc' $ orf [st `get` loc, s]
   (cons, stAcc, uSym, cfg) <- iterA ctx limit depth p gl st' loc' uSym cfg
@@ -102,7 +105,7 @@ accReach ctx limit depth p g loc st uSym = do
   stAcc <- pure $ SymSt.map (expandStep g stepSymb) stAcc
   cons <-
     pure
-      [ Vars.forallX (vars g) $ andf [targetInv, b, fixedInv] `impl` target
+      [ Vars.forallX (vars g) $ andf [targetInv, b] `impl` (st `get` loc)
       , quantSub (stAcc `get` loc)
       , quantSub (andf cons)
       ]
