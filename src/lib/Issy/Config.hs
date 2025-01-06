@@ -88,6 +88,7 @@ z3Simplify =
   , "propagate-ineqs"
   , "ctx-solver-simplify"
   , "propagate-ineqs"
+  , "solver-subsumption"
   , "unit-subsume-simplify"
   ]
 
