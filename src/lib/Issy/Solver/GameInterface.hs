@@ -18,7 +18,6 @@ module Issy.Solver.GameInterface
   , loopGame
   , setInv
   , stateVars
-  , stateVarL
   , inputL
   , boundedVar
   , locName
@@ -122,9 +121,6 @@ setInv (Sym a) l t = Sym $ Sym.setDomain a l t
 
 inputL :: Game -> [Symbol]
 inputL = liftV Vars.inputL
-
-stateVarL :: Game -> [Symbol]
-stateVarL = liftV Vars.stateVarL
 
 stateVars :: Game -> Set Symbol
 stateVars = liftV Vars.stateVars

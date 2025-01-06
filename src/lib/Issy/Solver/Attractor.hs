@@ -16,6 +16,7 @@ import qualified Data.Set as Set
 
 import Issy.Base.SymbolicState (SymSt, get, set)
 import qualified Issy.Base.SymbolicState as SymSt
+import qualified Issy.Base.Variables as Vars
 import Issy.Config (Config, generateProgram, setName)
 import Issy.Logic.FOL (Symbol)
 import qualified Issy.Logic.FOL as FOL
@@ -64,7 +65,7 @@ applyEntry ctx game ply cache attrSt
             in SymSt.simplify ctx newAttrSt
       else return attrSt
   where
-    dependends = filter (`notElem` independendCells cache) (stateVarL game)
+    dependends = filter (`notElem` independendCells cache) $ Vars.stateVarL (vars game)
     targ l = targetSt cache `get` l
     -- This is only one choice for the independent program variables. However
     -- this seems awfully like we are computing an interpolant. Furthermore,

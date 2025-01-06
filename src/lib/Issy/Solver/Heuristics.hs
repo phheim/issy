@@ -2,6 +2,9 @@ module Issy.Solver.Heuristics where
 
 import Data.List (genericReplicate)
 
+visitingThreshold :: Int
+visitingThreshold = 1
+
 -- TODO: Add a more generaal acceleartion heurisitc tracker
 -- This constant is a bit vodoo, its size depends on the acceperation/loop size
 -- and size of the game combined in order to ensure sufficent 
