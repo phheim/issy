@@ -2,7 +2,11 @@
 {-# LANGUAGE LambdaCase #-}
 
 -------------------------------------------------------------------------------
-module Issy.Solver.Acceleration.MDAcceleration where
+module Issy.Solver.Acceleration.MDAcceleration
+  ( accelReach
+  ) where
+
+import Control.Monad (unless)
 
 -------------------------------------------------------------------------------
 import Data.Bifunctor (second)
@@ -12,34 +16,83 @@ import Issy.Base.SymbolicState (SymSt, get, set)
 import qualified Issy.Base.SymbolicState as SymSt
 import Issy.Base.Variables (Variables)
 import qualified Issy.Base.Variables as Vars
-import Issy.Config (Config)
+import Issy.Config (Config, invariantIterations, manhattenTermCount, setName)
 import Issy.Logic.FOL (Constant, Sort, Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.SMT as SMT
+import Issy.Printers.SMTLib (smtLib2)
 import Issy.Solver.Acceleration.Heuristics
 import Issy.Solver.Acceleration.LoopScenario (loopScenario)
 import Issy.Solver.ControlFlowGraph (CFG)
 import qualified Issy.Solver.ControlFlowGraph as CFG
 import Issy.Solver.GameInterface
+import Issy.Utils.Logging
 import qualified Issy.Utils.OpenList as OL (fromSet, pop, push)
 
 -------------------------------------------------------------------------------
--- TODO: split until iterA, pipe out, (stAcc `get` loc, cfg, fixedInv)
-accReach :: Config -> Int -> Player -> Arena -> Loc -> SymSt -> IO (Term -> ([Term], Term, CFG))
-accReach ctx limit player g loc st = do
-  let targetInv = g `inv` loc
-  (gl, loc, loc', st, fixedInv) <- loopScenario ctx (Just (limit2size limit)) g loc st
-  let (base, step, conc, lsym) = error "TODO IMPLEMENT: Probably without lsym!!!"
-  pure $ \invar
-    -- TODO FIXME: pring does not work like that!!!
-   ->
-    let st' = set st loc' $ FOL.orf [st `get` loc, FOL.andf [step, Vars.primeT (vars gl) invar]]
-        (stAcc, cfg) = iterA player gl st' loc' $ CFG.loopCFG (loc, loc') st lsym step
-        cons =
-          [ Vars.forallX (vars g) $ FOL.andf [targetInv, base, invar] `FOL.impl` (st `get` loc)
-          , Vars.forallX (vars g) $ FOL.andf [targetInv, conc, invar] `FOL.impl` (stAcc `get` loc)
-          ]
-     in (cons, FOL.andf [conc, fixedInv, invar], cfg)
+-- It assume that the arena is cycic in the location it accelerates.
+accelReach :: Config -> Int -> Player -> Arena -> Loc -> SymSt -> IO (Term, CFG)
+accelReach conf limit player arena loc reach = do
+  conf <- pure $ setName "AccReachMD" conf
+  lg conf ["Accelerate in", locName arena loc, "on", strSt arena reach]
+  lg conf ["Size bound", show (limit2size limit)]
+  let prime = FOL.uniquePrefix "init_" $ usedSymbols arena
+  -- 1. Guess lemma
+  lemma <- lemmaGuess conf prime (vars arena) (reach `get` loc)
+  case lemma of
+    Nothing -> do
+      lg conf ["Lemma guessing failed"]
+      pure (FOL.false, CFG.empty)
+    Just lemma -> do
+      lg conf ["Lemma guessing succeded with", strT smtLib2 smtLib2 smtLib2 lemma]
+        -- 2. try a few explicit iterations to find invariant
+      invRes <- tryFindInv conf prime limit player arena lemma loc reach
+      case invRes of
+        Just (conc, prog) -> do
+          lg conf ["Invariant iteration resulted in", smtLib2 conc]
+          pure (conc, prog)
+        Nothing -> do
+          lg conf ["Invariant iteration failed"]
+                -- TODO IMPLEMENT
+                -- 3.1. try to use explicit CHC stuff
+                -- 3.2. try to generalize, i.e. widening, maybe implement in separate module
+          pure (FOL.false, CFG.empty)
+
+-------------------------------------------------------------------------------
+-- Invariant Iteration
+-------------------------------------------------------------------------------
+tryFindInv ::
+     Config
+  -> Symbol
+  -> Int
+  -> Player
+  -> Arena
+  -> (Term, Term, Term)
+  -> Loc
+  -> SymSt
+  -> IO (Maybe (Term, CFG))
+tryFindInv conf prime limit player arena (base, step, conc) loc reach = do
+  let targetInv = inv arena loc
+  let vs = vars arena
+  (arena, loc, loc', reach, fixInv) <- loopScenario conf (Just (limit2size limit)) arena loc reach
+  baseCond <-
+    SMT.valid conf $ Vars.forallX vs $ FOL.andf [targetInv, base] `FOL.impl` (reach `get` loc)
+  unless baseCond $ error "assert: the base should be computed that this holds"
+  let iter cnt invar
+        | cnt >= invariantIterations conf = pure Nothing
+        | otherwise = do
+          let reach' = set reach loc' $ FOL.orf [reach `get` loc, FOL.andf [step, invar]]
+                            -- TODO: Build proper CFG
+          let (stAcc, _) = iterA player arena reach' loc' CFG.empty
+                -- TODO: Unprime stuff in stAcc!!!
+          let query =
+                Vars.forallX vs $ FOL.andf [targetInv, conc, invar] `FOL.impl` (stAcc `get` loc)
+          unless (null (FOL.frees query)) $ error "assert: found free variables in query"
+          holds <- SMT.valid conf query
+          if holds
+            then pure $ Just (FOL.andf [targetInv, conc, invar, fixInv], CFG.empty)
+            else iter (cnt + 1) (stAcc `get` loc)
+  iter 0 FOL.true
 
 iterA :: Player -> Arena -> SymSt -> Loc -> CFG -> (SymSt, CFG)
 iterA player arena attr shadow = go (noVisits arena) (OL.fromSet (preds arena shadow)) attr
@@ -56,35 +109,21 @@ iterA player arena attr shadow = go (noVisits arena) (OL.fromSet (preds arena sh
               (CFG.addUpd attr arena l cfgl)
           | otherwise -> go vcnt open attr cfgl
 
---
--- TODO OVERALL alogrithm:
---
--- 1. guess lemma
--- 2. try a few explicit iterations to find invariant
---
--- TODO: integrate into overall accleration framework and try out!!
---
--- 3.1. try to use explicit CHC stuff  
--- 3.2. try to generalize, i.e. widening, implement in separate module
---
-refineInv :: Config -> Int -> Player -> Arena -> Loc -> SymSt -> IO (Term, Bool)
-refineInv = error "TODO IMPLEMENT"
-
 -------------------------------------------------------------------------------
 -- Manhatten distance lemma generation
---
--- TODO: Make more real number friendly!
 -------------------------------------------------------------------------------
-lemmaGuess :: Config -> Variables -> Term -> IO (Term, Term, Term)
-lemmaGuess conf vars reach = do
+lemmaGuess :: Config -> Symbol -> Variables -> Term -> IO (Maybe (Term, Term, Term))
+lemmaGuess conf prime vars reach = do
   box <- mkBox conf vars reach
-  -- TODO: emptiness check!
-  let dist = manhatten box
-  let base = boxTerm FOL.Const box
-  -- TODO FIXME: priming does not work like that!!!
-  let step = FOL.func ">" [dist, Vars.primeT vars dist]
-  let conc = FOL.true
-  pure (base, step, conc)
+  pure
+    $ if null box
+        then Nothing
+        else let dist = manhatten box
+                 base = boxTerm FOL.Const box
+            -- TODO: Make more real number friendly!
+                 step = FOL.func ">" [FOL.mapSymbol (prime ++) dist, FOL.addT [dist, FOL.oneT]]
+                 conc = FOL.true
+              in Just (base, step, conc)
 
 type Box a = [(Term, (Bool, a))]
 
@@ -106,8 +145,8 @@ manhatten = FOL.addT . map go
 
 mkBox :: Config -> Variables -> Term -> IO (Box Constant)
 mkBox conf vars reach = do
-  let boxTerms = generateTerms (error "TODO: max size") vars reach
-  (boxScheme, maxTerms) <- prepareBox conf reach boxTerms
+  let boxTerms = generateTerms (manhattenTermCount conf) vars reach
+  (boxScheme, maxTerms) <- prepareBox conf vars reach boxTerms
   let query = Vars.forallX vars $ reach `FOL.impl` boxTerm (uncurry FOL.Var) boxScheme
   model <- SMT.satModelOpt conf SMT.Paetro query maxTerms
   pure
@@ -122,15 +161,18 @@ mkBox conf vars reach = do
         FOL.Const c -> c
         _ -> error "assert: result should be an constant"
 
-prepareBox :: Config -> Term -> [Term] -> IO (Box (Symbol, Sort), [Term])
-prepareBox conf reach boxTerms = go [] [] boxTerms
+prepareBox :: Config -> Variables -> Term -> [Term] -> IO (Box (Symbol, Sort), [Term])
+prepareBox conf vars reach boxTerms = go [] [] boxTerms
   where
     go box maxTerms =
       \case
         [] -> pure (box, maxTerms)
         boxTerm:xr -> do
           let syms = FOL.symbols $ FOL.andf $ [reach] ++ boxTerms ++ map fst box
-          let sort = FOL.SInt
+          let sort =
+                if any ((FOL.SReal ==) . Vars.sortOf vars) (FOL.frees boxTerm)
+                  then FOL.SReal
+                  else FOL.SInt
           let newname upper
                 | upper = FOL.uniqueName "upper" syms
                 | otherwise = FOL.uniqueName "lower" syms

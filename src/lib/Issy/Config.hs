@@ -29,6 +29,8 @@ data Config = Config
   , skolemizeOnly :: Bool
   , accelerate :: Bool
   , nestAcceleration :: Bool
+  , invariantIterations :: Int
+  , manhattenTermCount :: Int
     -- Formula to Game translation
   , ltl2tgba :: String
   , pruneGame :: Bool
@@ -58,6 +60,8 @@ defaultConfig =
     , accelerate = True
     , nestAcceleration = False
     , skolemizeOnly = False
+    , invariantIterations = 3
+    , manhattenTermCount = 2
     , generateProgram = False
     , ltl2tgba = "ltl2tgba"
     , pruneGame = False

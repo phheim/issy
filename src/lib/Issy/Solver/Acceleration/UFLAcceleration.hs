@@ -26,12 +26,8 @@ import Issy.Utils.Logging
 import qualified Issy.Utils.OpenList as OL (fromSet, pop, push)
 
 -------------------------------------------------------------------------------
--- Global Acceleration
--------------------------------------------------------------------------------
--- TODO: Replace limit by more abstract limiting state, that is tracking over time!
 accelReach :: Config -> Int -> Player -> Game -> Loc -> SymSt -> IO (Term, CFG)
 accelReach ctx limit p g l st = do
-  -- TODO: Add eglibility check!!
   ctx <- pure $ setName "AccReach" ctx
   lg ctx ["Accelerate in", locName g l, "on", strSt g st]
   lg ctx ["Depth bound", show (limit2depth limit)]
