@@ -11,6 +11,9 @@ module Issy.Logic.SMT
   , simplifyTO
   , simplify
   , trySimplifyUF
+  , -- Max SMT
+    satModelOpt
+  , SMTOpt(..)
   ) where
 
 import Data.Map ((!?))
@@ -154,3 +157,10 @@ z3SimplifyUF = ["simplify", "propagate-ineqs", "qe", "simplify"]
 
 trySimplifyUF :: Config -> Int -> Term -> IO (Maybe Term)
 trySimplifyUF cfg to = simplifyTO (cfg {smtSimplifyZ3Tacs = z3SimplifyUF}) (Just to)
+
+data SMTOpt =
+  Paetro
+  deriving (Eq, Ord, Show)
+
+satModelOpt :: Config -> SMTOpt -> Term -> [Term] -> IO (Maybe Model)
+satModelOpt = error "TODO IMPLEMENT"
