@@ -10,6 +10,7 @@ module Issy.Logic.SMT
   , implies
   , simplifyTO
   , simplify
+  , simplifyStrong
   , trySimplifyUF
   , -- Max SMT
     satModelOpt
@@ -100,21 +101,21 @@ valid cfg f = not <$> sat cfg (neg f)
 implies :: Config -> Term -> Term -> IO Bool
 implies cfg f g = valid cfg (f `impl` g)
 
-readTransformZ3 :: (Symbol -> Maybe Sort) -> [Token] -> Term
+readTransformZ3 :: (Symbol -> Maybe Sort) -> [Token] -> Either String Term
 readTransformZ3 ty =
   \case
-    TLPar:TId "goals":TLPar:TId "goal":tr -> andf (readGoals tr)
-    ts -> error $ "assert: Invalid pattern for goals: " ++ show ts
+    TLPar:TId "goals":TLPar:TId "goal":tr -> andf <$> readGoals tr
+    ts -> Left $ "Invalid pattern for goals: " ++ show ts
   where
     readGoals =
       \case
-        [] -> error "assertion: found [] before ')' while reading goals"
+        [] -> Left "assertion: found [] before ')' while reading goals"
         TId (':':_):_:tr -> readGoals tr
-        [TRPar, TRPar] -> []
+        [TRPar, TRPar] -> Right []
         ts ->
           case parseTerm ty ts of
-            Left err -> error ("Assertion: " ++ err)
-            Right (f, tr) -> f : readGoals tr
+            Left err -> Left err
+            Right (f, tr) -> (f :) <$> readGoals tr
 
 z3TacticList :: [String] -> String
 z3TacticList =
@@ -132,11 +133,20 @@ simplifyTO cfg to f
     out <- runTO to solver args query
     case out of
       Nothing -> pure Nothing
-      Just res -> pure $ Just $ readTransformZ3 (bindings f !?) (tokenize res)
+      Just res ->
+        case readTransformZ3 (bindings f !?) (tokenize res) of
+          Right res -> pure $ Just res
+          Left err -> error $ "assert: " ++ err ++ " in \"" ++ query ++ "\""
   | otherwise = pure $ Just f
 
 simplify :: Config -> Term -> IO Term
 simplify cfg = fmap (fromMaybe undefined) . simplifyTO cfg Nothing
+
+simplifyStrong :: Config -> Term -> IO Term
+simplifyStrong cfg term = do
+  term <- simplify cfg term
+  term <- simplify cfg $ neg term
+  simplify cfg $ neg term
 
 runTO :: Maybe Int -> String -> [String] -> String -> IO (Maybe String)
 runTO to cmd args input =

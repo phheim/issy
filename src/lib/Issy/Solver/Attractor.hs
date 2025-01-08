@@ -13,7 +13,7 @@ import qualified Issy.Base.SymbolicState as SymSt
 import Issy.Config (Config, accelerate, generateProgram, setName)
 import Issy.Logic.FOL (Term)
 import qualified Issy.Logic.FOL as FOL
-import Issy.Logic.SMT (sat, simplify, valid)
+import Issy.Logic.SMT (sat, simplify, simplifyStrong, valid)
 import Issy.Printers.SMTLib (smtLib2)
 import Issy.Solver.Acceleration (accelReach, canAccel)
 import Issy.Solver.ControlFlowGraph (CFG)
@@ -65,7 +65,7 @@ attractorFull cfg player arena target = do
           let old = reach `get` l
           lg cfg ["Step in", locName arena l, "with", smtLib2 old]
           -- Enforcable predecessor step
-          new <- simplify cfg $ FOL.orf [cpre player arena reach l, old]
+          new <- simplifyStrong cfg $ FOL.orf [cpre player arena reach l, old]
           lg cfg ["Compute new", smtLib2 new]
           -- Check if this changed something in this location
           unchanged <- valid cfg $ new `FOL.impl` old

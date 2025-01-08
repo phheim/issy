@@ -76,13 +76,14 @@ tryFindInv conf prime limit player arena (base, step, conc) loc reach = do
   let targetInv = inv arena loc
   let vs = vars arena
   (arena, loc, loc', reach, fixInv) <- loopScenario conf (Just (limit2size limit)) arena loc reach
+  lg conf ["Fixed invariant", smtLib2 fixInv]
   baseCond <-
     SMT.valid conf $ Vars.forallX vs $ FOL.andf [targetInv, base] `FOL.impl` (reach `get` loc)
   unless baseCond $ error "assert: the base should be computed that this holds"
   let iter cnt invar
         | cnt >= invariantIterations conf = pure Nothing
         | otherwise = do
-          invar <- SMT.simplify conf invar
+          lg conf ["Try invariant", smtLib2 invar]
           let reach' = set reach loc' $ FOL.orf [reach `get` loc, FOL.andf [step, invar]]
                             -- TODO: Build proper CFG
           let (stAcc, _) = iterA player arena reach' loc' CFG.empty
@@ -93,6 +94,7 @@ tryFindInv conf prime limit player arena (base, step, conc) loc reach = do
                        then drop (length prime) v
                        else v)
                   $ stAcc `get` loc
+          res <- SMT.simplifyStrong conf res
           let query = Vars.forallX vs $ FOL.andf [targetInv, conc, invar] `FOL.impl` res
           unless (null (FOL.frees query)) $ error "assert: found free variables in query"
           holds <- SMT.valid conf query
@@ -128,7 +130,7 @@ lemmaGuess conf prime vars reach = do
         else let dist = manhatten box
                  base = boxTerm id box
             -- TODO: Make more real number friendly!
-                 step = FOL.func ">" [FOL.mapSymbol (prime ++) dist, FOL.addT [dist, FOL.oneT]]
+                 step = FOL.mapSymbol (prime ++) dist `FOL.geqT` FOL.addT [dist, FOL.oneT]
                  conc = FOL.true
               in Just (base, step, conc)
 

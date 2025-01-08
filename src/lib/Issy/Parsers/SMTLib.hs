@@ -188,7 +188,7 @@ extractModel :: Set Symbol -> String -> Model
 extractModel frees str =
   case parseModel frees (tokenize str) of
     Right m -> sanitizeModel frees m
-    Left err -> error err
+    Left err -> error $ err ++ " in \"" ++ str ++ "\""
 
 extractOptModel :: Set Symbol -> String -> Model
 extractOptModel frees str =

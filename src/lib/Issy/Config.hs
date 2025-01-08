@@ -55,10 +55,10 @@ defaultConfig =
     { logging = True
     , logName = "[Issy]"
     , smtSolver = SMTSolverZ3
-    , smtModelGenCommand = "(check-sat-using (and-then simplify (! default :macro-finder true)))"
+    , smtModelGenCommand = "(check-sat-using (and-then simplify default))"
     , smtQueryLogging = False
     , smtSimplifyZ3Tacs = z3Simplify
-    , optSolver = Just "optimathsat"
+    , optSolver = Nothing -- Just "optimathsat"
     , accelerate = True
     , nestAcceleration = False
     , skolemizeOnly = False
@@ -90,14 +90,15 @@ z3Simplify =
   , "propagate-ineqs"
   , "qe2"
   , "simplify"
-  , "nnf"
   , "propagate-ineqs"
   , "ctx-solver-simplify"
   , "propagate-ineqs"
   , "solver-subsumption"
   , "unit-subsume-simplify"
+  , "simplify"
   ]
 
+--  , "nnf"
 argumentParser :: [String] -> Either String Config
 argumentParser = go defaultConfig
   where
