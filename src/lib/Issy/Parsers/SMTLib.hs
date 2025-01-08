@@ -190,25 +190,6 @@ extractModel frees str =
     Right m -> sanitizeModel frees m
     Left err -> error $ err ++ " in \"" ++ str ++ "\""
 
-extractOptModel :: Set Symbol -> String -> Model
-extractOptModel frees str =
-  case parseOptModel frees (tokenize str) of
-    Right m -> sanitizeModel frees m
-    Left err -> error err
-
-parseOptModel :: Set Symbol -> [Token] -> PRes Model
-parseOptModel frees ts = fst <$> psexpr pOptRes emptyModel ts
-  where
-    pOptRes :: Model -> [Token] -> PRes (Model, [Token])
-    pOptRes model ts = do
-      ts <- pread TLPar ts "parseOptModel"
-      (name, ts) <- preadID ts "parseOptModel"
-      (val, ts) <- parseTerm (const Nothing) ts
-      ts <- pread TRPar ts "parseOptModel"
-      if name `elem` frees
-        then Right (modelAddT name val model, ts)
-        else Right (model, ts)
-
 parseModel :: Set Symbol -> [Token] -> PRes Model
 parseModel frees ts = fst . fst <$> psexpr pFunDef (emptyModel, []) ts
   where
@@ -235,21 +216,3 @@ parseModel frees ts = fst . fst <$> psexpr pFunDef (emptyModel, []) ts
       (s, ts) <- psort ts
       ts <- pread TRPar ts "pSortedVar"
       Right (acc ++ [(v, s)], ts)
-{-
-parseValueList :: String -> Model
-parseValueList s =
-  case tokenize s of
-    TLPar:tr -> parseVPs emptyModel tr
-    _ -> error "Assertion: expected other pattern"
-  where
-    parseVPs :: Model -> [Token] -> Model
-    parseVPs m =
-      \case
-        [TRPar] -> m
-        TLPar:TId s:tr ->
-          case parseTerm (error "Assertion: expected constant term") tr of
-            Left err -> error ("Assertion: " ++ err)
-            Right (t, TRPar:tr') -> parseVPs (modelAddT s t m) tr'
-            Right _ -> error "Assertion: Expected closing ')'"
-        _ -> error "Assertion: expected other pattern"
--}

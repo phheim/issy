@@ -2,7 +2,6 @@
 
 module Issy.Config
   ( Config(..)
-  , SMTSolver(..)
   , defaultConfig
   , setName
   , argumentParser
@@ -11,23 +10,16 @@ module Issy.Config
 
 import Text.Read (readMaybe)
 
-data SMTSolver
-  = SMTSolverZ3
-  | SMTSolverCVC5
-  deriving (Eq, Ord, Show)
-
 data Config = Config
   { logging :: Bool
   , logName :: String
     -- SMT solving
-  , smtSolver :: SMTSolver
   , smtModelGenCommand :: String
   , smtQueryLogging :: Bool
   , smtSimplifyZ3Tacs :: [String]
-  , optSolver :: Maybe String --TODO options
     -- Game Solving
   , generateProgram :: Bool
-  , skolemizeOnly :: Bool
+  , skolemizeOnly :: Bool -- TODO remove, this is not really relevant!
   , accelerate :: Bool
   , nestAcceleration :: Bool
   , invariantIterations :: Int --TODO options
@@ -44,8 +36,8 @@ data Config = Config
   , muvalTimeOut :: Int
   , chcMaxScript :: String
   , chcMaxTimeOut :: Int
-  , chcCmd :: String
-  , chcOpts :: [String]
+  , chcCmd :: String --TODO: Inline
+  , chcOpts :: [String] -- TODO: Inline
   , propagationLevel :: Int
   }
 
@@ -54,11 +46,9 @@ defaultConfig =
   Config
     { logging = True
     , logName = "[Issy]"
-    , smtSolver = SMTSolverZ3
     , smtModelGenCommand = "(check-sat-using (and-then simplify default))"
     , smtQueryLogging = False
     , smtSimplifyZ3Tacs = z3Simplify
-    , optSolver = Nothing -- Just "optimathsat"
     , accelerate = True
     , nestAcceleration = False
     , skolemizeOnly = False
@@ -107,8 +97,6 @@ argumentParser = go defaultConfig
         [] -> pure cfg
         "--quiet":ar -> go (cfg {logging = False}) ar
         "--verbose":ar -> go (cfg {logging = True, smtQueryLogging = True}) ar
-        "--solver-z3":ar -> go (cfg {smtSolver = SMTSolverZ3}) ar
-        "--solver-cvc5":ar -> go (cfg {smtSolver = SMTSolverCVC5}) ar
         "--generate-program":sr -> go (cfg {generateProgram = True}) sr
         "--skolemize-only":sr -> go (cfg {skolemizeOnly = True}) sr
         "--disable-acceleration":sr -> go (cfg {accelerate = False}) sr
@@ -148,9 +136,6 @@ argumentDescription =
     , " Generic options:"
     , "  --quiet       : disables logging (default: logging enable)"
     , "  --verbose     : enables verbose logging (default: verbose logging disabled)"
-    , "  --solver-z3   : sets z3 as the smt-solver for all operations (default: yes)"
-    , "  --solver-cvc5 : set cvc5 as the smt-solver for model queries (default: no)"
-    , "                  remark: z3 is still needed for executing queries"
     , ""
     , " Game solving options:"
     , "  --generate-program     : generated a program if realizable (default: disabled)"

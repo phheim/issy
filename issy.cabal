@@ -1,4 +1,4 @@
-name:                Issy
+name:                issy
 version:             1.0.0.0
 build-type:          Simple
 cabal-version:       >=1.10
@@ -17,10 +17,16 @@ library
     , tsl
 
   exposed-modules:
-      Issy
+      Compiler
+    , Issy
  
   other-modules:
-      Issy.Base.Locations
+      Compiler.Base
+    , Compiler.Checker
+    , Compiler.Lexer
+    , Compiler.Parser
+    , Compiler.Writer
+    , Issy.Base.Locations
     , Issy.Base.Objectives
     , Issy.Base.SymbolicState
     , Issy.Base.Variables
@@ -96,7 +102,7 @@ executable issy-solve
 
   build-depends:
       base
-    , Issy
+    , issy
 
   hs-source-dirs:
     src/tools/solve
@@ -118,7 +124,7 @@ executable issy-print
 
   build-depends:
       base
-    , Issy
+    , issy
 
   hs-source-dirs:
     src/tools/print
@@ -140,7 +146,7 @@ executable issy-to-game
 
   build-depends:
       base
-    , Issy
+    , issy
 
   hs-source-dirs:
     src/tools/togame
@@ -162,7 +168,7 @@ executable rpgsolve
 
   build-depends:
       base
-    , Issy
+    , issy
 
   hs-source-dirs:
     src/tools/rpgsolve
@@ -184,7 +190,7 @@ executable rpgencode
 
   build-depends:
       base
-    , Issy
+    , issy
 
   hs-source-dirs:
     src/tools/rpgencode
@@ -203,7 +209,7 @@ executable rpgprint
 
   build-depends:
       base
-    , Issy
+    , issy
 
   other-modules:
     Common
@@ -228,7 +234,7 @@ executable tslmt2rpg
 
   build-depends:
       base
-    , Issy
+    , issy
 
   hs-source-dirs:
     src/tools/tsl2rpg
@@ -246,19 +252,12 @@ executable issy-compiler
   main-is:
     Main.hs
 
-  other-modules:
-    Compiler.Base
-    Compiler.Checker
-    Compiler.Lexer
-    Compiler.Parser
-    Compiler.Writer
-
   build-depends:
       base
-    , containers
+    , issy
 
   hs-source-dirs:
-    src/compiler
+    src/tools/compiler
 
   default-language:
     Haskell2010

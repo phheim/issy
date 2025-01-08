@@ -1,8 +1,7 @@
 {-# LANGUAGE LambdaCase #-}
 
 module Issy.Logic.SMT
-  ( SMTSolver(..)
-  , satTO
+  ( satTO
   , satModelTO
   , sat
   , unsat
@@ -23,14 +22,7 @@ import qualified Data.Set as Set
 import System.Process (readProcessWithExitCode)
 import qualified System.Timeout as Sys (timeout)
 
-import Issy.Config
-  ( Config(smtSimplifyZ3Tacs)
-  , SMTSolver(..)
-  , optSolver
-  , smtModelGenCommand
-  , smtQueryLogging
-  , smtSolver
-  )
+import Issy.Config (Config(smtSimplifyZ3Tacs), smtModelGenCommand, smtQueryLogging)
 import Issy.Logic.FOL
 import Issy.Parsers.SMTLib
 import Issy.Parsers.SMTLibLexer
@@ -56,10 +48,7 @@ ifLog cfg typ query
   | otherwise = return ()
 
 getSolver :: Config -> (String, [String])
-getSolver cfg =
-  case smtSolver cfg of
-    SMTSolverZ3 -> ("z3", ["-smt2", "-in"])
-    SMTSolverCVC5 -> ("cvc5", ["--produce-models", "-"])
+getSolver _ = ("z3", ["-smt2", "-in"])
 
 satTO :: Config -> Maybe Int -> Term -> IO (Maybe Bool)
 satTO cfg to f = do
@@ -171,31 +160,27 @@ trySimplifyUF :: Config -> Int -> Term -> IO (Maybe Term)
 trySimplifyUF cfg to = simplifyTO (cfg {smtSimplifyZ3Tacs = z3SimplifyUF}) (Just to)
 
 data SMTOpt =
-  Paetro
+  Pareto
   deriving (Eq, Ord, Show)
 
 smtOptOption :: SMTOpt -> String
 smtOptOption =
   \case
-    Paetro -> "(set-option :opt.priority pareto)"
+    Pareto -> "(set-option :opt.priority pareto)"
 
 satModelOpt :: Config -> SMTOpt -> Term -> [Term] -> IO (Maybe Model)
 satModelOpt conf opttype f maxTerms = do
   f <- simplify conf f
-  case optSolver conf of
-    Nothing -> fromMaybe (error "assert: unreachable code") <$> satModelTO conf Nothing f
-    Just command
-      | not (quantifierFree f) ->
-        fromMaybe (error "assert: unreachable code") <$> satModelTO conf Nothing f
-      | otherwise -> do
-        let maxQueries =
-              concatMap (\t -> "(maximize " ++ smtLib2 t ++ ")")
-                $ filter ((`Set.isSubsetOf` frees f) . frees) maxTerms
-        let query = smtOptOption opttype ++ toSMTLib2 f ++ maxQueries ++ "(check-sat)"
-        res <- runTO Nothing command ["-model", "-optimization=true"] query
-        case res of
-          Nothing -> error "assert: unreachable code"
-          Just ('u':'n':'s':'a':'t':_) -> return Nothing
-          Just ('s':'a':'t':xr) -> return (Just (extractOptModel (frees f) xr))
-          Just res ->
-            error $ "smt-solver returned unexpected: \"" ++ res ++ "\" on \"" ++ query ++ "\""
+  if not (quantifierFree f)
+    then fromMaybe (error "assert: unreachable code") <$> satModelTO conf Nothing f
+    else do
+      let maxQueries =
+            concatMap (\t -> "(maximize " ++ smtLib2 t ++ ")")
+              $ filter ((`Set.isSubsetOf` frees f) . frees) maxTerms
+      let query = smtOptOption opttype ++ toSMTLib2 f ++ maxQueries ++ "(check-sat)(get-model)"
+      res <- runTO Nothing "z3" ["-smt2", "-in"] query
+      case res of
+        Nothing -> error "assert: unreachable code"
+        Just ('u':'n':'s':'a':'t':_) -> return Nothing
+        Just ('s':'a':'t':xr) -> return (Just (extractModel (frees f) xr))
+        Just res -> error $ "z3 returned unexpected: \"" ++ res ++ "\" on \"" ++ query ++ "\""

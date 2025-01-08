@@ -159,7 +159,7 @@ mkBox conf vars reach = do
     then pure []
     else do
       let query = Vars.forallX vars $ boxTerm (uncurry FOL.Var) boxScheme `FOL.impl` reach
-      model <- SMT.satModelOpt conf SMT.Paetro query maxTerms
+      model <- SMT.satModelOpt conf SMT.Pareto query maxTerms
       -- TODO: fix by adding complete box!
       model <-
         case model of
