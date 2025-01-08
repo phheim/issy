@@ -164,7 +164,8 @@ preadID ts func =
   case ts of
     [] -> perr func "Expected token to read"
     TId s:tr -> Right (s, tr)
-    _ -> perr func "Expected idenfifier token"
+    TLPar:_ -> perr func "Expected idenfifier token, found '('"
+    TRPar:_ -> perr func "Expected idenfifier token, found ')'"
 
 psort :: [Token] -> PRes (Sort, [Token])
 psort =
@@ -188,6 +189,25 @@ extractModel frees str =
   case parseModel frees (tokenize str) of
     Right m -> sanitizeModel frees m
     Left err -> error err
+
+extractOptModel :: Set Symbol -> String -> Model
+extractOptModel frees str =
+  case parseOptModel frees (tokenize str) of
+    Right m -> sanitizeModel frees m
+    Left err -> error err
+
+parseOptModel :: Set Symbol -> [Token] -> PRes Model
+parseOptModel frees ts = fst <$> psexpr pOptRes emptyModel ts
+  where
+    pOptRes :: Model -> [Token] -> PRes (Model, [Token])
+    pOptRes model ts = do
+      ts <- pread TLPar ts "parseOptModel"
+      (name, ts) <- preadID ts "parseOptModel"
+      (val, ts) <- parseTerm (const Nothing) ts
+      ts <- pread TRPar ts "parseOptModel"
+      if name `elem` frees
+        then Right (modelAddT name val model, ts)
+        else Right (model, ts)
 
 parseModel :: Set Symbol -> [Token] -> PRes Model
 parseModel frees ts = fst . fst <$> psexpr pFunDef (emptyModel, []) ts

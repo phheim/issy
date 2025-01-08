@@ -24,13 +24,14 @@ data Config = Config
   , smtModelGenCommand :: String
   , smtQueryLogging :: Bool
   , smtSimplifyZ3Tacs :: [String]
+  , optSolver :: Maybe String --TODO options
     -- Game Solving
   , generateProgram :: Bool
   , skolemizeOnly :: Bool
   , accelerate :: Bool
   , nestAcceleration :: Bool
-  , invariantIterations :: Int
-  , manhattenTermCount :: Int
+  , invariantIterations :: Int --TODO options
+  , manhattenTermCount :: Int --TODO options
     -- Formula to Game translation
   , ltl2tgba :: String
   , pruneGame :: Bool
@@ -57,6 +58,7 @@ defaultConfig =
     , smtModelGenCommand = "(check-sat-using (and-then simplify (! default :macro-finder true)))"
     , smtQueryLogging = False
     , smtSimplifyZ3Tacs = z3Simplify
+    , optSolver = Just "optimathsat"
     , accelerate = True
     , nestAcceleration = False
     , skolemizeOnly = False

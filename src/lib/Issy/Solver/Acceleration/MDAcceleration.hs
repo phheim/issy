@@ -10,6 +10,7 @@ import Control.Monad (unless)
 
 -------------------------------------------------------------------------------
 import Data.Bifunctor (second)
+import Data.List (isPrefixOf)
 import qualified Data.Set as Set
 
 import Issy.Base.SymbolicState (SymSt, get, set)
@@ -17,7 +18,7 @@ import qualified Issy.Base.SymbolicState as SymSt
 import Issy.Base.Variables (Variables)
 import qualified Issy.Base.Variables as Vars
 import Issy.Config (Config, invariantIterations, manhattenTermCount, setName)
-import Issy.Logic.FOL (Constant, Sort, Symbol, Term)
+import Issy.Logic.FOL (Sort, Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.SMT as SMT
 import Issy.Printers.SMTLib (smtLib2)
@@ -81,17 +82,23 @@ tryFindInv conf prime limit player arena (base, step, conc) loc reach = do
   let iter cnt invar
         | cnt >= invariantIterations conf = pure Nothing
         | otherwise = do
+          invar <- SMT.simplify conf invar
           let reach' = set reach loc' $ FOL.orf [reach `get` loc, FOL.andf [step, invar]]
                             -- TODO: Build proper CFG
           let (stAcc, _) = iterA player arena reach' loc' CFG.empty
-                -- TODO: Unprime stuff in stAcc!!!
-          let query =
-                Vars.forallX vs $ FOL.andf [targetInv, conc, invar] `FOL.impl` (stAcc `get` loc)
+          let res =
+                FOL.mapSymbol
+                  (\v ->
+                     if prime `isPrefixOf` v
+                       then drop (length prime) v
+                       else v)
+                  $ stAcc `get` loc
+          let query = Vars.forallX vs $ FOL.andf [targetInv, conc, invar] `FOL.impl` res
           unless (null (FOL.frees query)) $ error "assert: found free variables in query"
           holds <- SMT.valid conf query
           if holds
             then pure $ Just (FOL.andf [targetInv, conc, invar, fixInv], CFG.empty)
-            else iter (cnt + 1) (stAcc `get` loc)
+            else iter (cnt + 1) res
   iter 0 FOL.true
 
 iterA :: Player -> Arena -> SymSt -> Loc -> CFG -> (SymSt, CFG)
@@ -119,7 +126,7 @@ lemmaGuess conf prime vars reach = do
     $ if null box
         then Nothing
         else let dist = manhatten box
-                 base = boxTerm FOL.Const box
+                 base = boxTerm id box
             -- TODO: Make more real number friendly!
                  step = FOL.func ">" [FOL.mapSymbol (prime ++) dist, FOL.addT [dist, FOL.oneT]]
                  conc = FOL.true
@@ -134,32 +141,32 @@ boxTerm toTerm = FOL.andf . map go
       | upper = term `FOL.leqT` toTerm bound
       | otherwise = term `FOL.geqT` toTerm bound
 
-manhatten :: Box Constant -> Term
+manhatten :: Box Term -> Term
 manhatten = FOL.addT . map go
   where
     go (term, (upper, bound))
-      | upper =
-        FOL.ite (term `FOL.leqT` FOL.Const bound) FOL.zeroT $ FOL.func "-" [term, FOL.Const bound]
-      | otherwise =
-        FOL.ite (term `FOL.geqT` FOL.Const bound) FOL.zeroT $ FOL.func "-" [FOL.Const bound, term]
+      | upper = FOL.ite (term `FOL.leqT` bound) FOL.zeroT $ FOL.func "-" [term, bound]
+      | otherwise = FOL.ite (term `FOL.geqT` bound) FOL.zeroT $ FOL.func "-" [bound, term]
 
-mkBox :: Config -> Variables -> Term -> IO (Box Constant)
+mkBox :: Config -> Variables -> Term -> IO (Box Term)
 mkBox conf vars reach = do
   let boxTerms = generateTerms (manhattenTermCount conf) vars reach
   (boxScheme, maxTerms) <- prepareBox conf vars reach boxTerms
-  let query = Vars.forallX vars $ reach `FOL.impl` boxTerm (uncurry FOL.Var) boxScheme
-  model <- SMT.satModelOpt conf SMT.Paetro query maxTerms
-  pure
-    $ case model of
-        Nothing -> []
-        Just model ->
-          let toInteger = fmap $ fromConst . FOL.setModel model . uncurry FOL.Var
-           in map (second toInteger) boxScheme
+  if null boxScheme
+    then pure []
+    else do
+      let query = Vars.forallX vars $ boxTerm (uncurry FOL.Var) boxScheme `FOL.impl` reach
+      model <- SMT.satModelOpt conf SMT.Paetro query maxTerms
+      pure
+        $ case model of
+            Nothing -> []
+            Just model ->
+              let toInteger = fmap $ assertConst . FOL.setModel model . uncurry FOL.Var
+               in map (second toInteger) boxScheme
   where
-    fromConst =
-      \case
-        FOL.Const c -> c
-        _ -> error "assert: result should be an constant"
+    assertConst term
+      | null (FOL.frees term) = term
+      | otherwise = error "assert: result should be an constant"
 
 prepareBox :: Config -> Variables -> Term -> [Term] -> IO (Box (Symbol, Sort), [Term])
 prepareBox conf vars reach boxTerms = go [] [] boxTerms

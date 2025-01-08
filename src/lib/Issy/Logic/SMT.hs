@@ -18,12 +18,14 @@ module Issy.Logic.SMT
 
 import Data.Map ((!?))
 import Data.Maybe (fromMaybe)
+import qualified Data.Set as Set
 import System.Process (readProcessWithExitCode)
 import qualified System.Timeout as Sys (timeout)
 
 import Issy.Config
   ( Config(smtSimplifyZ3Tacs)
   , SMTSolver(..)
+  , optSolver
   , smtModelGenCommand
   , smtQueryLogging
   , smtSolver
@@ -162,5 +164,28 @@ data SMTOpt =
   Paetro
   deriving (Eq, Ord, Show)
 
+smtOptOption :: SMTOpt -> String
+smtOptOption =
+  \case
+    Paetro -> "(set-option :opt.priority pareto)"
+
 satModelOpt :: Config -> SMTOpt -> Term -> [Term] -> IO (Maybe Model)
-satModelOpt = error "TODO IMPLEMENT"
+satModelOpt conf opttype f maxTerms = do
+  f <- simplify conf f
+  case optSolver conf of
+    Nothing -> fromMaybe (error "assert: unreachable code") <$> satModelTO conf Nothing f
+    Just command
+      | not (quantifierFree f) ->
+        fromMaybe (error "assert: unreachable code") <$> satModelTO conf Nothing f
+      | otherwise -> do
+        let maxQueries =
+              concatMap (\t -> "(maximize " ++ smtLib2 t ++ ")")
+                $ filter ((`Set.isSubsetOf` frees f) . frees) maxTerms
+        let query = smtOptOption opttype ++ toSMTLib2 f ++ maxQueries ++ "(check-sat)"
+        res <- runTO Nothing command ["-model", "-optimization=true"] query
+        case res of
+          Nothing -> error "assert: unreachable code"
+          Just ('u':'n':'s':'a':'t':_) -> return Nothing
+          Just ('s':'a':'t':xr) -> return (Just (extractOptModel (frees f) xr))
+          Just res ->
+            error $ "smt-solver returned unexpected: \"" ++ res ++ "\" on \"" ++ query ++ "\""
