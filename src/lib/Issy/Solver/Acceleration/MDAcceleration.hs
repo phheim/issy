@@ -11,6 +11,7 @@ import Control.Monad (unless)
 -------------------------------------------------------------------------------
 import Data.Bifunctor (second)
 import Data.List (isPrefixOf)
+import Data.Maybe (fromJust)
 import qualified Data.Set as Set
 
 import Issy.Base.SymbolicState (SymSt, get, set)
@@ -159,6 +160,11 @@ mkBox conf vars reach = do
     else do
       let query = Vars.forallX vars $ boxTerm (uncurry FOL.Var) boxScheme `FOL.impl` reach
       model <- SMT.satModelOpt conf SMT.Paetro query maxTerms
+      -- TODO: fix by adding complete box!
+      model <-
+        case model of
+          Nothing -> fromJust <$> SMT.satModelTO conf Nothing query
+          Just model -> pure $ Just model
       pure
         $ case model of
             Nothing -> []
@@ -169,6 +175,9 @@ mkBox conf vars reach = do
     assertConst term
       | null (FOL.frees term) = term
       | otherwise = error "assert: result should be an constant"
+
+completeBox :: Variables -> Term -> Box (Symbol, Sort) -> Box (Symbol, Sort)
+completeBox = error "TODO IMPLEMENT: add bounds everywhere"
 
 prepareBox :: Config -> Variables -> Term -> [Term] -> IO (Box (Symbol, Sort), [Term])
 prepareBox conf vars reach boxTerms = go [] [] boxTerms
