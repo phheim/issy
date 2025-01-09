@@ -6,12 +6,12 @@ module Issy.Solver.Acceleration.MDAcceleration
   ( accelReach
   ) where
 
-import Control.Monad (unless)
-
 -------------------------------------------------------------------------------
+import Control.Monad (unless)
 import Data.Bifunctor (second)
 import Data.List (isPrefixOf)
-import Data.Maybe (fromJust)
+import qualified Data.Map.Strict as Map
+import Data.Maybe (fromJust, fromMaybe)
 import qualified Data.Set as Set
 
 import Issy.Base.SymbolicState (SymSt, get, set)
@@ -39,16 +39,25 @@ accelReach conf limit player arena loc reach = do
   lg conf ["Accelerate in", locName arena loc, "on", strSt arena reach]
   lg conf ["Size bound", show (limit2size limit)]
   let prime = FOL.uniquePrefix "init_" $ usedSymbols arena
+  -- 0. Compute loop sceneario
+  (arena, loc, loc', reach, fixInv) <- loopScenario conf (Just (limit2size limit)) arena loc reach
+  lg conf ["Fixed invariant", smtLib2 fixInv]
   -- 1. Guess lemma
   lemma <- lemmaGuess conf prime (vars arena) (reach `get` loc)
   case lemma of
     Nothing -> do
       lg conf ["Lemma guessing failed"]
       pure (FOL.false, CFG.empty)
-    Just lemma -> do
-      lg conf ["Lemma guessing succeded with", strT smtLib2 smtLib2 smtLib2 lemma]
+    Just (base, step, conc) -> do
+      lg conf ["Lemma guessing succeded with", smtLib2 base, smtLib2 step, smtLib2 conc]
+      -- 1.5 Check base condition
+      baseCond <-
+        SMT.valid conf
+          $ Vars.forallX (vars arena)
+          $ FOL.andf [inv arena loc, base] `FOL.impl` (reach `get` loc)
+      unless baseCond $ error "assert: the base should be computed that this holds"
         -- 2. try a few explicit iterations to find invariant
-      invRes <- tryFindInv conf prime limit player arena lemma loc reach
+      invRes <- tryFindInv conf prime player arena (step, conc) (loc, loc') fixInv reach
       case invRes of
         Just (conc, prog) -> do
           lg conf ["Invariant iteration resulted in", smtLib2 conc]
@@ -66,43 +75,36 @@ accelReach conf limit player arena loc reach = do
 tryFindInv ::
      Config
   -> Symbol
-  -> Int
   -> Player
   -> Arena
-  -> (Term, Term, Term)
-  -> Loc
+  -> (Term, Term)
+  -> (Loc, Loc)
+  -> Term
   -> SymSt
   -> IO (Maybe (Term, CFG))
-tryFindInv conf prime limit player arena (base, step, conc) loc reach = do
-  let targetInv = inv arena loc
-  let vs = vars arena
-  (arena, loc, loc', reach, fixInv) <- loopScenario conf (Just (limit2size limit)) arena loc reach
-  lg conf ["Fixed invariant", smtLib2 fixInv]
-  baseCond <-
-    SMT.valid conf $ Vars.forallX vs $ FOL.andf [targetInv, base] `FOL.impl` (reach `get` loc)
-  unless baseCond $ error "assert: the base should be computed that this holds"
-  let iter cnt invar
-        | cnt >= invariantIterations conf = pure Nothing
-        | otherwise = do
-          lg conf ["Try invariant", smtLib2 invar]
-          let reach' = set reach loc' $ FOL.orf [reach `get` loc, FOL.andf [step, invar]]
+tryFindInv conf prime player arena (step, conc) (loc, loc') fixInv reach = iter 0 FOL.true
+  where
+    iter cnt invar
+      | cnt >= invariantIterations conf = pure Nothing
+      | otherwise = do
+        lg conf ["Try invariant", smtLib2 invar]
+        let reach' = set reach loc' $ FOL.orf [reach `get` loc, FOL.andf [step, invar]]
                             -- TODO: Build proper CFG
-          let (stAcc, _) = iterA player arena reach' loc' CFG.empty
-          let res =
-                FOL.mapSymbol
-                  (\v ->
-                     if prime `isPrefixOf` v
-                       then drop (length prime) v
-                       else v)
-                  $ stAcc `get` loc
-          res <- SMT.simplifyStrong conf res
-          let query = Vars.forallX vs $ FOL.andf [targetInv, conc, invar] `FOL.impl` res
-          unless (null (FOL.frees query)) $ error "assert: found free variables in query"
-          holds <- SMT.valid conf query
-          if holds
-            then pure $ Just (FOL.andf [targetInv, conc, invar, fixInv], CFG.empty)
-            else iter (cnt + 1) res
-  iter 0 FOL.true
+        let (stAcc, _) = iterA player arena reach' loc' CFG.empty
+        let res =
+              FOL.mapSymbol
+                (\v ->
+                   if prime `isPrefixOf` v
+                     then drop (length prime) v
+                     else v)
+                $ stAcc `get` loc
+        res <- SMT.simplifyStrong conf res
+        let query = Vars.forallX (vars arena) $ FOL.andf [inv arena loc, conc, invar] `FOL.impl` res
+        unless (null (FOL.frees query)) $ error "assert: found free variables in query"
+        holds <- SMT.valid conf query
+        if holds
+          then pure $ Just (FOL.andf [inv arena loc, conc, invar, fixInv], CFG.empty)
+          else iter (cnt + 1) res
 
 iterA :: Player -> Arena -> SymSt -> Loc -> CFG -> (SymSt, CFG)
 iterA player arena attr shadow = go (noVisits arena) (OL.fromSet (preds arena shadow)) attr
@@ -124,6 +126,7 @@ iterA player arena attr shadow = go (noVisits arena) (OL.fromSet (preds arena sh
 -------------------------------------------------------------------------------
 lemmaGuess :: Config -> Symbol -> Variables -> Term -> IO (Maybe (Term, Term, Term))
 lemmaGuess conf prime vars reach = do
+  lg conf ["Guess lemma on", smtLib2 reach]
   box <- mkBox conf vars reach
   pure
     $ if null box
@@ -153,6 +156,15 @@ manhatten = FOL.addT . map go
 
 mkBox :: Config -> Variables -> Term -> IO (Box Term)
 mkBox conf vars reach = do
+  box <- mkOptBox conf vars reach
+  if null box
+    then do
+      lg conf ["Switch to point-base"]
+      fromMaybe [] <$> completeBox conf reach
+    else pure box
+
+mkOptBox :: Config -> Variables -> Term -> IO (Box Term)
+mkOptBox conf vars reach = do
   let boxTerms = generateTerms (manhattenTermCount conf) vars reach
   (boxScheme, maxTerms) <- prepareBox conf vars reach boxTerms
   if null boxScheme
@@ -160,24 +172,27 @@ mkBox conf vars reach = do
     else do
       let query = Vars.forallX vars $ boxTerm (uncurry FOL.Var) boxScheme `FOL.impl` reach
       model <- SMT.satModelOpt conf SMT.Pareto query maxTerms
-      -- TODO: fix by adding complete box!
-      model <-
-        case model of
-          Nothing -> fromJust <$> SMT.satModelTO conf Nothing query
-          Just model -> pure $ Just model
-      pure
-        $ case model of
-            Nothing -> []
-            Just model ->
-              let toInteger = fmap $ assertConst . FOL.setModel model . uncurry FOL.Var
-               in map (second toInteger) boxScheme
+      case model of
+        Nothing -> pure []
+        Just model ->
+          let toInteger = fmap $ assertConst . FOL.setModel model . uncurry FOL.Var
+           in pure $ map (second toInteger) boxScheme
   where
     assertConst term
       | null (FOL.frees term) = term
       | otherwise = error "assert: result should be an constant"
 
-completeBox :: Variables -> Term -> Box (Symbol, Sort) -> Box (Symbol, Sort)
-completeBox = error "TODO IMPLEMENT: add bounds everywhere"
+completeBox :: Config -> Term -> IO (Maybe (Box Term))
+completeBox conf reach = do
+  model <- fromJust <$> SMT.satModelTO conf Nothing reach
+  case model of
+    Nothing -> pure Nothing
+    Just model -> pure $ Just $ concatMap (modelCons model) $ Map.toList $ FOL.bindings reach
+  where
+    modelCons model (var, sort) =
+      let varTerm = FOL.Var var sort
+          bound = FOL.setModel model varTerm
+       in [(varTerm, (True, bound)), (varTerm, (False, bound))]
 
 prepareBox :: Config -> Variables -> Term -> [Term] -> IO (Box (Symbol, Sort), [Term])
 prepareBox conf vars reach boxTerms = go [] [] boxTerms
