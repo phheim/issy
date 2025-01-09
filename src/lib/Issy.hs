@@ -1,7 +1,6 @@
 module Issy
-  ( Config
-  , argumentParser
-  , argumentDescription
+  ( Config(..)
+  , defaultConfig
   , solve
   , fromRPG
   , fromSG
@@ -19,7 +18,7 @@ module Issy
   ) where
 
 -- Config
-import Issy.Config (Config, argumentDescription, argumentParser)
+import Issy.Config (Config(..), defaultConfig)
 
 -- Extractors
 import Issy.Extractors.MuCLP (rpgToMuCLP)

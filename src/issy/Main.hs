@@ -8,6 +8,7 @@ import Control.Monad (when)
 import Data.Bifunctor (second)
 import System.Environment (getArgs)
 import System.Exit (die, exitSuccess)
+import Text.Read (readMaybe)
 
 import Compiler
 import Issy
@@ -81,11 +82,13 @@ main = do
       game <- tslToRPG cfg spec
       solve cfg (fromRPG game)
     -- Encode
-    (EncodeTSLMT, RPG) -> do game <- liftErr $ parseRPG input
-                             putStrLn $ uncurry rpgToTSLT game
+    (EncodeTSLMT, RPG) -> do
+      game <- liftErr $ parseRPG input
+      putStrLn $ uncurry rpgToTSLT game
     (EncodeTSLMT, _) -> die "invalid arguments: can only encode RPGs to TSLMT at the moment"
-    (EncodeMuCLP, RPG) -> do game <- liftErr $ parseRPG input
-                             putStrLn $ uncurry rpgToMuCLP game
+    (EncodeMuCLP, RPG) -> do
+      game <- liftErr $ parseRPG input
+      putStrLn $ uncurry rpgToMuCLP game
     (EncodeMuCLP, _) -> die "invalid arguments: can only encode RPGs to MuCLP at the moment"
 
 liftErr :: Either String b -> IO b
@@ -102,12 +105,12 @@ argParser = do
   args <- getArgs
   when (null args) $ die $ unlines shortHelp
   when ("--help" `elem` args) $ do
-    putStrLn argumentDescription
+    putStrLn $ unlines help
     exitSuccess
   (mode, args) <- pure $ retriveArg getMode Solve args
   (inputFormat, args) <- pure $ retriveArg getInputFormat HighLevel args
   (filename, args) <- getFileName args
-  cfg <- liftErr $ argumentParser args
+  cfg <- liftErr $ configParser args
   input <-
     case filename of
       "-" -> getContents
@@ -152,11 +155,82 @@ retriveArg get val =
 ---
 -- Config Parser
 --- 
--- TODO port from config
+configParser :: [String] -> Either String Config
+configParser = go defaultConfig
+  where
+    go cfg =
+      \case
+        [] -> pure cfg
+        "--quiet":ar -> go (cfg {logging = False}) ar
+        "--verbose":ar -> go (cfg {logging = True, smtQueryLogging = True}) ar
+        "--generate-program":sr -> go (cfg {generateProgram = True}) sr
+        "--skolemize-only":sr -> go (cfg {skolemizeOnly = True}) sr
+        "--disable-acceleration":sr -> go (cfg {accelerate = False}) sr
+        "--nest-acceleration":sr -> go (cfg {nestAcceleration = True}) sr
+        "--prune":ar -> go (cfg {pruneGame = True}) ar
+        "--rules-disable-unsat-check":ar -> go (cfg {rulesUnsatChecks = False}) ar
+        "--rules-disable-substitution":ar -> go (cfg {rulesSubsitution = False}) ar
+        "--rules-disable-saturation":ar -> go (cfg {rulesSaturation = False}) ar
+        "--rules-disable-deduction":ar -> go (cfg {rulesDeduction = False}) ar
+        "--rules-disable-precise-deduction":ar -> go (cfg {rulesDeductionPrecise = False}) ar
+        "--muval-caller":arg:ar -> go (cfg {muvalScript = arg}) ar
+        "--muval-timeout":ar -> do
+          (k, ar) <- readNumber ar
+          go (cfg {muvalTimeOut = k}) ar
+        "--chcmax-caller":arg:ar -> go (cfg {chcMaxScript = arg}) ar
+        "--chcmax-timeout":ar -> do
+          (k, ar) <- readNumber ar
+          go (cfg {chcMaxTimeOut = k}) ar
+        "--propagation-level":ar -> do
+          (k, ar) <- readNumber ar
+          go (cfg {propagationLevel = k}) ar
+        s:_ -> Left $ "found invalid argument: " ++ s
+    --
+    readNumber :: [String] -> Either String (Int, [String])
+    readNumber =
+      \case
+        [] -> Left "expected number after last argument"
+        a:ar ->
+          case readMaybe a of
+            Nothing -> Left $ "expected number, found " ++ a
+            Just k -> Right (k, ar)
+
 ---
 -- Help descriptions
 ---
 shortHelp :: [String]
 shortHelp = ["no argument or filename found"]
 
--- TODO port from config
+help :: [String]
+help =
+  [ "--------------------------------------------------------------------------------"
+  , " Generic options:"
+  , "  --quiet       : disables logging (default: logging enable)"
+  , "  --verbose     : enables verbose logging (default: verbose logging disabled)"
+  , ""
+  , " Game solving options:"
+  , "  --generate-program     : generated a program if realizable (default: disabled)"
+  , "  --disable-acceleration : disables acceleration (default: enabled)"
+  , "  --nest-acceleration    : enables nested acceleration (default: disabled)"
+  , "  --skolemize-only       : don't use QE but compute skolem functions directly "
+  , "                           (default: disabled)"
+  , ""
+  , " Formula to game options:"
+  , "  --prune                      : enables monitor-base pruning (default: no)"
+  , "  --rules-disable-unsat-check  : disable the unsat rule (default: enabled)"
+  , "  --rules-disable-substitution : disable the substitution rules"
+  , "                                 (default: enabled)"
+  , "  --rules-disable-saturation   : disable the saturation rules (default: enabled)"
+  , "  --rules-disable-deduction    : disable the deduction rules (default: enabled)"
+  , "  --rules-disable-precise-deduction :"
+  , "                          disable the precise deduction rules (default: enabled)"
+  , "  --muval-caller PATH     : sets the path to a script/binary that calls MuVal,"
+  , "                            the script should take as argument a timeout and"
+  , "                            read its input from STDIN"
+  , "  --muval-timeout INT     : sets the timeout for MuVal in seconds"
+  , "  --chcmax-caller PATH    : set the path a script/binary that calls the coar"
+  , "                            CHCMax solver"
+  , "  --chcmax-timeout INT    : sets the timeout for teh CHCMax solver in seconds"
+  , "  --propagation-level INT : sets the proagation level, the higher the level the"
+  , "                            more predicattes are generated (default: 2)"
+  ]
