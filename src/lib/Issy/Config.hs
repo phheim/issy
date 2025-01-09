@@ -13,25 +13,25 @@ data Config = Config
   , smtSimplifyZ3Tacs :: [String]
     -- Game Solving
   , generateProgram :: Bool
-  , skolemizeOnly :: Bool -- TODO remove, this is not really relevant!
   , accelerate :: Bool
   , nestAcceleration :: Bool
   , invariantIterations :: Int --TODO options
   , manhattenTermCount :: Int --TODO options
+  , ufAcceleration :: Bool
     -- Formula to Game translation
-  , ltl2tgba :: String
-  , pruneGame :: Bool
-  , rulesDeduction :: Bool
-  , rulesSaturation :: Bool
-  , rulesSubsitution :: Bool
-  , rulesUnsatChecks :: Bool
-  , rulesDeductionPrecise :: Bool
+  , ltl2tgba :: String -- TODO options
   , muvalScript :: String
   , muvalTimeOut :: Int
   , chcMaxScript :: String
   , chcMaxTimeOut :: Int
   , chcCmd :: String --TODO: Inline
   , chcOpts :: [String] -- TODO: Inline
+  , pruneGame :: Bool
+  , rulesDeduction :: Bool
+  , rulesSaturation :: Bool
+  , rulesSubsitution :: Bool
+  , rulesUnsatChecks :: Bool
+  , rulesDeductionPrecise :: Bool
   , propagationLevel :: Int
   }
 
@@ -45,7 +45,7 @@ defaultConfig =
     , smtSimplifyZ3Tacs = z3Simplify
     , accelerate = True
     , nestAcceleration = False
-    , skolemizeOnly = False
+    , ufAcceleration = False
     , invariantIterations = 3
     , manhattenTermCount = 2
     , generateProgram = False

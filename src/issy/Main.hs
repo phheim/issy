@@ -167,12 +167,37 @@ configParser = go defaultConfig
         "--info":ar -> go (cfg {logging = True, smtQueryLogging = False}) ar
         "--verbose":ar -> go (cfg {logging = True, smtQueryLogging = True}) ar
         -- Formula translation
-        "--prune":ar -> go (cfg {pruneGame = True}) ar
-        "--rules-disable-unsat-check":ar -> go (cfg {rulesUnsatChecks = False}) ar
-        "--rules-disable-substitution":ar -> go (cfg {rulesSubsitution = False}) ar
-        "--rules-disable-saturation":ar -> go (cfg {rulesSaturation = False}) ar
-        "--rules-disable-deduction":ar -> go (cfg {rulesDeduction = False}) ar
-        "--rules-disable-precise-deduction":ar -> go (cfg {rulesDeductionPrecise = False}) ar
+        "--pruning":arg:ar ->
+          case arg of
+            "0" -> go (cfg {pruneGame = False}) ar
+            "1" ->
+              go
+                (cfg
+                   { pruneGame = True
+                   , rulesDeduction = False
+                   , rulesDeductionPrecise = False
+                   , propagationLevel = 1
+                   })
+                ar
+            "2" ->
+              go
+                (cfg
+                   { pruneGame = True
+                   , rulesDeduction = True
+                   , rulesDeductionPrecise = False
+                   , propagationLevel = 2
+                   })
+                ar
+            "3" ->
+              go
+                (cfg
+                   { pruneGame = True
+                   , rulesDeduction = True
+                   , rulesDeductionPrecise = True
+                   , propagationLevel = 5
+                   })
+                ar
+            _ -> Left $ "invalid pruning level: " ++ arg
         "--muval-caller":arg:ar -> go (cfg {muvalScript = arg}) ar
         "--muval-timeout":ar -> do
           (k, ar) <- readNumber ar
@@ -181,15 +206,18 @@ configParser = go defaultConfig
         "--chcmax-timeout":ar -> do
           (k, ar) <- readNumber ar
           go (cfg {chcMaxTimeOut = k}) ar
-        "--propagation-level":ar -> do
-          (k, ar) <- readNumber ar
-          go (cfg {propagationLevel = k}) ar
         -- Game solving
-        "--disable-acceleration":sr -> go (cfg {accelerate = False}) sr
-        "--nest-acceleration":sr -> go (cfg {nestAcceleration = True}) sr
-        "--skolemize-only":sr -> go (cfg {skolemizeOnly = True}) sr
+        "--accel":arg:ar ->
+          case arg of
+            "no" -> go (cfg {accelerate = False}) ar
+            "geom" -> go (cfg {accelerate = True, ufAcceleration = False}) ar
+            "unint" ->
+              go (cfg {accelerate = True, ufAcceleration = True, nestAcceleration = False}) ar
+            "unint-nest" ->
+              go (cfg {accelerate = True, ufAcceleration = True, nestAcceleration = True}) ar
+            _ -> Left $ "found invalid acceleration mode: " ++ arg
         -- Synthesis
-        "--generate-program":sr -> go (cfg {generateProgram = True}) sr
+        "--synt":sr -> go (cfg {generateProgram = True}) sr
         s:_ -> Left $ "found invalid argument: " ++ s
     --
     readNumber :: [String] -> Either String (Int, [String])
@@ -247,30 +275,25 @@ help =
   , "   --verbose : log almost everything, including SMT queries"
   , ""
   , " Formula translation:"
-  , "   --prune                      : enables monitor-base pruning (default: no)"
-  , "   --rules-disable-unsat-check  : disable the unsat rule (default: enabled)"
-  , "   --rules-disable-substitution : disable the substitution rules"
-  , "                                  (default: enabled)"
-  , "   --rules-disable-saturation   : disable the saturation rules (default: enabled)"
-  , "   --rules-disable-deduction    : disable the deduction rules (default: enabled)"
-  , "   --rules-disable-precise-deduction :"
-  , "                           disable the precise deduction rules (default: enabled)"
-  , "   --muval-caller PATH     : sets the path to a script/binary that calls MuVal,"
-  , "                             the script should take as argument a timeout and"
-  , "                             read its input from STDIN"
-  , "   --muval-timeout INT     : sets the timeout for MuVal in seconds"
-  , "   --chcmax-caller PATH    : set the path a script/binary that calls the coar"
-  , "                             CHCMax solver"
-  , "   --chcmax-timeout INT    : sets the timeout for teh CHCMax solver in seconds"
-  , "   --propagation-level INT : sets the proagation level, the higher the level the"
-  , "                             more predicattes are generated (default: 2)"
+  , "   --pruning LEVEL"
+  , "         0 : monitor based pruning disabled (default)"
+  , "         1 : monitor based pruning without deduction rules and low propagation"
+  , "         2 : monitor based pruning with deduction rules and normal propagation"
+  , "         3 : monitor based pruning with precise deduction and high propagation"
+  , ""
+  , "   --muval-caller PATH     : path to a script that calls MuVal, it takes a"
+  , "                             a timeout as argument and reads its input from STDIN"
+  , "   --chcmax-caller PATH    : path to a script that calls the coar CHCMax solver"
+  , "   --muval-timeout INT     : timeout for MuVal in seconds"
+  , "   --chcmax-timeout INT    : timeout for the CHCMax solver in seconds"
   , ""
   , " Game solving:"
-  , "   --disable-acceleration : disables acceleration (default: enabled)"
-  , "   --nest-acceleration    : enables nested acceleration (default: disabled)"
-  , "   --skolemize-only       : don't use QE but compute skolem functions directly "
-  , "                            (default: disabled)"
+  , "   --accel TYPE"
+  , "       no         : acceleration disabled"
+  , "       geom       : geometric acceleration with invariant iteration (default)"
+  , "       unint      : acceleration with uninterpreted lemmas"
+  , "       unint-nest : acceleration with uninterpreted lemmas and nesting"
   , ""
   , " Synthesis:"
-  , "   --generate-program     : generate program if spec is realizable (default: disabled)"
+  , "   --synt         : generate program if spec is realizable (default: disabled)"
   ]

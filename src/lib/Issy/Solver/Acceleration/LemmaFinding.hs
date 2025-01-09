@@ -17,7 +17,7 @@ import qualified Data.Set as Set
 
 import Issy.Base.Variables (Variables)
 import qualified Issy.Base.Variables as Vars
-import Issy.Config (Config, generateProgram, setName, skolemizeOnly)
+import Issy.Config (Config, generateProgram, setName)
 import Issy.Logic.FOL
 import Issy.Logic.SMT
 import Issy.Printers.SMTLib (smtLib2)
@@ -226,30 +226,6 @@ resolveQE cfg limit vars cons f ls =
             lg cfg ["Qelim failed and try later"]
             return (false, [])
 
-resolveSk ::
-     Config -> Int -> Variables -> Constraint -> Term -> [LemSyms] -> IO (Term, [(LemSyms, Lemma)])
-resolveSk cfg limit vars cons f ls = do
-  cfg <- pure $ setName "Resolve SK" cfg
-  let (cons', f', col) = instantiate limit vars cons f ls
-  let meta = frees (andf cons')
-  let theta = andf (f' : cons')
-  let sk = skolemize limit vars meta
-  thetaSk <- fromMaybe (sk theta) <$> trySimplifyUF cfg (limit2to limit) (sk theta)
-  let query = Vars.forallX vars $ exists (Set.toList meta) theta `impl` thetaSk
-  lg cfg ["Try sat on", smtLib2 query]
-  resSAT <- satModelTO cfg (Just (limit2toextract limit)) query
-  case resSAT of
-    Nothing -> do
-      lg cfg ["Finding Model", "TO"]
-      return (false, [])
-    Just Nothing -> do
-      lg cfg ["Finding Model", "UNSAT"]
-      return (false, [])
-    Just (Just m) -> do
-      lg cfg ["Finding Model", strM show smtLib2 (modelToMap m)]
-      res <- simplify cfg (setModel m (sk f'))
-      return (res, map (second (mapL (setModel m . sk))) col)
-
 resolveBoth ::
      Config -> Int -> Variables -> Constraint -> Term -> [LemSyms] -> IO (Term, [(LemSyms, Lemma)])
 resolveBoth cfg limit vars cons f ls =
@@ -285,7 +261,6 @@ resolveBoth cfg limit vars cons f ls =
 resolve ::
      Config -> Int -> Variables -> Constraint -> Term -> [LemSyms] -> IO (Term, [(LemSyms, Lemma)])
 resolve cfg
-  | skolemizeOnly cfg = resolveSk cfg
   | generateProgram cfg = resolveBoth cfg
   | otherwise = resolveQE cfg
 -------------------------------------------------------------------------------

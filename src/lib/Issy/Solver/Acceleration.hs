@@ -6,7 +6,7 @@ module Issy.Solver.Acceleration
 
 -------------------------------------------------------------------------------
 import Issy.Base.SymbolicState (SymSt)
-import Issy.Config (Config)
+import Issy.Config (Config, ufAcceleration)
 import Issy.Logic.FOL (Term)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Solver.Acceleration.MDAcceleration as MDAcc (accelReach)
@@ -17,7 +17,9 @@ import Issy.Solver.GameInterface
 -------------------------------------------------------------------------------
 -- TODO: Replace limit by more abstract limiting state, that is tracking over time!
 accelReach :: Config -> Int -> Player -> Arena -> Loc -> SymSt -> IO (Term, CFG)
-accelReach = MDAcc.accelReach
+accelReach conf
+  | ufAcceleration conf = UFLAcc.accelReach conf
+  | otherwise = MDAcc.accelReach conf
 
 -------------------------------------------------------------------------------
 canAccel :: Arena -> Loc -> Bool
