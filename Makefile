@@ -3,22 +3,21 @@ LINTING=hlint -i "Use tuple-section"
 
 default:
 	stack build
-	@mkdir -p builds
-	@cp ${STACKPATH}/bin/* builds/
+	@cp ${STACKPATH}/bin/issy issy
 
 clean:
 	stack clean
-	@rm -r builds
+	@rm issy
 
 format:
-	hindent --line-length 100 */*/*.hs
-	hindent --line-length 100 */*/*/*.hs
-	hindent --line-length 100 */*/*/*/*.hs
-	hindent --line-length 100 */*/*/*/*/*.hs
+	hindent --line-length 100 src/*/*.hs
+	hindent --line-length 100 src/*/*/*.hs
+	hindent --line-length 100 src/*/*/*/*.hs
+	hindent --line-length 100 src/*/*/*/*/*.hs
 
 lint:
-	${LINTING} */*/*.hs
-	${LINTING} */*/*/*.hs
-	${LINTING} */*/*/*/*.hs
-	${LINTING} */*/*/*/*/*.hs
+	${LINTING} src/*/*.hs
+	${LINTING} src/*/*/*.hs
+	${LINTING} src/*/*/*/*.hs
+	${LINTING} src/*/*/*/*/*.hs
 

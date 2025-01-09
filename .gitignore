@@ -1,4 +1,4 @@
-/builds
+/issy
 /.stack-work/*
 /stack.yaml.lock
 *.swp
