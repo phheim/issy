@@ -138,7 +138,8 @@ getMode =
 getInputFormat :: String -> Maybe InputFormat
 getInputFormat =
   \case
-    "--low-level" -> Just LowLevel
+    "--issy" -> Just HighLevel
+    "--llissy" -> Just LowLevel
     "--rpg" -> Just RPG
     "--tslmt" -> Just TSLMT
     _ -> Nothing
@@ -161,12 +162,11 @@ configParser = go defaultConfig
     go cfg =
       \case
         [] -> pure cfg
+        -- Logging
         "--quiet":ar -> go (cfg {logging = False}) ar
+        "--info":ar -> go (cfg {logging = True, smtQueryLogging = False}) ar
         "--verbose":ar -> go (cfg {logging = True, smtQueryLogging = True}) ar
-        "--generate-program":sr -> go (cfg {generateProgram = True}) sr
-        "--skolemize-only":sr -> go (cfg {skolemizeOnly = True}) sr
-        "--disable-acceleration":sr -> go (cfg {accelerate = False}) sr
-        "--nest-acceleration":sr -> go (cfg {nestAcceleration = True}) sr
+        -- Formula translation
         "--prune":ar -> go (cfg {pruneGame = True}) ar
         "--rules-disable-unsat-check":ar -> go (cfg {rulesUnsatChecks = False}) ar
         "--rules-disable-substitution":ar -> go (cfg {rulesSubsitution = False}) ar
@@ -184,6 +184,12 @@ configParser = go defaultConfig
         "--propagation-level":ar -> do
           (k, ar) <- readNumber ar
           go (cfg {propagationLevel = k}) ar
+        -- Game solving
+        "--disable-acceleration":sr -> go (cfg {accelerate = False}) sr
+        "--nest-acceleration":sr -> go (cfg {nestAcceleration = True}) sr
+        "--skolemize-only":sr -> go (cfg {skolemizeOnly = True}) sr
+        -- Synthesis
+        "--generate-program":sr -> go (cfg {generateProgram = True}) sr
         s:_ -> Left $ "found invalid argument: " ++ s
     --
     readNumber :: [String] -> Either String (Int, [String])
@@ -199,38 +205,72 @@ configParser = go defaultConfig
 -- Help descriptions
 ---
 shortHelp :: [String]
-shortHelp = ["no argument or filename found"]
+shortHelp =
+  [ "no argument or filename found"
+  , ""
+  , " usage: issy OPTION* FILENAME"
+  , ""
+  , "  e.g.:"
+  , "     issy input.issy"
+  , "     issy --solve --acceleration none -"
+  , "     issy --compile input.issy"
+  , "     issy --llissy --to-game input.llissy"
+  , "     issy --rpg --encode-muclp input.rpg"
+  , ""
+  , " to get a list of all possible options run 'issy --help'"
+  ]
 
 help :: [String]
 help =
-  [ "--------------------------------------------------------------------------------"
-  , " Generic options:"
-  , "  --quiet       : disables logging (default: logging enable)"
-  , "  --verbose     : enables verbose logging (default: verbose logging disabled)"
+  [ "Usage: issy OPTION* [INPUTFILE | '-']"
   , ""
-  , " Game solving options:"
-  , "  --generate-program     : generated a program if realizable (default: disabled)"
-  , "  --disable-acceleration : disables acceleration (default: enabled)"
-  , "  --nest-acceleration    : enables nested acceleration (default: disabled)"
-  , "  --skolemize-only       : don't use QE but compute skolem functions directly "
-  , "                           (default: disabled)"
+  , " The output is always writen to STDOUT. Errors and logging informations are"
+  , " written to STDERR. If INPUTFILE is '-' the input is read from STDIN."
   , ""
-  , " Formula to game options:"
-  , "  --prune                      : enables monitor-base pruning (default: no)"
-  , "  --rules-disable-unsat-check  : disable the unsat rule (default: enabled)"
-  , "  --rules-disable-substitution : disable the substitution rules"
-  , "                                 (default: enabled)"
-  , "  --rules-disable-saturation   : disable the saturation rules (default: enabled)"
-  , "  --rules-disable-deduction    : disable the deduction rules (default: enabled)"
-  , "  --rules-disable-precise-deduction :"
-  , "                          disable the precise deduction rules (default: enabled)"
-  , "  --muval-caller PATH     : sets the path to a script/binary that calls MuVal,"
-  , "                            the script should take as argument a timeout and"
-  , "                            read its input from STDIN"
-  , "  --muval-timeout INT     : sets the timeout for MuVal in seconds"
-  , "  --chcmax-caller PATH    : set the path a script/binary that calls the coar"
-  , "                            CHCMax solver"
-  , "  --chcmax-timeout INT    : sets the timeout for teh CHCMax solver in seconds"
-  , "  --propagation-level INT : sets the proagation level, the higher the level the"
-  , "                            more predicattes are generated (default: 2)"
+  , " Input format:"
+  , "   --issy   : input is a issy spec (default)"
+  , "   --llissy : input is a llissy spec"
+  , "   --rpg    : input is a RPG spec"
+  , "   --tslmt  : input is a TSLMT spec a used by 'tsl2rpg'"
+  , ""
+  , " Modes:"
+  , "   --solve   : solve the input spec (default)"
+  , "   --compile : compiles a issy spec into the llissy format"
+  , "   --to-game : translate the input specification to a game without temporal logic"
+  , "   --print   : pretty print a llissy or RPG spec"
+  , "   --encode-tslmt : encode a RPG spec to TSLMT"
+  , "   --encode-muclp : encode a RPG spec to MuCLP used by 'muval'"
+  , ""
+  , " Log level:"
+  , "   --quiet   : no logging at all"
+  , "   --info    : enable standard log messages (default)"
+  , "   --verbose : log almost everything, including SMT queries"
+  , ""
+  , " Formula translation:"
+  , "   --prune                      : enables monitor-base pruning (default: no)"
+  , "   --rules-disable-unsat-check  : disable the unsat rule (default: enabled)"
+  , "   --rules-disable-substitution : disable the substitution rules"
+  , "                                  (default: enabled)"
+  , "   --rules-disable-saturation   : disable the saturation rules (default: enabled)"
+  , "   --rules-disable-deduction    : disable the deduction rules (default: enabled)"
+  , "   --rules-disable-precise-deduction :"
+  , "                           disable the precise deduction rules (default: enabled)"
+  , "   --muval-caller PATH     : sets the path to a script/binary that calls MuVal,"
+  , "                             the script should take as argument a timeout and"
+  , "                             read its input from STDIN"
+  , "   --muval-timeout INT     : sets the timeout for MuVal in seconds"
+  , "   --chcmax-caller PATH    : set the path a script/binary that calls the coar"
+  , "                             CHCMax solver"
+  , "   --chcmax-timeout INT    : sets the timeout for teh CHCMax solver in seconds"
+  , "   --propagation-level INT : sets the proagation level, the higher the level the"
+  , "                             more predicattes are generated (default: 2)"
+  , ""
+  , " Game solving:"
+  , "   --disable-acceleration : disables acceleration (default: enabled)"
+  , "   --nest-acceleration    : enables nested acceleration (default: disabled)"
+  , "   --skolemize-only       : don't use QE but compute skolem functions directly "
+  , "                            (default: disabled)"
+  , ""
+  , " Synthesis:"
+  , "   --generate-program     : generate program if spec is realizable (default: disabled)"
   ]
