@@ -68,6 +68,8 @@ module Issy.Logic.FOL
   , uniquePrefix
   , unusedName
   , unusedPrefix
+  , --
+    toNNF
   ) where
 
 -------------------------------------------------------------------------------
@@ -456,3 +458,14 @@ addT =
 
 isNumber :: Sort -> Bool
 isNumber = (`elem` [SInt, SReal])
+
+---
+-- Translation to NNF
+---
+toNNF :: Term -> Term
+toNNF =
+  \case
+    Func (PredefF "not") [Func (PredefF "not") [t]] -> toNNF t
+    Func (PredefF "not") [Func (PredefF "or") args] -> andf $ map (toNNF . neg) args
+    Func (PredefF "not") [Func (PredefF "and") args] -> orf $ map (toNNF . neg) args
+    atom -> atom

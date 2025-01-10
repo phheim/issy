@@ -32,9 +32,9 @@ import Issy.Config
   , rulesUnsatChecks
   , setName
   )
+import qualified Issy.Logic.CHC as CHC
 import Issy.Logic.FOL
 import Issy.Logic.SMT
-import Issy.Monitor.CHC
 import Issy.Monitor.Fixpoints
 import Issy.Monitor.Formula
 import Issy.Monitor.State
@@ -247,7 +247,11 @@ callCHC cfg gls query = do
     Just res -> pure (Just res, gls)
     Nothing -> do
       res <-
-        checkCHC cfg (fixpointPred gls) (Vars.sortOf (vars gls) <$> Vars.stateVarL (vars gls)) query
+        CHC.check
+          cfg
+          (fixpointPred gls)
+          (Vars.sortOf (vars gls) <$> Vars.stateVarL (vars gls))
+          query
       pure
         $ case res of
             Nothing -> (Nothing, gls)
@@ -591,7 +595,7 @@ genInvPrec cfg gls dom st
                 $ forAll (aux gls)
                 $ Vars.forallX' (vars gls)
                 $ func "=>" [andf [fpPred' gls, tr], fpPred gls]
-        res <- computeFP cfg (vars gls) (fixpointPred gls) init trans
+        res <- CHC.computeFP cfg (vars gls) (fixpointPred gls) init trans
         case res of
           Just alpha -> do
             alpha <- simplify cfg alpha

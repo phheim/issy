@@ -24,8 +24,7 @@ data Config = Config
   , muvalTimeOut :: Int
   , chcMaxScript :: String
   , chcMaxTimeOut :: Int
-  , chcCmd :: String --TODO: Inline
-  , chcOpts :: [String] -- TODO: Inline
+  , chcTimeout :: Int
   , pruneGame :: Bool
   , rulesDeduction :: Bool
   , rulesSaturation :: Bool
@@ -60,8 +59,7 @@ defaultConfig =
     , muvalTimeOut = 5
     , chcMaxScript = "call-maxsat.sh"
     , chcMaxTimeOut = 15
-    , chcCmd = "z3"
-    , chcOpts = ["-in", "-smt2", "-T:10"]
+    , chcTimeout = 10
     , propagationLevel = 2
     }
 

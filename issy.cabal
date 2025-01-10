@@ -33,13 +33,13 @@ library
     , Issy.Config
     , Issy.Extractors.MuCLP
     , Issy.Extractors.TSLT
+    , Issy.Logic.CHC
     , Issy.Logic.FOL 
     , Issy.Logic.RPLTL
     , Issy.Logic.SMT
     , Issy.Logic.Temporal
     , Issy.Logic.TSLMT
     , Issy.Monitor
-    , Issy.Monitor.CHC
     , Issy.Monitor.Fixpoints
     , Issy.Monitor.Formula
     , Issy.Monitor.Monitor

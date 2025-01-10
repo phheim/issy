@@ -2,26 +2,19 @@
 
 module Issy.Monitor.Fixpoints
   ( checkFPInclusion
-  , computeFP
   ) where
 
-import Data.Char (isDigit)
-import Data.Fixed
-import Data.List (isPrefixOf)
-import Data.Map.Strict (Map, (!?))
-import qualified Data.Map.Strict as Map
+import Data.Fixed (Nano, showFixed)
 import Data.Maybe (fromMaybe)
 import Data.Ratio ((%))
 import Data.Set (Set)
 import qualified Data.Set as Set
 import System.Process (readProcessWithExitCode)
-import Text.Read (readMaybe)
 
 import Issy.Base.Variables (Variables)
 import qualified Issy.Base.Variables as Vars
-import Issy.Config (Config, chcMaxScript, chcMaxTimeOut, muvalScript, muvalTimeOut)
+import Issy.Config (Config, muvalScript, muvalTimeOut)
 import Issy.Logic.FOL
-import Issy.Printers.SMTLib (s2Term, smtLib2)
 import Issy.Utils.Extra (firstLine)
 import Issy.Utils.Logging
 
@@ -149,179 +142,3 @@ callMuval cfg query = do
     'i':'n':'v':'a':'l':'i':'d':_ -> pure $ Just False
     'v':'a':'l':'i':'d':_ -> pure $ Just True
     _ -> pure Nothing
-
---
--- Max CHC
---
-computeFP :: Config -> Variables -> Symbol -> Term -> Term -> IO (Maybe Term)
-computeFP cfg vars fpPred init trans
-  | any ((/= SInt) . Vars.sortOf vars) (frees init `Set.union` frees trans) = do
-    lg cfg ["CHCMax", "found non ints!"]
-    pure Nothing
-  | otherwise = do
-    let query = encodeFP vars fpPred init trans
-    lg cfg ["CHCMax", "running"]
-    res <- callCHCMax cfg query
-    case parseFP vars fpPred res of
-      Left err -> do
-        lg cfg ["CHCMax returned error:", err]
-        pure Nothing
-      Right term -> do
-        lg cfg ["CHCMax returned result:", smtLib2 term]
-        pure (Just term)
-
-callCHCMax :: Config -> String -> IO String
-callCHCMax cfg query = do
-  (_, stdout, _) <- readProcessWithExitCode (chcMaxScript cfg) [show (chcMaxTimeOut cfg)] query
-  pure stdout
-
-encodeFP :: Variables -> Symbol -> Term -> Term -> String
-encodeFP vars fpPred init rec =
-  unlines
-    [ "(set-logic HORN)"
-    , "(declare-fun "
-        ++ fpPred
-        ++ "("
-        ++ concatMap ((" " ++) . s2Term . Vars.sortOf vars) (Vars.stateVarL vars)
-        ++ ") Bool)"
-    , "(assert " ++ smtLib2 init ++ ")"
-    , "(assert " ++ smtLib2 rec ++ ")"
-    , "(check-sat)"
-    ]
-
-data FPExpr
-  = FPBop String FPExpr FPExpr
-  | FPID String
-  deriving (Eq, Ord, Show)
-
-parseID :: String -> (String, String)
-parseID = span (`notElem` [' ', '\n', '\t', ')', '(', ':'])
-
-parseFPExpr :: String -> Either String (FPExpr, String)
-parseFPExpr =
-  \case
-    [] -> Left "empty string while parsing FPExpr"
-    '(':sr -> do
-      (expr1, sr) <- parseFPExpr sr
-      case sr of
-        ')':sr -> Right (expr1, sr)
-        ' ':sr -> do
-          (op, sr) <- pure $ parseID sr
-          case sr of
-            ' ':sr -> do
-              (expr2, sr) <- parseFPExpr sr
-              case sr of
-                ')':sr -> pure (FPBop op expr1 expr2, sr)
-                _ -> Left $ "Expected closing ')' after binary expression, found" ++ sr
-            _ -> Left $ "Expected whitespace after operator, found " ++ sr
-        _ -> Left $ "Expected whitespace or cosing ')' after expression, found " ++ sr
-    ' ':sr -> parseFPExpr sr
-    '\n':sr -> parseFPExpr sr
-    '\t':sr -> parseFPExpr sr
-    '\r':sr -> parseFPExpr sr
-    sr -> do
-      (ident, sr) <- pure $ parseID sr
-      pure (FPID ident, sr)
-
-fpExprToTerm :: Map String (Symbol, Sort) -> FPExpr -> Either String Term
-fpExprToTerm varMap = go
-  where
-    go =
-      \case
-        FPID [] -> Left "Found empty identifier"
-        FPID "true" -> pure true
-        FPID "false" -> pure false
-        FPID ('-':cs) ->
-          case readMaybe cs of
-            Just k -> pure $ Const (CInt (-k))
-            Nothing -> Left $ "Found illegal identifier: " ++ cs
-        FPID (c:cs)
-          | isDigit c ->
-            case readMaybe (c : cs) of
-              Just k -> pure $ Const (CInt k)
-              Nothing -> Left $ "Found illegal identifier: " ++ (c : cs)
-          | otherwise ->
-            case varMap !? (c : cs) of
-              Just (v, sort) -> pure $ Var v sort
-              Nothing -> Left $ "Found unknown identifier: " ++ (c : cs)
-        FPBop op e1 e2 -> do
-          t1 <- go e1
-          t2 <- go e2
-          case op of
-            "/\\" -> pure $ andf [t1, t2]
-            "\\/" -> pure $ orf [t1, t2]
-            "!=" -> pure $ neg (equal t1 t2)
-            _
-              | op `elem` ["+", "-", "=", "<=", ">=", "*"] -> pure $ func op [t1, t2]
-              | otherwise -> Left $ "Found illegal operator: " ++ op
-
-parseFPHead :: Variables -> String -> String -> Either String (Map String (Symbol, Sort), String)
-parseFPHead vars fpPred sr = do
-  sr <- pure $ dropWhile (`elem` [' ', '\n', '\t', '\r']) sr
-  sr <-
-    if fpPred `isPrefixOf` sr
-      then pure $ drop (length fpPred) sr
-      else Left "Predicate is not the right one"
-  case sr of
-    '(':sr -> do
-      (decls, sr) <- parseDecls (Vars.stateVarL vars) sr
-      pure (Map.fromList decls, sr)
-    _ -> Left "Expected opening '('"
-  where
-    parseDecls :: [Symbol] -> String -> Either String ([(String, (Symbol, Sort))], String)
-    parseDecls states sr =
-      case (states, sr) of
-        ([], ')':sr) -> pure ([], sr)
-        ([], _) -> Left $ "Expected closing ')' found " ++ sr
-        (st:states, sr) -> do
-          (decl, sr) <- parseDecl st (Vars.sortOf vars st) sr
-          (decls, sr) <- parseDecls states sr
-          pure (decl : decls, sr)
-    --
-    parseDecl :: Symbol -> Sort -> String -> Either String ((Symbol, (Symbol, Sort)), String)
-    parseDecl var sort sr = do
-      sr <- expectChar '(' (removeWS sr)
-      (ident, sr) <- pure $ parseID sr
-      sr <- expectChar ':' (removeWS sr)
-      sr <-
-        case removeWS sr of
-          'i':'n':'t':sr
-            | sort == SInt -> pure sr
-            | otherwise -> Left "Expected int sort"
-          'b':'o':'o':'l':sr
-            | sort == SBool -> pure sr
-            | otherwise -> Left "Expected bool sort"
-          _ -> Left $ "Expected sort found " ++ sr
-      sr <- expectChar ')' (removeWS sr)
-      pure ((ident, (var, sort)), sr)
-
-expectChar :: Char -> String -> Either String String
-expectChar c =
-  \case
-    [] -> Left $ "Expected " ++ [c] ++ " found empty string"
-    s:sr
-      | c == s -> pure sr
-      | otherwise -> Left $ "Expected " ++ [c] ++ " found " ++ sr
-
-removeWS :: String -> String
-removeWS = dropWhile (`elem` [' ', '\n', '\t', '\r'])
-
-parseFP :: Variables -> String -> String -> Either String Term
-parseFP vars fpPred sr =
-  case gotoMaxsat sr of
-    [] -> Left "No maxsat found"
-    sr -> do
-      (varMap, sr) <- parseFPHead vars fpPred sr
-      sr <- pure $ gotoAssign sr
-      (expr, _) <- parseFPExpr sr
-      fpExprToTerm varMap expr
-  where
-    gotoMaxsat :: String -> String
-    gotoMaxsat = unlines . drop 1 . dropWhile (not . isPrefixOf "Maxsat") . lines
-     -- 
-    gotoAssign :: String -> String
-    gotoAssign =
-      \case
-        [] -> ""
-        ':':'=':sr -> sr
-        c:sr -> c : gotoAssign sr
