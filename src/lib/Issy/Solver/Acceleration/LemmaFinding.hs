@@ -241,7 +241,7 @@ resolveBoth cfg limit vars cons f ls =
         case resQE of
           Just res -> do
             lg cfg ["Qelim yielded", smtLib2 res]
-            thetaSk <- fromMaybe (sk theta) <$> trySimplifyUF cfg (limit2to limit) (sk theta)
+            thetaSk <- fromMaybe (sk theta) <$> trySimplifyUF cfg (Just (limit2to limit)) (sk theta)
             let querySk = Vars.forallX vars $ res `impl` thetaSk
             resSAT <- satModelTO cfg (Just (limit2toextract limit)) querySk
             case resSAT of

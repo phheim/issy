@@ -50,7 +50,7 @@ accTarget ctx vars loc indeps st = do
   st' <- SymSt.simplify ctx st'
   check <-
     allM
-      (\l -> SMT.implies ctx (FOL.andf [st' `get` l, fixedInv]) (st `get` l))
+      (\l -> SMT.valid ctx (FOL.andf [st' `get` l, fixedInv] `FOL.impl` get st l))
       (SymSt.locations st)
   if check
     then pure (st', fixedInv)

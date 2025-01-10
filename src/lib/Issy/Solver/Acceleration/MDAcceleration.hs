@@ -11,14 +11,15 @@ import Control.Monad (unless)
 import Data.Bifunctor (second)
 import Data.List (isPrefixOf)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (fromJust, fromMaybe)
+import Data.Maybe (fromMaybe)
 import qualified Data.Set as Set
 
 import Issy.Base.SymbolicState (SymSt, get, set)
 import qualified Issy.Base.SymbolicState as SymSt
 import Issy.Base.Variables (Variables)
 import qualified Issy.Base.Variables as Vars
-import Issy.Config (Config, invariantIterations, manhattenTermCount, setName)
+import Issy.Config (Config, geomCHCAcceleration, invariantIterations, manhattenTermCount, setName)
+import qualified Issy.Logic.CHC as CHC
 import Issy.Logic.FOL (Sort, Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.SMT as SMT
@@ -59,15 +60,24 @@ accelReach conf limit player arena loc reach = do
         -- 2. try a few explicit iterations to find invariant
       invRes <- tryFindInv conf prime player arena (step, conc) (loc, loc') fixInv reach
       case invRes of
-        Just (conc, prog) -> do
+        Right (conc, prog) -> do
           lg conf ["Invariant iteration resulted in", smtLib2 conc]
           pure (conc, prog)
-        Nothing -> do
+        Left overApprox -> do
           lg conf ["Invariant iteration failed"]
-                -- TODO IMPLEMENT
-                -- 3.1. try to use explicit CHC stuff
-                -- 3.2. try to generalize, i.e. widening, maybe implement in separate module
-          pure (FOL.false, CFG.empty)
+          if geomCHCAcceleration conf
+            then do
+              lg conf ["MaxCHC invariant computation"]
+              invRes <-
+                exactInv conf prime player arena (step, conc) (loc, loc') fixInv reach overApprox
+              case invRes of
+                Left err -> do
+                  lg conf ["MaxCHC invariant computation failed with", err]
+                  pure (FOL.false, CFG.empty)
+                Right (conc, prog) -> do
+                  lg conf ["MaxCHC invariant computation resulted in", smtLib2 conc]
+                  pure (conc, prog)
+            else pure (FOL.false, CFG.empty)
 
 -------------------------------------------------------------------------------
 -- Invariant Iteration
@@ -81,30 +91,31 @@ tryFindInv ::
   -> (Loc, Loc)
   -> Term
   -> SymSt
-  -> IO (Maybe (Term, CFG))
+  -> IO (Either Term (Term, CFG))
 tryFindInv conf prime player arena (step, conc) (loc, loc') fixInv reach = iter 0 FOL.true
   where
     iter cnt invar
-      | cnt >= invariantIterations conf = pure Nothing
+      | cnt >= invariantIterations conf = pure $ Left invar
       | otherwise = do
         lg conf ["Try invariant", smtLib2 invar]
         let reach' = set reach loc' $ FOL.orf [reach `get` loc, FOL.andf [step, invar]]
                             -- TODO: Build proper CFG
         let (stAcc, _) = iterA player arena reach' loc' CFG.empty
-        let res =
-              FOL.mapSymbol
-                (\v ->
-                   if prime `isPrefixOf` v
-                     then drop (length prime) v
-                     else v)
-                $ stAcc `get` loc
+        let res = unprime prime $ stAcc `get` loc
         res <- SMT.simplifyStrong conf res
         let query = Vars.forallX (vars arena) $ FOL.andf [inv arena loc, conc, invar] `FOL.impl` res
         unless (null (FOL.frees query)) $ error "assert: found free variables in query"
         holds <- SMT.valid conf query
         if holds
-          then pure $ Just (FOL.andf [inv arena loc, conc, invar, fixInv], CFG.empty)
+          then pure $ Right (FOL.andf [inv arena loc, conc, invar, fixInv], CFG.empty)
           else iter (cnt + 1) res
+
+unprime :: Symbol -> Term -> Term
+unprime prime =
+  FOL.mapSymbol $ \v ->
+    if prime `isPrefixOf` v
+      then drop (length prime) v
+      else v
 
 iterA :: Player -> Arena -> SymSt -> Loc -> CFG -> (SymSt, CFG)
 iterA player arena attr shadow = go (noVisits arena) (OL.fromSet (preds arena shadow)) attr
@@ -120,6 +131,38 @@ iterA player arena attr shadow = go (noVisits arena) (OL.fromSet (preds arena sh
               (SymSt.disj attr l $ cpre player arena attr l)
               (CFG.addUpd attr arena l cfgl)
           | otherwise -> go vcnt open attr cfgl
+
+exactInv ::
+     Config
+  -> Symbol
+  -> Player
+  -> Arena
+  -> (Term, Term)
+  -> (Loc, Loc)
+  -> Term
+  -> SymSt
+  -> Term
+  -> IO (Either String (Term, CFG))
+exactInv conf prime player arena (step, conc) (loc, loc') fixInv reach invApprox = do
+    -- TODO: Add logging
+  let invName = FOL.uniquePrefix "chc_invar" $ Set.insert prime $ usedSymbols arena
+    -- TODO: enhance by only useing usefull stuff! Needs change in CHC stuff
+  let sorts = map (Vars.sortOf (vars arena)) (Vars.stateVarL (vars arena))
+  let invar =
+        FOL.Func (FOL.CustomF invName sorts FOL.SBool)
+          $ map (\v -> FOL.Var v (Vars.sortOf (vars arena) v))
+          $ Vars.stateVarL (vars arena)
+  let reach' = set reach loc' $ FOL.orf [reach `get` loc, FOL.andf [step, invar]]
+  let (stAcc, _) = iterA player arena reach' loc' CFG.empty
+  let res = unprime prime $ stAcc `get` loc
+  res <- SMT.simplifyUF conf res --TODO: Maybe add timeout here?
+  let query = Vars.forallX (vars arena) $ FOL.andf [inv arena loc, conc, invar] `FOL.impl` res
+  let minQuery = Vars.forallX (vars arena) $ invar `FOL.impl` invApprox
+  unless (null (FOL.frees query)) $ error "assert: found free variables in query"
+  chcRes <- CHC.computeMax conf (vars arena) invName [query, minQuery]
+  case chcRes of
+    Left err -> pure $ Left err
+    Right invar -> pure $ Right (FOL.andf [inv arena loc, conc, invar, fixInv], CFG.empty)
 
 -------------------------------------------------------------------------------
 -- Manhatten distance lemma generation
@@ -171,7 +214,7 @@ mkOptBox conf vars reach = do
     then pure []
     else do
       let query = Vars.forallX vars $ boxTerm (uncurry FOL.Var) boxScheme `FOL.impl` reach
-      model <- SMT.satModelOpt conf SMT.Pareto query maxTerms
+      model <- SMT.optPareto conf query maxTerms
       case model of
         Nothing -> pure []
         Just model ->
@@ -184,7 +227,7 @@ mkOptBox conf vars reach = do
 
 completeBox :: Config -> Term -> IO (Maybe (Box Term))
 completeBox conf reach = do
-  model <- fromJust <$> SMT.satModelTO conf Nothing reach
+  model <- SMT.satModel conf reach
   case model of
     Nothing -> pure Nothing
     Just model -> pure $ Just $ concatMap (modelCons model) $ Map.toList $ FOL.bindings reach

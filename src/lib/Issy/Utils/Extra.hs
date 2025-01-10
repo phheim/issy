@@ -4,6 +4,8 @@ import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
+import System.Process (readProcessWithExitCode)
+import qualified System.Timeout as Sys (timeout)
 
 import qualified Issy.Utils.OpenList as OL
 
@@ -63,3 +65,26 @@ mapFromSet = Map.fromList . Set.toList
 
 mapFromSetWith :: (Ord k, Ord a) => (a -> a -> a) -> Set (k, a) -> Map k a
 mapFromSetWith f = Map.fromListWith f . Set.toList
+
+runTO :: Maybe Int -> String -> [String] -> String -> IO (Maybe String)
+runTO to cmd args input =
+  case to of
+    Nothing -> do
+      (_, res, _) <- readProcessWithExitCode cmd args input
+      return (Just res)
+    Just n
+      | n < 0 -> do
+        (_, res, _) <- readProcessWithExitCode cmd args input
+        return (Just res)
+      | otherwise -> do
+        res <- Sys.timeout (n * 10 ^ (6 :: Int)) $ readProcessWithExitCode cmd args input
+        case res of
+          Just (_, res, _) -> return (Just res)
+          Nothing -> pure Nothing
+
+noTimeout :: IO (Maybe a) -> IO a
+noTimeout comp = do
+  res <- comp
+  case res of
+    Just res -> pure res
+    Nothing -> error "assumed computation could not timeout!"

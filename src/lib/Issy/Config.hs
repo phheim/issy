@@ -8,9 +8,7 @@ data Config = Config
   { logging :: Bool
   , logName :: String
     -- SMT solving
-  , smtModelGenCommand :: String
   , smtQueryLogging :: Bool
-  , smtSimplifyZ3Tacs :: [String]
     -- Game Solving
   , generateProgram :: Bool
   , accelerate :: Bool
@@ -18,6 +16,7 @@ data Config = Config
   , invariantIterations :: Int --TODO options
   , manhattenTermCount :: Int --TODO options
   , ufAcceleration :: Bool
+  , geomCHCAcceleration :: Bool
     -- Formula to Game translation
   , ltl2tgba :: String -- TODO options
   , muvalScript :: String
@@ -39,12 +38,11 @@ defaultConfig =
   Config
     { logging = True
     , logName = "[Issy]"
-    , smtModelGenCommand = "(check-sat-using (and-then simplify default))"
     , smtQueryLogging = False
-    , smtSimplifyZ3Tacs = z3Simplify
     , accelerate = True
     , nestAcceleration = False
     , ufAcceleration = False
+    , geomCHCAcceleration = False
     , invariantIterations = 3
     , manhattenTermCount = 2
     , generateProgram = False
@@ -65,18 +63,3 @@ defaultConfig =
 
 setName :: String -> Config -> Config
 setName name cfg = cfg {logName = "[" ++ name ++ "]"}
-
-z3Simplify :: [String]
-z3Simplify =
-  [ "simplify"
-  , "propagate-ineqs"
-  , "qe2"
-  , "simplify"
-  , "propagate-ineqs"
-  , "ctx-solver-simplify"
-  , "propagate-ineqs"
-  , "solver-subsumption"
-  , "unit-subsume-simplify"
-  , "simplify"
-  ]
---  , "nnf"
