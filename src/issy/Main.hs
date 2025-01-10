@@ -210,7 +210,10 @@ configParser = go defaultConfig
         "--accel":arg:ar ->
           case arg of
             "no" -> go (cfg {accelerate = False}) ar
-            "geom" -> go (cfg {accelerate = True, ufAcceleration = False}) ar
+            "geom" ->
+              go (cfg {accelerate = True, ufAcceleration = False, geomCHCAcceleration = False}) ar
+            "geom-chc" ->
+              go (cfg {accelerate = True, ufAcceleration = False, geomCHCAcceleration = True}) ar
             "unint" ->
               go (cfg {accelerate = True, ufAcceleration = True, nestAcceleration = False}) ar
             "unint-nest" ->
@@ -291,6 +294,7 @@ help =
   , "   --accel TYPE"
   , "       no         : acceleration disabled"
   , "       geom       : geometric acceleration with invariant iteration (default)"
+  , "       geom-chc   : geometric acceleration with chc invariant computation"
   , "       unint      : acceleration with uninterpreted lemmas"
   , "       unint-nest : acceleration with uninterpreted lemmas and nesting"
   , ""

@@ -213,8 +213,9 @@ mkOptBox conf vars reach = do
   if null boxScheme
     then pure []
     else do
-      let query = Vars.forallX vars $ boxTerm (uncurry FOL.Var) boxScheme `FOL.impl` reach
-      model <- SMT.optPareto conf query maxTerms
+      let impCond = Vars.forallX vars $ boxTerm (uncurry FOL.Var) boxScheme `FOL.impl` reach
+      let exCond = Vars.existsX vars $ boxTerm (uncurry FOL.Var) boxScheme
+      model <- SMT.optPareto conf (FOL.andf [impCond, exCond]) maxTerms
       case model of
         Nothing -> pure []
         Just model ->
