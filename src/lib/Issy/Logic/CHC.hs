@@ -18,7 +18,7 @@ import Text.Read (readMaybe)
 
 import Issy.Base.Variables (Variables)
 import qualified Issy.Base.Variables as Vars
-import Issy.Config (Config, chcMaxScript, chcMaxTimeOut, chcTimeout)
+import Issy.Config (Config, chcMaxScript, chcMaxTimeOut, chcTimeout, z3cmd)
 import Issy.Logic.FOL (Sort(SBool, SInt), Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
 import Issy.Printers.SMTLib (s2Term, smtLib2)
@@ -71,7 +71,7 @@ callCHCSolver :: Config -> String -> IO (Maybe Bool)
 callCHCSolver conf query = do
   lg conf ["CHC solver", "running"]
   (_, stdout, _) <-
-    readProcessWithExitCode "z3" ["-in", "-smt2", "-T:" ++ show (chcTimeout conf)] query
+    readProcessWithExitCode (z3cmd conf) ["-in", "-smt2", "-T:" ++ show (chcTimeout conf)] query
   lg conf ["CHC solver", "terminated with", firstLine stdout]
   case stdout of
     's':'a':'t':_ -> pure $ Just True

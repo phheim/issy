@@ -5,25 +5,9 @@ module Issy.Config
   ) where
 
 data Config = Config
-  { logging :: Bool
-  , logName :: String
-    -- SMT solving
-  , smtQueryLogging :: Bool
-    -- Game Solving
-  , generateProgram :: Bool
-  , accelerate :: Bool
-  , nestAcceleration :: Bool
-  , invariantIterations :: Int --TODO options
-  , manhattenTermCount :: Int --TODO options
-  , ufAcceleration :: Bool
-  , geomCHCAcceleration :: Bool
-    -- Formula to Game translation
-  , ltl2tgba :: String -- TODO options
-  , muvalScript :: String
-  , muvalTimeOut :: Int
-  , chcMaxScript :: String
-  , chcMaxTimeOut :: Int
-  , chcTimeout :: Int
+  { logName :: String
+  , logLevel :: Word
+    -- Formula to game translation
   , pruneGame :: Bool
   , rulesDeduction :: Bool
   , rulesSaturation :: Bool
@@ -31,34 +15,58 @@ data Config = Config
   , rulesUnsatChecks :: Bool
   , rulesDeductionPrecise :: Bool
   , propagationLevel :: Int
+    -- Game solving
+  , accelerate :: Bool
+  , accelerateObjective :: Bool
+  , ufAcceleration :: Bool
+  , extendAcceleration :: Bool
+  -- ^ if this is set, depending if is set ufAcceleration, we nest or use chc 
+  , invariantIterations :: Int
+  , manhattenTermCount :: Int
+    -- Synthesis
+  , generateProgram :: Bool
+    -- External tools
+  , z3cmd :: String
+  , ltl2tgba :: String
+  , muvalScript :: String
+  , chcMaxScript :: String
+    -- Fixed constants
+  , muvalTimeOut :: Int
+  , chcMaxTimeOut :: Int
+  , chcTimeout :: Int
   }
 
 defaultConfig :: Config
 defaultConfig =
   Config
-    { logging = True
-    , logName = "[Issy]"
-    , smtQueryLogging = False
-    , accelerate = True
-    , nestAcceleration = False
-    , ufAcceleration = False
-    , geomCHCAcceleration = False
-    , invariantIterations = 3
-    , manhattenTermCount = 2
-    , generateProgram = False
-    , ltl2tgba = "ltl2tgba"
+    { logName = "[Issy]"
+    , logLevel = 1
+    -- Formula to game translation
     , pruneGame = False
-    , rulesDeduction = True
     , rulesSaturation = True
     , rulesSubsitution = True
     , rulesUnsatChecks = True
-    , rulesDeductionPrecise = True
-    , muvalScript = "call-muval.sh"
-    , muvalTimeOut = 5
-    , chcMaxScript = "call-maxsat.sh"
-    , chcMaxTimeOut = 15
-    , chcTimeout = 10
+    , rulesDeduction = True
+    , rulesDeductionPrecise = False
     , propagationLevel = 2
+    -- Game solving
+    , accelerate = True
+    , accelerateObjective = False
+    , ufAcceleration = False
+    , extendAcceleration = False
+    , invariantIterations = 3
+    , manhattenTermCount = 2
+    -- Synthesis
+    , generateProgram = False
+    -- External tools
+    , z3cmd = "z3"
+    , ltl2tgba = "ltl2tgba"
+    , muvalScript = "call-muval.sh"
+    , chcMaxScript = "call-maxsat.sh"
+    -- Constants
+    , chcTimeout = 10
+    , muvalTimeOut = 5
+    , chcMaxTimeOut = 15
     }
 
 setName :: String -> Config -> Config

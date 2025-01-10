@@ -18,7 +18,7 @@ import Issy.Base.SymbolicState (SymSt, get, set)
 import qualified Issy.Base.SymbolicState as SymSt
 import Issy.Base.Variables (Variables)
 import qualified Issy.Base.Variables as Vars
-import Issy.Config (Config, geomCHCAcceleration, invariantIterations, manhattenTermCount, setName)
+import Issy.Config (Config, extendAcceleration, invariantIterations, manhattenTermCount, setName)
 import qualified Issy.Logic.CHC as CHC
 import Issy.Logic.FOL (Sort, Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
@@ -65,7 +65,7 @@ accelReach conf limit player arena loc reach = do
           pure (conc, prog)
         Left overApprox -> do
           lg conf ["Invariant iteration failed"]
-          if geomCHCAcceleration conf
+          if extendAcceleration conf
             then do
               lg conf ["MaxCHC invariant computation"]
               invRes <-

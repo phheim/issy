@@ -8,7 +8,6 @@ import Control.Monad (when)
 import Data.Bifunctor (second)
 import System.Environment (getArgs)
 import System.Exit (die, exitSuccess)
-import Text.Read (readMaybe)
 
 import Compiler
 import Issy
@@ -163,9 +162,10 @@ configParser = go defaultConfig
       \case
         [] -> pure cfg
         -- Logging
-        "--quiet":ar -> go (cfg {logging = False}) ar
-        "--info":ar -> go (cfg {logging = True, smtQueryLogging = False}) ar
-        "--verbose":ar -> go (cfg {logging = True, smtQueryLogging = True}) ar
+        "--quiet":ar -> go (cfg {logLevel = 0}) ar
+        "--info":ar -> go (cfg {logLevel = 1}) ar
+        "--detailed":ar -> go (cfg {logLevel = 2}) ar
+        "--verbose":ar -> go (cfg {logLevel = 3}) ar
         -- Formula translation
         "--pruning":arg:ar ->
           case arg of
@@ -198,39 +198,29 @@ configParser = go defaultConfig
                    })
                 ar
             _ -> Left $ "invalid pruning level: " ++ arg
-        "--muval-caller":arg:ar -> go (cfg {muvalScript = arg}) ar
-        "--muval-timeout":ar -> do
-          (k, ar) <- readNumber ar
-          go (cfg {muvalTimeOut = k}) ar
-        "--chcmax-caller":arg:ar -> go (cfg {chcMaxScript = arg}) ar
-        "--chcmax-timeout":ar -> do
-          (k, ar) <- readNumber ar
-          go (cfg {chcMaxTimeOut = k}) ar
         -- Game solving
         "--accel":arg:ar ->
           case arg of
             "no" -> go (cfg {accelerate = False}) ar
-            "geom" ->
-              go (cfg {accelerate = True, ufAcceleration = False, geomCHCAcceleration = False}) ar
-            "geom-chc" ->
-              go (cfg {accelerate = True, ufAcceleration = False, geomCHCAcceleration = True}) ar
-            "unint" ->
-              go (cfg {accelerate = True, ufAcceleration = True, nestAcceleration = False}) ar
-            "unint-nest" ->
-              go (cfg {accelerate = True, ufAcceleration = True, nestAcceleration = True}) ar
+            "attr" -> go (cfg {accelerate = True, accelerateObjective = False}) ar
+            "full" -> go (cfg {accelerate = True, accelerateObjective = True}) ar
             _ -> Left $ "found invalid acceleration mode: " ++ arg
+        "--accel-attr":arg:ar ->
+          case arg of
+            "geom" -> go (cfg {ufAcceleration = False, extendAcceleration = False}) ar
+            "geom-chc" -> go (cfg {ufAcceleration = False, extendAcceleration = True}) ar
+            "unint" -> go (cfg {ufAcceleration = True, extendAcceleration = False}) ar
+            "unint-nest" -> go (cfg {ufAcceleration = True, extendAcceleration = True}) ar
+            _ -> Left $ "found invalid attractor acceleration mode: " ++ arg
+        "--accel-difficulty":_ -> Left "'--accel-difficulty' not implemented yet!"
         -- Synthesis
         "--synt":sr -> go (cfg {generateProgram = True}) sr
+        -- External tools
+        "--caller-z3":arg:ar -> go (cfg {z3cmd = arg}) ar
+        "--caller-aut":arg:ar -> go (cfg {ltl2tgba = arg}) ar
+        "--caller-muval":arg:ar -> go (cfg {muvalScript = arg}) ar
+        "--caller-chcmx":arg:ar -> go (cfg {chcMaxScript = arg}) ar
         s:_ -> Left $ "found invalid argument: " ++ s
-    --
-    readNumber :: [String] -> Either String (Int, [String])
-    readNumber =
-      \case
-        [] -> Left "expected number after last argument"
-        a:ar ->
-          case readMaybe a of
-            Nothing -> Left $ "expected number, found " ++ a
-            Just k -> Right (k, ar)
 
 ---
 -- Help descriptions
@@ -273,9 +263,10 @@ help =
   , "   --encode-muclp : encode a RPG spec to MuCLP used by 'muval'"
   , ""
   , " Log level:"
-  , "   --quiet   : no logging at all"
-  , "   --info    : enable standard log messages (default)"
-  , "   --verbose : log almost everything, including SMT queries"
+  , "   --quiet    : no logging at all"
+  , "   --info     : enable standard log messages (default)"
+  , "   --detailed : enable detailed log messages including sub-steps"
+  , "   --verbose  : log almost everything, including SMT queries"
   , ""
   , " Formula translation:"
   , "   --pruning LEVEL"
@@ -284,20 +275,42 @@ help =
   , "         2 : monitor based pruning with deduction rules and normal propagation"
   , "         3 : monitor based pruning with precise deduction and high propagation"
   , ""
-  , "   --muval-caller PATH     : path to a script that calls MuVal, it takes a"
-  , "                             a timeout as argument and reads its input from STDIN"
-  , "   --chcmax-caller PATH    : path to a script that calls the coar CHCMax solver"
-  , "   --muval-timeout INT     : timeout for MuVal in seconds"
-  , "   --chcmax-timeout INT    : timeout for the CHCMax solver in seconds"
-  , ""
   , " Game solving:"
   , "   --accel TYPE"
-  , "       no         : acceleration disabled"
+  , "       no   : acceleration disabled"
+  , "       attr : enable only attractor acceleration (default)"
+  , "       full : enable additionally Büchi and parity acceleration"
+  , ""
+  , "   --accel-attr TYPE"
   , "       geom       : geometric acceleration with invariant iteration (default)"
   , "       geom-chc   : geometric acceleration with chc invariant computation"
   , "       unint      : acceleration with uninterpreted lemmas"
   , "       unint-nest : acceleration with uninterpreted lemmas and nesting"
   , ""
+  , "   --accel-difficulty TYPE"
+  , "       easy   : stick to very local acceleration with simple arguments"
+  , "       medium : go to elaborated accleration argument over time but stay reasonable (default)"
+  , "       hard   : use everything that is possible, this will create signifcant overhead"
+  , ""
   , " Synthesis:"
   , "   --synt         : generate program if spec is realizable (default: disabled)"
+  , ""
+  , " External tools:"
+  , "   When some of these tools are needed depends on the other options. Note that"
+  , "   they are NEVER needed for COMPILATION ONLY with --compile"
+  , ""
+  , "   --caller-z3 CMD    : path or command for z3"
+  , "                          needed : always"
+  , "                          default: 'z3'"
+  , "   --caller-aut CMD   : path or command for Spot's ltl2tgba"
+  , "                          needed : if temporal formula appear in the specification"
+  , "                          default: 'ltl2tgba'"
+  , "   --caller-muval CMD : path or command that calls coars MuVal with a timeout"
+  , "                        as argument and the input on STDIN"
+  , "                          needed : for --pruning 2 and --pruning 3"
+  , "                          default: 'call-muval.sh'"
+  , "   --caller-chcmx CMD : path or command that calls a moddified version of coars"
+  , "                        CHCMax with a timeout as argument and the input on STDIN"
+  , "                          needed : for --pruning 3 and --accel geom-chc"
+  , "                          default: 'call-maxsat.sh'"
   ]

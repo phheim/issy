@@ -22,7 +22,7 @@ module Issy.Logic.SMT
 import Data.Map ((!?))
 import qualified Data.Set as Set
 
-import Issy.Config (Config, smtQueryLogging)
+import Issy.Config (Config, z3cmd)
 import Issy.Logic.FOL
 import Issy.Parsers.SMTLib
 import Issy.Parsers.SMTLibLexer
@@ -47,16 +47,10 @@ z3Simplify =
   ]
 
 --  , "nnf"
--- TODO: Move to log
-ifLog :: Config -> String -> String -> IO ()
-ifLog cfg typ query
-  | smtQueryLogging cfg = lg cfg [typ, query]
-  | otherwise = return ()
-
 callz3 :: Config -> Maybe Int -> String -> (String -> Maybe a) -> IO (Maybe a)
 callz3 cfg to query parse = do
-  ifLog cfg "z3 query:" query
-  res <- runTO to "z3" ["-smt2", "-in"] query
+  lgv cfg ["z3 query:", query]
+  res <- runTO to (z3cmd cfg) ["-smt2", "-in"] query
   case res of
     Nothing -> pure Nothing
     Just res ->

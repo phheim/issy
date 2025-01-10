@@ -2,6 +2,8 @@
 
 module Issy.Utils.Logging
   ( lg
+  , lgd
+  , lgv
   , strS
   , strM
   , strL
@@ -16,7 +18,7 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import System.IO (hPutStr, stderr)
 
-import Issy.Config (Config, logName, logging)
+import Issy.Config (Config, logLevel, logName)
 
 inbetween :: a -> [a] -> [a]
 inbetween sep =
@@ -41,8 +43,17 @@ strM :: Ord k => (k -> String) -> (a -> String) -> Map k a -> String
 strM strk stra mp =
   "{" ++ concat (inbetween ", " ((\(k, a) -> strk k ++ "->" ++ stra a) <$> Map.toList mp)) ++ "}"
 
-lg :: Config -> [String] -> IO ()
-lg cfg msgs =
-  when (logging cfg) $ do
+lgOn :: Word -> Config -> [String] -> IO ()
+lgOn min cfg msgs =
+  when (logLevel cfg >= min) $ do
     let msgLines = filter (not . null) $ lines $ concatMap (++ " ") msgs ++ "\n"
     hPutStr stderr $ unlines $ map ((logName cfg ++ " ") ++) msgLines
+
+lg :: Config -> [String] -> IO ()
+lg = lgOn 1
+
+lgd :: Config -> [String] -> IO ()
+lgd = lgOn 2
+
+lgv :: Config -> [String] -> IO ()
+lgv = lgOn 3
