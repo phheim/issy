@@ -35,22 +35,22 @@ main = do
     (Compile, _) -> die "invalid arguments: can only compile issy format"
     -- Printing
     (Print, LowLevel) -> do
-      spec <- liftErr $ parseIssyFormat input
+      spec <- liftErr $ parseLLIssyFormat input
       checkSpecification cfg spec >>= liftErr
-      putStrLn $ printIssyFormat spec
+      putStrLn $ printLLIssyFormat spec
     (Print, RPG) -> do
       game <- liftErr $ parseRPG input
       putStrLn $ printRPG game
     (Print, _) -> die "invalid arguments: can only print low-level format and rpg-format"
     -- Game transformation
     (ToGame, LowLevel) -> do
-      spec <- liftErr $ parseIssyFormat input
+      spec <- liftErr $ parseLLIssyFormat input
       checkSpecification cfg spec >>= liftErr
       game <- specToSG cfg spec
       putStrLn $ printSG game
     (ToGame, HighLevel) -> do
       input <- liftErr $ compile input
-      spec <- liftErr $ parseIssyFormat input
+      spec <- liftErr $ parseLLIssyFormat input
       checkSpecification cfg spec >>= liftErr
       game <- specToSG cfg spec
       putStrLn $ printSG game
@@ -63,13 +63,13 @@ main = do
       putStrLn $ printRPG game
     -- Solving
     (Solve, LowLevel) -> do
-      spec <- liftErr $ parseIssyFormat input
+      spec <- liftErr $ parseLLIssyFormat input
       checkSpecification cfg spec >>= liftErr
       game <- specToSG cfg spec
       solve cfg (fromSG game)
     (Solve, HighLevel) -> do
       input <- liftErr $ compile input
-      spec <- liftErr $ parseIssyFormat input
+      spec <- liftErr $ parseLLIssyFormat input
       checkSpecification cfg spec >>= liftErr
       game <- specToSG cfg spec
       solve cfg (fromSG game)

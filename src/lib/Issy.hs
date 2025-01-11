@@ -1,20 +1,26 @@
 module Issy
   ( Config(..)
   , defaultConfig
-  , solve
+  , -- Solving
+    solve
   , fromRPG
   , fromSG
-  , tslToRPG
+  , -- Translation
+    tslToRPG
   , specToSG
-  , printIssyFormat
+  , -- Printing
+    printLLIssyFormat
   , printRPG
   , printSG
-  , parseRPG
+  , -- Parsing
+    parseRPG
   , parseTSL
-  , parseIssyFormat
-  , rpgToMuCLP
+  , parseLLIssyFormat
+  , -- Sanitizing
+    checkSpecification
+  , -- Encoding
+    rpgToMuCLP
   , rpgToTSLT
-  , checkSpecification
   ) where
 
 -- Config
@@ -25,12 +31,12 @@ import Issy.Extractors.MuCLP (rpgToMuCLP)
 import Issy.Extractors.TSLT (rpgToTSLT)
 
 -- Parsers 
-import Issy.Parsers.IssyFormat (parseIssyFormat)
+import Issy.Parsers.LLIssyFormat (parseLLIssyFormat)
 import Issy.Parsers.RPG (parseRPG)
 import Issy.Parsers.TSLMT (parseTSL)
 
 -- Printers
-import Issy.Printers.IssyFormat (printIssyFormat)
+import Issy.Printers.LLIssyFormat (printLLIssyFormat)
 import Issy.Printers.RPG (printRPG)
 import Issy.Printers.SymbolicGame (printSG)
 

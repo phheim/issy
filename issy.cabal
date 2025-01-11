@@ -48,13 +48,13 @@ library
     , Issy.Monitor.Rules
     , Issy.Monitor.State
     , Issy.Monitor.Successors
-    , Issy.Parsers.IssyFormat
+    , Issy.Parsers.LLIssyFormat
     , Issy.Parsers.RPG
     , Issy.Parsers.SExpression
     , Issy.Parsers.SMTLib
     , Issy.Parsers.SMTLibLexer
     , Issy.Parsers.TSLMT
-    , Issy.Printers.IssyFormat
+    , Issy.Printers.LLIssyFormat
     , Issy.Printers.RPG
     , Issy.Printers.SymbolicGame
     , Issy.Printers.SMTLib

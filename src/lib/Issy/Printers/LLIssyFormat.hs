@@ -1,7 +1,7 @@
 {-# LANGUAGE LambdaCase #-}
 
-module Issy.Printers.IssyFormat
-  ( printIssyFormat
+module Issy.Printers.LLIssyFormat
+  ( printLLIssyFormat
   ) where
 
 import Data.Map.Strict ((!))
@@ -20,8 +20,8 @@ import Issy.Specification (Specification)
 import qualified Issy.Specification as Spec
 import qualified Issy.SymbolicArena as SG
 
-printIssyFormat :: Specification -> String
-printIssyFormat spec =
+printLLIssyFormat :: Specification -> String
+printLLIssyFormat spec =
   ps
     [ printVars (Spec.variables spec)
     , mps printFSpec (Spec.formulas spec)

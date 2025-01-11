@@ -1,7 +1,7 @@
 {-# LANGUAGE LambdaCase #-}
 
-module Issy.Parsers.IssyFormat
-  ( parseIssyFormat
+module Issy.Parsers.LLIssyFormat
+  ( parseLLIssyFormat
   ) where
 
 import Control.Monad (foldM, unless, when)
@@ -29,8 +29,8 @@ import qualified Issy.SymbolicArena as SG
 --
 -- Main method
 --
-parseIssyFormat :: String -> Either String Specification
-parseIssyFormat input = do
+parseLLIssyFormat :: String -> Either String Specification
+parseLLIssyFormat input = do
   sexpr <- parse input
   case sexpr of
     SPar _ [svars, SPar _ sforms, SPar _ sgames] -> do
