@@ -62,7 +62,10 @@ selectInv arena locs =
 solveReach :: Config -> Arena -> Set Loc -> Loc -> IO (Bool, CFG)
 solveReach cfg arena reach init = do
   lg cfg ["Game type reachability"]
-  (a, prog) <- attractorEx cfg Sys arena $ selectInv arena reach
+  let stopCheck l st
+        | l == init = valid cfg $ inv arena init `impl` (st `get` init)
+        | otherwise = pure False
+  (a, prog) <- attractorEx cfg Sys arena (Just stopCheck) $ selectInv arena reach
   res <- valid cfg $ inv arena init `impl` (a `get` init)
   lg cfg ["Game is realizable? ", show res]
   if res && generateProgram cfg
@@ -79,7 +82,10 @@ solveSafety :: Config -> Arena -> Set Loc -> Loc -> IO (Bool, CFG)
 solveSafety cfg arena safes init = do
   lg cfg ["Game type safety"]
   let envGoal = selectInv arena $ locations arena `Set.difference` safes
-  a <- attractor cfg Env arena envGoal
+  let stopCheck l st
+        | l == init = sat cfg (andf [inv arena init, st `get` init])
+        | otherwise = pure False
+  a <- attractor cfg Env arena (Just stopCheck) envGoal
   lg cfg ["Unsafe states are", strSt arena a]
   lg cfg ["Initial formula is", smtLib2 (a `get` init)]
   res <- not <$> sat cfg (andf [inv arena init, a `get` init])
@@ -102,11 +108,11 @@ iterBuechi cfg player arena accept init = iter (selectInv arena accept) (0 :: Wo
     iter fset i = do
       lg cfg ["Iteration", show i]
       lg cfg ["F_i =", strSt arena fset]
-      bset <- attractor cfg player arena fset
+      bset <- attractor cfg player arena noCheck fset
       lg cfg ["B_i =", strSt arena bset]
       cset <- cpreS cfg player arena bset
       lg cfg ["C_i =", strSt arena cset]
-      wset <- attractor cfg (opponent player) arena $ SymSt.map neg cset
+      wset <- attractor cfg (opponent player) arena noCheck $ SymSt.map neg cset
       lg cfg ["W_i+1 =", strSt arena wset]
       fset' <- SymSt.simplify cfg $ fset `SymSt.difference` wset
       lg cfg ["F_i+1 =", strSt arena fset']
@@ -138,7 +144,7 @@ solveBuechi cfg arena accepts init = do
   lg cfg ["Game is realizable? ", show res]
   if res && generateProgram cfg
     then do
-      (attr, prog) <- attractorEx cfg Sys arena fset
+      (attr, prog) <- attractorEx cfg Sys arena noCheck fset
       prog <- pure $ CFG.redirectGoal arena attr prog
       prog <- pure $ CFG.setInitialCFG prog init
       return (True, prog)
@@ -155,8 +161,8 @@ solveCoBuechi cfg arena stays init = do
   lg cfg ["Game is realizable? ", show res]
   if res && generateProgram cfg
     then do
-      safeSt <- SymSt.map neg <$> attractor cfg Env arena (selectInv arena rejects)
-      (_, prog) <- attractorEx cfg Sys arena $ SymSt.map neg safeSt
+      safeSt <- SymSt.map neg <$> attractor cfg Env arena noCheck (selectInv arena rejects)
+      (_, prog) <- attractorEx cfg Sys arena noCheck $ SymSt.map neg safeSt
       prog <- pure $ CFG.redirectGoal arena safeSt prog
       prog <- pure $ CFG.setInitialCFG prog init
       return (True, prog)
@@ -209,7 +215,7 @@ solveParity cfg arena colors init = do
         lg cfg ["Parity on", strSt arena full]
         lg cfg ["Parity color", show color]
         lg cfg ["Parity target", strSt arena targ]
-        aset <- attractor cfg player arena targ
+        aset <- attractor cfg player arena noCheck targ
         eqiv <- SymSt.implies cfg full aset
         if eqiv
           then do
@@ -225,7 +231,7 @@ solveParity cfg arena colors init = do
                 lg cfg ["Parity return 1"]
                 pure $ mkPlSet player (full, emptySt arena)
               else do
-                remove <- attractor cfg opp arena winOp'
+                remove <- attractor cfg opp arena noCheck winOp'
                 arena'' <- removeFromGame remove arena
                 lg cfg ["Parity Recurse 2"]
                 winPl'' <- playerSet player <$> zielonka arena''
