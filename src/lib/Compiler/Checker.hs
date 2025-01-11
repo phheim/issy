@@ -4,5 +4,6 @@ module Compiler.Checker
 
 import Compiler.Base
 
-check :: AstSpec -> PRes ()
-check = const $ pure () -- TODO IMPLEMENT
+-- TODO IMPLEMENT
+check :: AstSpec -> PRes AstSpec
+check = Right

@@ -17,8 +17,7 @@ TYPE     : 'int' | 'bool' | 'real'
 ```
 LOGICDEF : 'formula' '{' LOGICSTM*  '}'
 LOGICSTM : ('assert' | 'assume') RPLTL
-RPLTL    :  GPRED | CONST | ID['''] | '(' RPLTL ')' | UOP RPLTL | RPLTL BOP RPLTL 
-CONST    : 'true' | 'false'
+RPLTL    : ATOM | '(' RPLTL ')' | UOP RPLTL | RPLTL BOP RPLTL 
 UOP      : '!' | 'F' | 'X' | 'G'
 BOP      : '&&' | '||' | '->' | '<->' | 'U' | 'W' | 'R'
 ```
@@ -32,8 +31,7 @@ WINCOND  : 'Safety' | 'Reachability' | 'Buechi' | 'CoBuechi' | 'ParityMaxOdd'
 LOCDEF   : 'loc' ID [NAT] ['with' TERM]
 TRANSDEF : 'from' ID 'to' ID 'with' TERM
 
-TERM     : GPRED | CONST | ID['''] | '(' TERM ')' | UOP TERM | TERM BOP TERM 
-CONST    : 'true'  | 'false'
+TERM     : ATOM | '(' TERM ')' | UOP TERM | TERM BOP TERM 
 UOP      : '!' 
 BOP      : '&&' | '||' | '->' | '<->'
 ```
@@ -45,6 +43,8 @@ with precedence (from high to low):
 ## Ground Predicates
 
 ```
+ATOM    : GPRED | BCONST | ID['''] | 'havoc' '('ID* ')' | 'keep' '(' ID* ')'
+BCONST  : 'true'  | 'false'
 GPRED   : '[' GROUND ']'
 GROUND  : CONST | ID['''] | '(' GROUND ')' | GUOP GROUND | GROUND GBOP GROUND
 CONST   : NAT   | RAT

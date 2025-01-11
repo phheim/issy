@@ -80,13 +80,7 @@ writeTrans defs =
 writeFormula :: Defs -> AstTF -> String
 writeFormula defs =
   \case
-    AFGround pred -> sexpr ["ap", writeGround defs pred]
-    AFBool True -> "true"
-    AFBool False -> "false"
-    AFVar name ->
-      case defs !? name of
-        Nothing -> sexpr ["ap", changeName name]
-        Just t -> writeFormula (Map.delete name defs) (termToTF t)
+    AFAtom atom -> writeAtom (\ap -> sexpr ["ap", ap]) defs atom
     AFUexp (UOP op) f ->
       let sop =
             case op of
@@ -115,13 +109,7 @@ writeFormula defs =
 writeTerm :: Defs -> AstTerm -> String
 writeTerm defs =
   \case
-    ATGround pred -> writeGround defs pred
-    ATBool True -> "true"
-    ATBool False -> "false"
-    ATVar name ->
-      case defs !? name of
-        Nothing -> changeName name
-        Just t -> writeTerm (Map.delete name defs) t
+    ATAtom atom -> writeAtom id defs atom
     ATUexp (UOP "!") t -> sexpr ["not", writeTerm defs t]
     ATUexp _ _ -> error "assert: this should have been already checked!"
     ATBexp (BOP op) t1 t2 ->
@@ -135,6 +123,17 @@ writeTerm defs =
             "<->" -> sexpr ["and", sexpr ["=>", s1, s2], sexpr ["=>", s1, s2]]
             _ -> error "assert: this should have been already checked!"
 
+writeAtom :: (String -> String) -> Defs -> AstAtom -> String
+writeAtom pref defs =
+  \case
+    AAGround pred -> pref $ writeGround defs pred
+    AABool True -> "true"
+    AABool False -> "false"
+    AAVar name ->
+      case defs !? name of
+        Nothing -> pref $ changeName name
+        Just t -> writeTerm (Map.delete name defs) t
+
 writeGround :: Defs -> AstGround -> String
 writeGround defs =
   \case
@@ -142,7 +141,7 @@ writeGround defs =
     AConstReal n -> sexpr [show (numerator n), "/", show (denominator n)]
     AGVar name ->
       case defs !? name of
-        Just (ATGround pred) -> writeGround (Map.delete name defs) pred
+        Just (ATAtom (AAGround pred)) -> writeGround (Map.delete name defs) pred
         _ -> changeName name
     AGUexp (UOP "-") t -> sexpr ["-", "0", writeGround defs t]
     AGUexp (UOP "abs") t -> sexpr ["abs", writeGround defs t]

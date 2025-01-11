@@ -11,5 +11,5 @@ compile :: String -> Either String String
 compile input = do
   tokens <- tokenize input
   ast <- parse tokens
-  check ast
+  ast <- check ast
   Right $ write ast

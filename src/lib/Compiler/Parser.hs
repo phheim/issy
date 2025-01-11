@@ -111,7 +111,7 @@ parseLoc ts = do
   (term, ts) <-
     if str == "with"
       then parseTerm (consume ts)
-      else pure (ATBool True, ts)
+      else pure (ATAtom (AABool True), ts)
   pure (id, num, term, ts)
 
 parseTrans :: [Token] -> PRes (String, String, AstTerm, [Token])
@@ -167,14 +167,7 @@ parseRPLTL :: [Token] -> PRes (AstTF, [Token])
 parseRPLTL =
   parseOps
     pars
-    (\t ts ->
-       case tval t of
-         "true" -> pure (AFBool True, ts)
-         "false" -> pure (AFBool False, ts)
-         "[" -> apply1 AFGround (parseGround (t : ts))
-         name -> do
-           check isId name (tpos t) "identifier"
-           pure (AFVar name, ts))
+    (\t -> apply1 AFAtom . parseAtom t)
     (unPred (AFUexp . UOP) [(["!", "X", "G", "F"], 12)])
     (binPred
        (AFBexp . BOP)
@@ -191,17 +184,20 @@ parseTerm :: [Token] -> PRes (AstTerm, [Token])
 parseTerm =
   parseOps
     pars
-    (\t ts ->
-       case tval t of
-         "true" -> pure (ATBool True, ts)
-         "false" -> pure (ATBool False, ts)
-         "[" -> apply1 ATGround (parseGround (t : ts))
-         name -> do
-           check isId name (tpos t) "identifier"
-           pure (ATVar name, ts))
+    (\t -> apply1 ATAtom . parseAtom t)
     (unPred (ATUexp . UOP) [(["!"], 8)])
     (binPred (ATBexp . BOP) [(["<->"], 1, 0), (["<->"], 3, 2), (["||"], 4, 5), (["&&"], 6, 7)])
     tokenPos
+
+parseAtom :: Token -> [Token] -> PRes (AstAtom, [Token])
+parseAtom t ts =
+  case tval t of
+    "true" -> pure (AABool True, ts)
+    "false" -> pure (AABool False, ts)
+    "[" -> apply1 AAGround $ parseGround (t : ts)
+    name -> do
+      check isId name (tpos t) "identifier"
+      pure (AAVar name, ts)
 
 parseGround :: [Token] -> PRes (AstGround, [Token])
 parseGround ts = do

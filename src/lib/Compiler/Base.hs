@@ -33,6 +33,8 @@ isKeyword =
     , "Buechi"
     , "CoBuechi"
     , "ParityMaxOdd"
+    , "keep"
+    , "havoc"
     ]
 
 --
@@ -107,9 +109,7 @@ data AstLogicStm
   deriving (Eq, Ord, Show)
 
 data AstTF
-  = AFGround AstGround
-  | AFBool Bool
-  | AFVar String
+  = AFAtom AstAtom
   | AFUexp UOP AstTF
   | AFBexp BOP AstTF AstTF
   deriving (Eq, Ord, Show)
@@ -120,11 +120,15 @@ data AstGameStm
   deriving (Eq, Ord, Show)
 
 data AstTerm
-  = ATBool Bool
-  | ATVar String
-  | ATGround AstGround
+  = ATAtom AstAtom
   | ATBexp BOP AstTerm AstTerm
   | ATUexp UOP AstTerm
+  deriving (Eq, Ord, Show)
+
+data AstAtom
+  = AABool Bool
+  | AAGround AstGround
+  | AAVar String
   deriving (Eq, Ord, Show)
 
 data AstGround
@@ -146,8 +150,6 @@ newtype UOP =
 termToTF :: AstTerm -> AstTF
 termToTF =
   \case
-    ATBool b -> AFBool b
-    ATVar str -> AFVar str
-    ATGround pred -> AFGround pred
+    ATAtom atom -> AFAtom atom
     ATUexp op t -> AFUexp op (termToTF t)
     ATBexp op t1 t2 -> AFBexp op (termToTF t1) (termToTF t2)
