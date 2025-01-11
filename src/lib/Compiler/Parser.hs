@@ -195,9 +195,25 @@ parseAtom t ts =
     "true" -> pure (AABool True, ts)
     "false" -> pure (AABool False, ts)
     "[" -> apply1 AAGround $ parseGround (t : ts)
+    "keep" -> do
+      ts <- exact ts "("
+      (ids, ts) <- getIds [] ts
+      ts <- exact ts ")"
+      pure (AAKeep ids, ts)
+    "havoc" -> do
+      ts <- exact ts "("
+      (ids, ts) <- getIds [] ts
+      ts <- exact ts ")"
+      pure (AAHavoc ids, ts)
     name -> do
       check isId name (tpos t) "identifier"
       pure (AAVar name, ts)
+  where
+    getIds acc ts = do
+      (name, _) <- peak ts ") or id"
+      if isId name
+        then getIds (name : acc) (consume ts)
+        else pure (reverse acc, ts)
 
 parseGround :: [Token] -> PRes (AstGround, [Token])
 parseGround ts = do

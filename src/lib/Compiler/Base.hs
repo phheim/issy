@@ -1,5 +1,3 @@
-{-# LANGUAGE LambdaCase #-}
-
 module Compiler.Base where
 
 --
@@ -129,6 +127,8 @@ data AstAtom
   = AABool Bool
   | AAGround AstGround
   | AAVar String
+  | AAKeep [String]
+  | AAHavoc [String]
   deriving (Eq, Ord, Show)
 
 data AstGround
@@ -146,10 +146,3 @@ newtype BOP =
 newtype UOP =
   UOP String
   deriving (Eq, Ord, Show)
-
-termToTF :: AstTerm -> AstTF
-termToTF =
-  \case
-    ATAtom atom -> AFAtom atom
-    ATUexp op t -> AFUexp op (termToTF t)
-    ATBexp op t1 t2 -> AFBexp op (termToTF t1) (termToTF t2)

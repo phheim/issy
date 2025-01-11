@@ -16,15 +16,19 @@ write spec =
   let defs = getDefs spec
    in ps [chainWs writeVar spec, chainWs (writeLogicSpec defs) spec, chainWs (writeGame defs) spec]
 
-type Defs = Map String AstTerm
+data Defs = Defs
+  { vars :: Map String (AstIO, AstSort)
+  , macros :: Map String AstTerm
+  }
 
 getDefs :: [AstDef] -> Defs
-getDefs = go Map.empty
+getDefs = go $ Defs {vars = Map.empty, macros = Map.empty}
   where
     go acc =
       \case
         [] -> acc
-        AstDef name term:sr -> go (Map.insert name term acc) sr
+        AstDef name term:sr -> go (acc {macros = Map.insert name term (macros acc)}) sr
+        AstVar io sort name:sr -> go (acc {vars = Map.insert name (io, sort) (vars acc)}) sr
         _:sr -> go acc sr
 
 writeVar :: AstDef -> Maybe String
@@ -68,13 +72,13 @@ writeAsserts defs =
 writeLocs :: Defs -> AstGameStm -> Maybe String
 writeLocs defs =
   \case
-    ALoc name acc dom -> Just $ sexpr [name, show acc, writeTerm defs dom]
+    ALoc name acc dom -> Just $ sexpr [name, show acc, writeTerm id defs dom]
     _ -> Nothing
 
 writeTrans :: Defs -> AstGameStm -> Maybe String
 writeTrans defs =
   \case
-    ATrans l1 l2 delta -> Just $ sexpr [l1, l2, writeTerm defs delta]
+    ATrans l1 l2 delta -> Just $ sexpr [l1, l2, writeTerm id defs delta]
     _ -> Nothing
 
 writeFormula :: Defs -> AstTF -> String
@@ -106,15 +110,15 @@ writeFormula defs =
                 ["and", sexpr ["or", sexpr ["not", s1], s2], sexpr ["or", sexpr ["not", s2], s1]]
             _ -> error "assert: this should have been already checked!"
 
-writeTerm :: Defs -> AstTerm -> String
-writeTerm defs =
+writeTerm :: (String -> String) -> Defs -> AstTerm -> String
+writeTerm pref defs =
   \case
-    ATAtom atom -> writeAtom id defs atom
-    ATUexp (UOP "!") t -> sexpr ["not", writeTerm defs t]
+    ATAtom atom -> writeAtom pref defs atom
+    ATUexp (UOP "!") t -> sexpr ["not", writeTerm pref defs t]
     ATUexp _ _ -> error "assert: this should have been already checked!"
     ATBexp (BOP op) t1 t2 ->
-      let s1 = writeTerm defs t1
-          s2 = writeTerm defs t2
+      let s1 = writeTerm pref defs t1
+          s2 = writeTerm pref defs t2
           mk ops = sexpr [ops, s1, s2]
        in case op of
             "&&" -> mk "and"
@@ -130,9 +134,26 @@ writeAtom pref defs =
     AABool True -> "true"
     AABool False -> "false"
     AAVar name ->
-      case defs !? name of
+      case macros defs !? name of
         Nothing -> pref $ changeName name
-        Just t -> writeTerm (Map.delete name defs) t
+        Just t -> writeTerm pref (defs {macros = Map.delete name (macros defs)}) t
+    AAKeep ids -> writeTerm pref defs $ keepTerm ids
+    AAHavoc ids ->
+      writeTerm pref defs
+        $ keepTerm
+        $ filter (`notElem` ids)
+        $ Map.keys
+        $ Map.filter ((== AState) . fst)
+        $ vars defs
+
+keepTerm :: [String] -> AstTerm
+keepTerm =
+  \case
+    [] -> ATAtom $ AABool True
+    [x] -> keepVar x
+    x:xr -> ATBexp (BOP "&&") (keepVar x) (keepTerm xr)
+  where
+    keepVar x = ATAtom $ AAGround $ AGBexp (BOP "=") (AGVar x) (AGVar (x ++ "'"))
 
 writeGround :: Defs -> AstGround -> String
 writeGround defs =
@@ -140,8 +161,9 @@ writeGround defs =
     AConstInt n -> show n
     AConstReal n -> sexpr [show (numerator n), "/", show (denominator n)]
     AGVar name ->
-      case defs !? name of
-        Just (ATAtom (AAGround pred)) -> writeGround (Map.delete name defs) pred
+      case macros defs !? name of
+        Just (ATAtom (AAGround pred)) ->
+          writeGround (defs {macros = Map.delete name (macros defs)}) pred
         _ -> changeName name
     AGUexp (UOP "-") t -> sexpr ["-", "0", writeGround defs t]
     AGUexp (UOP "abs") t -> sexpr ["abs", writeGround defs t]
