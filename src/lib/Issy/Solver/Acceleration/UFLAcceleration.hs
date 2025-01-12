@@ -15,7 +15,7 @@ import qualified Issy.Base.Variables as Vars
 import Issy.Config (Config, extendAcceleration, setName)
 import Issy.Logic.FOL (Function, Symbol, Term(Func, Lambda, Quant, Var))
 import qualified Issy.Logic.FOL as FOL
-import Issy.Printers.SMTLib (smtLib2)
+import qualified Issy.Printers.SMTLib as SMTLib (toString)
 import Issy.Solver.Acceleration.Heuristics
 import Issy.Solver.Acceleration.LemmaFinding (Constraint, LemSyms(..), replaceLemma, resolve)
 import Issy.Solver.Acceleration.LoopScenario (loopScenario)
@@ -41,7 +41,7 @@ accelReach ctx limit p g l st = do
   (res, col) <- resolve ctx limit (vars g) cons f (lemmaSyms acst)
   cfg <- pure $ foldl (flip (\(l, li) -> CFG.mapCFG (replaceLemma (vars g) li l))) cfg col
   cfg <- pure $ CFG.setLemmas (Vars.stateVarL (vars g)) col cfg
-  lg ctx ["Acceleration resulted in", smtLib2 res]
+  lg ctx ["Acceleration resulted in", SMTLib.toString res]
   return (res, cfg)
 
 -------------------------------------------------------------------------------

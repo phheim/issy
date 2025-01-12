@@ -32,7 +32,7 @@ import qualified Issy.Monitor.Propagation as MP
 import qualified Issy.Monitor.Rules as MR
 import Issy.Monitor.State (falseSt, initSt, stateToString, trueSt)
 import Issy.Monitor.Successors (generateSuccessor)
-import Issy.Printers.SMTLib (smtLib2)
+import qualified Issy.Printers.SMTLib as SMTLib (toString)
 import Issy.Utils.Logging
 
 initializeTSL :: Config -> TSL.Spec -> IO Monitor
@@ -64,7 +64,7 @@ initializeRPLTL cfg spec = do
 initialize ::
      Config -> Bool -> MR.GlobalS -> Variables -> [Formula] -> [Formula] -> Set Term -> IO Monitor
 initialize cfg upd gls vars assumptions guarantees preds = do
-  lg cfg ["generate preds:", strS smtLib2 preds]
+  lg cfg ["generate preds:", strS SMTLib.toString preds]
   let initialLabel = initSt assumptions guarantees
   lg cfg ["initalize:", "raw", stateToString initialLabel]
   (initialLabel, gls) <- MR.applyRules cfg gls initialLabel

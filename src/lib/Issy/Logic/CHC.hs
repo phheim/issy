@@ -1,5 +1,7 @@
+---------------------------------------------------------------------------------------------------
 {-# LANGUAGE LambdaCase #-}
 
+---------------------------------------------------------------------------------------------------
 module Issy.Logic.CHC
   ( fromTerm
   , check
@@ -7,6 +9,7 @@ module Issy.Logic.CHC
   , computeFP
   ) where
 
+---------------------------------------------------------------------------------------------------
 import Data.Bifunctor (first)
 import Data.Char (isDigit)
 import Data.List (isPrefixOf)
@@ -16,18 +19,20 @@ import qualified Data.Set as Set
 import System.Process (readProcessWithExitCode)
 import Text.Read (readMaybe)
 
+---------------------------------------------------------------------------------------------------
 import Issy.Base.Variables (Variables)
 import qualified Issy.Base.Variables as Vars
 import Issy.Config (Config, chcMaxScript, chcMaxTimeOut, chcTimeout, z3cmd)
 import Issy.Logic.FOL (Sort(SBool, SInt), Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
-import Issy.Printers.SMTLib (s2Term, smtLib2)
-import Issy.Utils.Extra (firstLine)
+import qualified Issy.Printers.SMTLib as SMTLib
+import Issy.Utils.Extra (runTO)
 import Issy.Utils.Logging
 
----
+---------------------------------------------------------------------------------------------------
+-- Conversion
+---------------------------------------------------------------------------------------------------
 -- Translation from normal FOL formula to CHC from, is not complete!
----
 fromTerm :: Term -> [([Term], Term)]
 fromTerm term = go [] $ FOL.toNNF term
   where
@@ -42,9 +47,9 @@ fromTerm term = go [] $ FOL.toNNF term
         FOL.Func (FOL.PredefF "or") args:pr -> concatMap (\arg -> go (arg : pr) conc) args
         p:pr -> map (first (p :)) (go pr conc)
 
----
--- CHC solver calling, we use z3
---- 
+---------------------------------------------------------------------------------------------------
+-- CHC solving
+---------------------------------------------------------------------------------------------------
 check :: Config -> Symbol -> [Sort] -> [([Term], Term)] -> IO (Maybe Bool)
 check conf invPred sorts constraints = do
   let query = chcEncode invPred sorts constraints
@@ -54,7 +59,11 @@ chcEncode :: Symbol -> [Sort] -> [([Term], Term)] -> String
 chcEncode invPred sorts constr =
   unlines
     $ [ "(set-logic HORN)"
-      , "(declare-fun " ++ invPred ++ "(" ++ concatMap ((' ' :) . s2Term) sorts ++ " ) Bool)"
+      , "(declare-fun "
+          ++ invPred
+          ++ "("
+          ++ concatMap ((' ' :) . SMTLib.sortToString) sorts
+          ++ " ) Bool)"
       ]
         ++ map enc constr
         ++ ["(check-sat)"]
@@ -63,24 +72,23 @@ chcEncode invPred sorts constr =
     enc (prem, conc) =
       let implication = FOL.func "=>" [FOL.andf prem, conc]
           vars = Map.toList $ FOL.bindings implication
-          quantSig = concatMap (\(var, sort) -> "(" ++ var ++ " " ++ s2Term sort ++ ")") vars
-       in "(assert (forall (" ++ quantSig ++ ") " ++ smtLib2 implication ++ "))"
+          quantSig =
+            concatMap (\(var, sort) -> "(" ++ var ++ " " ++ SMTLib.sortToString sort ++ ")") vars
+       in "(assert (forall (" ++ quantSig ++ ") " ++ SMTLib.toString implication ++ "))"
 
--- TODO: use run TO
 callCHCSolver :: Config -> String -> IO (Maybe Bool)
 callCHCSolver conf query = do
-  lg conf ["CHC solver", "running"]
-  (_, stdout, _) <-
-    readProcessWithExitCode (z3cmd conf) ["-in", "-smt2", "-T:" ++ show (chcTimeout conf)] query
-  lg conf ["CHC solver", "terminated with", firstLine stdout]
-  case stdout of
-    's':'a':'t':_ -> pure $ Just True
-    'u':'n':'s':'a':'t':_ -> pure $ Just False
+  lgd conf ["CHC solver start running"]
+  res <- runTO (Just (chcTimeout conf)) (z3cmd conf) ["-in", "-smt2"] query
+  lgd conf ["CHC solver terminated"]
+  case res of
+    Just ('s':'a':'t':_) -> pure $ Just True
+    Just ('u':'n':'s':'a':'t':_) -> pure $ Just False
     _ -> pure Nothing
 
----
--- Compute MaxCHC
----
+---------------------------------------------------------------------------------------------------
+-- MaxCHC
+---------------------------------------------------------------------------------------------------
 computeMax :: Config -> Variables -> Symbol -> [Term] -> IO (Either String Term)
 computeMax config vars invName constraints
   | any (any ((/= SInt) . Vars.sortOf vars) . FOL.frees) constraints =
@@ -102,7 +110,7 @@ computeFP cfg vars fpPred init trans
         lg cfg ["CHCMax returned error:", err]
         pure Nothing
       Right term -> do
-        lg cfg ["CHCMax returned result:", smtLib2 term]
+        lg cfg ["CHCMax returned result:", SMTLib.toString term]
         pure (Just term)
 
 callCHCMax :: Config -> String -> IO String
@@ -117,10 +125,10 @@ encodeFP vars invName constraints =
       , "(declare-fun "
           ++ invName
           ++ "("
-          ++ concatMap ((" " ++) . s2Term . Vars.sortOf vars) (Vars.stateVarL vars)
+          ++ concatMap ((" " ++) . SMTLib.sortToString . Vars.sortOf vars) (Vars.stateVarL vars)
           ++ ") Bool)"
       ]
-        ++ map (\f -> "(assert " ++ smtLib2 f ++ ")") constraints
+        ++ map (\f -> "(assert " ++ SMTLib.toString f ++ ")") constraints
         ++ ["(check-sat)"]
 
 data FPExpr
@@ -259,3 +267,4 @@ parseFP vars fpPred sr =
         [] -> ""
         ':':'=':sr -> sr
         c:sr -> c : gotoAssign sr
+---------------------------------------------------------------------------------------------------

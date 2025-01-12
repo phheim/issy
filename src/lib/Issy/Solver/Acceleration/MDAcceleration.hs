@@ -23,7 +23,7 @@ import qualified Issy.Logic.CHC as CHC
 import Issy.Logic.FOL (Sort, Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.SMT as SMT
-import Issy.Printers.SMTLib (smtLib2)
+import qualified Issy.Printers.SMTLib as SMTLib (toString)
 import Issy.Solver.Acceleration.Heuristics
 import Issy.Solver.Acceleration.LoopScenario (loopScenario)
 import Issy.Solver.ControlFlowGraph (CFG)
@@ -42,7 +42,7 @@ accelReach conf limit player arena loc reach = do
   let prime = FOL.uniquePrefix "init_" $ usedSymbols arena
   -- 0. Compute loop sceneario
   (arena, loc, loc', reach, fixInv) <- loopScenario conf (Just (limit2size limit)) arena loc reach
-  lg conf ["Fixed invariant", smtLib2 fixInv]
+  lg conf ["Fixed invariant", SMTLib.toString fixInv]
   -- 1. Guess lemma
   lemma <- lemmaGuess conf prime (vars arena) (reach `get` loc)
   case lemma of
@@ -50,7 +50,13 @@ accelReach conf limit player arena loc reach = do
       lg conf ["Lemma guessing failed"]
       pure (FOL.false, CFG.empty)
     Just (base, step, conc) -> do
-      lg conf ["Lemma guessing succeded with", smtLib2 base, smtLib2 step, smtLib2 conc]
+      lg
+        conf
+        [ "Lemma guessing succeded with"
+        , SMTLib.toString base
+        , SMTLib.toString step
+        , SMTLib.toString conc
+        ]
       -- 1.5 Check base condition
       baseCond <-
         SMT.valid conf
@@ -61,7 +67,7 @@ accelReach conf limit player arena loc reach = do
       invRes <- tryFindInv conf prime player arena (step, conc) (loc, loc') fixInv reach
       case invRes of
         Right (conc, prog) -> do
-          lg conf ["Invariant iteration resulted in", smtLib2 conc]
+          lg conf ["Invariant iteration resulted in", SMTLib.toString conc]
           pure (conc, prog)
         Left overApprox -> do
           lg conf ["Invariant iteration failed"]
@@ -75,7 +81,7 @@ accelReach conf limit player arena loc reach = do
                   lg conf ["MaxCHC invariant computation failed with", err]
                   pure (FOL.false, CFG.empty)
                 Right (conc, prog) -> do
-                  lg conf ["MaxCHC invariant computation resulted in", smtLib2 conc]
+                  lg conf ["MaxCHC invariant computation resulted in", SMTLib.toString conc]
                   pure (conc, prog)
             else pure (FOL.false, CFG.empty)
 
@@ -97,12 +103,12 @@ tryFindInv conf prime player arena (step, conc) (loc, loc') fixInv reach = iter 
     iter cnt invar
       | cnt >= invariantIterations conf = pure $ Left invar
       | otherwise = do
-        lg conf ["Try invariant", smtLib2 invar]
+        lg conf ["Try invariant", SMTLib.toString invar]
         let reach' = set reach loc' $ FOL.orf [reach `get` loc, FOL.andf [step, invar]]
                             -- TODO: Build proper CFG
         let (stAcc, _) = iterA player arena reach' loc' CFG.empty
         let res = unprime prime $ stAcc `get` loc
-        res <- SMT.simplifyStrong conf res
+        res <- SMT.simplifyLight conf res
         let query = Vars.forallX (vars arena) $ FOL.andf [inv arena loc, conc, invar] `FOL.impl` res
         unless (null (FOL.frees query)) $ error "assert: found free variables in query"
         holds <- SMT.valid conf query
@@ -169,7 +175,7 @@ exactInv conf prime player arena (step, conc) (loc, loc') fixInv reach invApprox
 -------------------------------------------------------------------------------
 lemmaGuess :: Config -> Symbol -> Variables -> Term -> IO (Maybe (Term, Term, Term))
 lemmaGuess conf prime vars reach = do
-  lg conf ["Guess lemma on", smtLib2 reach]
+  lg conf ["Guess lemma on", SMTLib.toString reach]
   box <- mkBox conf vars reach
   pure
     $ if null box

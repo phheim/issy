@@ -32,7 +32,7 @@ import Issy.Config (Config)
 import Issy.Logic.FOL (Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.SMT as SMT
-import Issy.Printers.SMTLib (smtLib2)
+import qualified Issy.Printers.SMTLib as SMTLib (toString)
 import Issy.Solver.Acceleration.LemmaFinding (LemSyms(..), Lemma, prime)
 import Issy.Solver.GameInterface
 
@@ -289,4 +289,4 @@ printST =
     _ -> error "assert: dummies should not appear here anymore"
 
 printTerm :: Term -> String
-printTerm = smtLib2
+printTerm = SMTLib.toString

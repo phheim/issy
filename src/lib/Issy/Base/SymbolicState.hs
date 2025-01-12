@@ -28,7 +28,7 @@ import Issy.Config (Config)
 import Issy.Logic.FOL (Term)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.SMT as SMT (simplify, valid)
-import qualified Issy.Printers.SMTLib as SMTLib (smtLib2)
+import qualified Issy.Printers.SMTLib as SMTLib (toString)
 import Issy.Utils.Logging
 
 -------------------------------------------------------------------------------
@@ -76,4 +76,4 @@ map :: (Term -> Term) -> SymSt -> SymSt
 map mp (SymSt s) = SymSt (fmap mp s)
 
 toString :: (Loc -> String) -> SymSt -> String
-toString locToStr (SymSt s) = strM locToStr SMTLib.smtLib2 s
+toString locToStr (SymSt s) = strM locToStr SMTLib.toString s

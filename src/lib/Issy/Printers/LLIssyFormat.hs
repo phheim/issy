@@ -15,7 +15,7 @@ import qualified Issy.Base.Variables as Vars
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.RPLTL as RPLTL
 import qualified Issy.Logic.Temporal as TL
-import qualified Issy.Printers.SMTLib as SMTLib (smtLib2)
+import qualified Issy.Printers.SMTLib as SMTLib (toString)
 import Issy.Specification (Specification)
 import qualified Issy.Specification as Spec
 import qualified Issy.SymbolicArena as SG
@@ -123,7 +123,7 @@ printRank obj l =
       | otherwise = "0"
 
 printTerm :: FOL.Term -> String
-printTerm = SMTLib.smtLib2
+printTerm = SMTLib.toString
 
 mps :: (a -> String) -> [a] -> String
 mps f = ps . map f

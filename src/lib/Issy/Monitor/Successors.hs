@@ -31,7 +31,7 @@ import Issy.Monitor.State
   , toExpansionState
   )
 import qualified Issy.Monitor.State as M (State)
-import Issy.Printers.SMTLib (smtLib2)
+import qualified Issy.Printers.SMTLib as SMTLib (toString)
 import Issy.Utils.Extra
 import Issy.Utils.Logging
 
@@ -52,7 +52,7 @@ generateSuccessor cfg mon st assign = do
         case expansionCache mon !? (expState, assign) of
           Just tree -> pure (tree, mon)
           Nothing -> do
-            lg cfg ["Compute Expansion", stateName mon st, strL (strP smtLib2 show) assign]
+            lg cfg ["Compute Expansion", stateName mon st, strL (strP SMTLib.toString show) assign]
             tree <- computeExpansion cfg (hasUpdates mon) (predicates mon) expState assign
             pure
               (tree, mon {expansionCache = Map.insert (expState, assign) tree (expansionCache mon)})
@@ -104,8 +104,8 @@ computeBranching cfg hasUpd preds = go
           let query pol = polTerm (p, pol) : constr
           let stTrue = replaceSt (p, True) st
           let stFalse = replaceSt (p, False) st
-          lg cfg ["branch", "queryTrue", strL smtLib2 (query True)]
-          lg cfg ["branch", "queryFalse", strL smtLib2 (query False)]
+          lg cfg ["branch", "queryTrue", strL SMTLib.toString (query True)]
+          lg cfg ["branch", "queryFalse", strL SMTLib.toString (query False)]
           ifM (unsatC cfg (query True)) (go constr stFalse)
             $ ifM (unsatC cfg (query False)) (go constr stTrue)
             $ do
@@ -130,7 +130,7 @@ computeUpdates cfg preds constr = go []
     go choices st =
       case pickUpdSt st of
         Just (v, upd) -> do
-          lg cfg ["genUpdates:", "pick (", v, ":=", smtLib2 upd, ")"]
+          lg cfg ["genUpdates:", "pick (", v, ":=", SMTLib.toString upd, ")"]
           let rec pol = go ((pol, v, upd) : choices) $ setUpdSt (v, upd) pol st
           this <- rec True
           none <- rec False

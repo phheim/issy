@@ -19,8 +19,8 @@ import Issy.Base.Variables (Variables)
 import qualified Issy.Base.Variables as Vars
 import Issy.Config (Config, generateProgram, setName)
 import Issy.Logic.FOL
-import Issy.Logic.SMT
-import Issy.Printers.SMTLib (smtLib2)
+import qualified Issy.Logic.SMT as SMT
+import qualified Issy.Printers.SMTLib as SMTLib (toString)
 import Issy.Solver.Acceleration.Heuristics
 import Issy.Utils.Logging
 
@@ -216,11 +216,11 @@ resolveQE cfg limit vars cons f ls =
       query = exists meta (andf (f' : cons'))
    in do
         cfg <- pure $ setName "Resolve QE" cfg
-        lg cfg ["Try qelim on", smtLib2 query]
-        resQE <- simplifyTO cfg (Just (limit2to limit)) query
+        lg cfg ["Try qelim on", SMTLib.toString query]
+        resQE <- SMT.trySimplify cfg (Just (limit2to limit)) query
         case resQE of
           Just res -> do
-            lg cfg ["Qelim yielded", smtLib2 res]
+            lg cfg ["Qelim yielded", SMTLib.toString res]
             return (res, [])
           Nothing -> do
             lg cfg ["Qelim failed and try later"]
@@ -236,14 +236,15 @@ resolveBoth cfg limit vars cons f ls =
       query = exists (Set.toList meta) theta
    in do
         cfg <- pure $ setName "Resolve QE+SK" cfg
-        lg cfg ["Try Qelim on", smtLib2 query]
-        resQE <- simplifyTO cfg (Just (limit2to limit)) query
+        lg cfg ["Try Qelim on", SMTLib.toString query]
+        resQE <- SMT.trySimplify cfg (Just (limit2to limit)) query
         case resQE of
           Just res -> do
-            lg cfg ["Qelim yielded", smtLib2 res]
-            thetaSk <- fromMaybe (sk theta) <$> trySimplifyUF cfg (Just (limit2to limit)) (sk theta)
+            lg cfg ["Qelim yielded", SMTLib.toString res]
+            thetaSk <-
+              fromMaybe (sk theta) <$> SMT.trySimplifyUF cfg (Just (limit2to limit)) (sk theta)
             let querySk = Vars.forallX vars $ res `impl` thetaSk
-            resSAT <- satModelTO cfg (Just (limit2toextract limit)) querySk
+            resSAT <- SMT.trySatModel cfg (Just (limit2toextract limit)) querySk
             case resSAT of
               Nothing -> do
                 lg cfg ["Finding Model", "TO"]
@@ -252,7 +253,7 @@ resolveBoth cfg limit vars cons f ls =
                 lg cfg ["Finding Model", "UNSAT"]
                 return (false, [])
               Just (Just m) -> do
-                lg cfg ["Finding Model:", strM show smtLib2 (modelToMap m)]
+                lg cfg ["Finding Model:", strM show SMTLib.toString (modelToMap m)]
                 return (res, map (second (mapL (setModel m . sk))) col)
           Nothing -> do
             lg cfg ["Qelim failed and try later"]

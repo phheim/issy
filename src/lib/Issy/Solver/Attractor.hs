@@ -15,8 +15,8 @@ import qualified Issy.Base.SymbolicState as SymSt
 import Issy.Config (Config, accelerate, generateProgram, setName)
 import Issy.Logic.FOL (Term)
 import qualified Issy.Logic.FOL as FOL
-import Issy.Logic.SMT (sat, simplify, simplifyStrong, valid)
-import Issy.Printers.SMTLib (smtLib2)
+import qualified Issy.Logic.SMT as SMT
+import qualified Issy.Printers.SMTLib as SMTLib (toString)
 import Issy.Solver.Acceleration (accelReach, canAccel)
 import Issy.Solver.ControlFlowGraph (CFG)
 import qualified Issy.Solver.ControlFlowGraph as CFG
@@ -57,7 +57,7 @@ attractorEx cfg player arena stopCheck target = do
 --
 attractorFull :: Config -> Player -> Arena -> StopCheck -> SymSt -> IO (SymSt, CFG)
 attractorFull cfg player arena stopCheck target = do
-  satLocs <- Set.fromList . map fst <$> filterM (sat cfg . snd) (SymSt.toList target)
+  satLocs <- Set.fromList . map fst <$> filterM (SMT.sat cfg . snd) (SymSt.toList target)
   lg cfg ["Attractor for", show player, "from", strLocs satLocs, "to reach", strStA target]
   (res, prog) <-
     attr (noVisits arena) (OL.fromSet (predSet arena satLocs)) target (CFG.goalCFG target)
@@ -78,12 +78,12 @@ attractorFull cfg player arena stopCheck target = do
     attrStep vcnt open reach prog l = do
       vcnt <- pure $ visit l vcnt
       let old = reach `get` l
-      lg cfg ["Step in", locName arena l, "with", smtLib2 old]
+      lg cfg ["Step in", locName arena l, "with", SMTLib.toString old]
           -- Enforcable predecessor step
-      new <- simplifyStrong cfg $ FOL.orf [cpre player arena reach l, old]
-      lg cfg ["Compute new", smtLib2 new]
+      new <- SMT.simplifyHeavy cfg $ FOL.orf [cpre player arena reach l, old]
+      lg cfg ["Compute new", SMTLib.toString new]
           -- Check if this changed something in this location
-      unchanged <- valid cfg $ new `FOL.impl` old
+      unchanged <- SMT.valid cfg $ new `FOL.impl` old
       lg cfg ["which has changed?", show (not unchanged)]
       if unchanged
         then attr vcnt open reach prog
@@ -98,9 +98,9 @@ attractorFull cfg player arena stopCheck target = do
             then do
               lg cfg ["Attempt reachability acceleration"]
               (acc, progSub) <- accelReach cfg (visits l vcnt) player arena l reach
-              lg cfg ["Accleration formula", smtLib2 acc]
-              res <- simplify cfg $ FOL.orf [new, acc]
-              succ <- not <$> valid cfg (res `FOL.impl` new)
+              lg cfg ["Accleration formula", SMTLib.toString acc]
+              res <- SMT.simplify cfg $ FOL.orf [new, acc]
+              succ <- not <$> SMT.valid cfg (res `FOL.impl` new)
               lg cfg ["Accelerated:", show succ]
               if succ
                       -- Acceleration succeed

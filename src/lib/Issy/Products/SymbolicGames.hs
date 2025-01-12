@@ -6,7 +6,8 @@ import Data.Map.Strict ((!))
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 
-import Issy.Base.Locations as Locs
+import Issy.Base.Locations (Loc)
+import qualified Issy.Base.Locations as Locs
 import Issy.Base.Objectives (Objective(..), WinningCondition(..))
 import qualified Issy.Base.Objectives as Obj (mapWC)
 import qualified Issy.Logic.FOL as FOL

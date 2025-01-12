@@ -50,7 +50,7 @@ import qualified Issy.Logic.RPLTL as RPLTL
 import qualified Issy.Logic.TSLMT as TSL
 import qualified Issy.Logic.Temporal as TL
 
-import Issy.Printers.SMTLib (smtLib2)
+import qualified Issy.Printers.SMTLib as SMTLib (toString)
 
 -------------------------------------------------------------------------------
 -- Data Structures
@@ -79,11 +79,11 @@ formulaToString = go
         FTrue -> "true"
         FFalse -> "false"
         FPred pol pred
-          | pol -> smtLib2 pred
-          | otherwise -> "!" ++ smtLib2 pred
+          | pol -> SMTLib.toString pred
+          | otherwise -> "!" ++ SMTLib.toString pred
         FUpdate pol var upd
-          | pol -> "(" ++ var ++ ":=" ++ smtLib2 upd ++ ")"
-          | otherwise -> "!(" ++ var ++ ":=" ++ smtLib2 upd ++ ")"
+          | pol -> "(" ++ var ++ ":=" ++ SMTLib.toString upd ++ ")"
+          | otherwise -> "!(" ++ var ++ ":=" ++ SMTLib.toString upd ++ ")"
         FAnd fs -> "(AND" ++ concatMap ((' ' :) . go) fs ++ ")"
         FOr fs -> "(OR" ++ concatMap ((' ' :) . go) fs ++ ")"
         FNext f -> "(X " ++ go f ++ ")"

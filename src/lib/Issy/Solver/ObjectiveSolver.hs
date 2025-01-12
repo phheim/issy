@@ -23,7 +23,7 @@ import qualified Issy.Base.SymbolicState as SymSt
 import Issy.Config (Config, generateProgram, setName)
 import Issy.Logic.FOL
 import Issy.Logic.SMT (sat, valid)
-import Issy.Printers.SMTLib (smtLib2)
+import qualified Issy.Printers.SMTLib as SMTLib (toString)
 import Issy.Solver.Attractor
 import Issy.Solver.ControlFlowGraph (CFG)
 import qualified Issy.Solver.ControlFlowGraph as CFG
@@ -87,7 +87,7 @@ solveSafety cfg arena safes init = do
         | otherwise = pure False
   a <- attractor cfg Env arena (Just stopCheck) envGoal
   lg cfg ["Unsafe states are", strSt arena a]
-  lg cfg ["Initial formula is", smtLib2 (a `get` init)]
+  lg cfg ["Initial formula is", SMTLib.toString (a `get` init)]
   res <- not <$> sat cfg (andf [inv arena init, a `get` init])
   lg cfg ["Game is realizable? ", show res]
   if res && generateProgram cfg
@@ -140,7 +140,7 @@ solveBuechi cfg arena accepts init = do
   lg cfg ["Acceptings locations", strS (locName arena) accepts]
   (wenv, fset) <- iterBuechi cfg Sys arena accepts init
   res <- not <$> sat cfg (andf [inv arena init, wenv `get` init])
-  lg cfg ["Environment result in initial location", smtLib2 (wenv `get` init)]
+  lg cfg ["Environment result in initial location", SMTLib.toString (wenv `get` init)]
   lg cfg ["Game is realizable? ", show res]
   if res && generateProgram cfg
     then do
@@ -157,7 +157,7 @@ solveCoBuechi cfg arena stays init = do
   lg cfg ["Rejecting locations", strS (locName arena) rejects]
   (wsys, _) <- iterBuechi cfg Env arena rejects init
   res <- valid cfg $ inv arena init `impl` (wsys `get` init)
-  lg cfg ["Environment result in initial location", smtLib2 (wsys `get` init)]
+  lg cfg ["Environment result in initial location", SMTLib.toString (wsys `get` init)]
   lg cfg ["Game is realizable? ", show res]
   if res && generateProgram cfg
     then do

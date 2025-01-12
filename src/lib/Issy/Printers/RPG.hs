@@ -12,7 +12,7 @@ import qualified Issy.Base.Locations as Locs
 import Issy.Base.Objectives (Objective(..), WinningCondition(..))
 import qualified Issy.Base.Variables as Vars
 import Issy.Logic.FOL
-import Issy.Printers.SMTLib (smtLib2)
+import qualified Issy.Printers.SMTLib as SMTLib (toString)
 import Issy.RPG
 
 printSort :: Sort -> String
@@ -36,10 +36,10 @@ printTrans :: (Loc -> String) -> Transition -> String
 printTrans wl =
   \case
     TIf p tt tf ->
-      "if " ++ smtLib2 p ++ " then " ++ printTrans wl tt ++ " else " ++ printTrans wl tf
+      "if " ++ SMTLib.toString p ++ " then " ++ printTrans wl tt ++ " else " ++ printTrans wl tf
     TSys choices -> "sys( " ++ concatMap wSys choices ++ ")"
   where
-    wUpd (s, t) = "(" ++ s ++ " " ++ smtLib2 t ++ ")"
+    wUpd (s, t) = "(" ++ s ++ " " ++ SMTLib.toString t ++ ")"
     wSys (upd, l) = "(" ++ concatMap wUpd (Map.toList upd) ++ ") " ++ wl l ++ " "
 
 printRPG :: (Game, Objective) -> String

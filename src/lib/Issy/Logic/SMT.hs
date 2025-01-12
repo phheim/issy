@@ -1,37 +1,74 @@
+---------------------------------------------------------------------------------------------------
 {-# LANGUAGE LambdaCase #-}
 
--- TODO: adapt name in SMT
+---------------------------------------------------------------------------------------------------
 module Issy.Logic.SMT
-  ( satTO
-  , satModelTO
+  ( sat
   , satModel
-  , sat
+  , trySat
+  , trySatModel
   , unsat
   , valid
   , -- Simplification
-    simplifyTO
-  , simplify
-  , simplifyStrong
+    simplify
+  , simplifyLight
+  , simplifyHeavy
   , simplifyUF
+  , trySimplify
   , trySimplifyUF
   , -- Max SMT
     optPareto
   , tryOptPareto
   ) where
 
+---------------------------------------------------------------------------------------------------
 import Data.Map ((!?))
 import qualified Data.Set as Set
+import System.Exit (die)
 
 import Issy.Config (Config, z3cmd)
-import Issy.Logic.FOL
-import Issy.Parsers.SMTLib
-import Issy.Parsers.SMTLibLexer
-import Issy.Printers.SMTLib
+import Issy.Logic.FOL (Model, Sort, Symbol, Term)
+import qualified Issy.Logic.FOL as FOL
+import qualified Issy.Parsers.SMTLib as SMTLib
+import qualified Issy.Parsers.SMTLibLexer as SMTLib
+import qualified Issy.Printers.SMTLib as SMTLib
 import Issy.Utils.Extra (noTimeout, runTO)
 import Issy.Utils.Logging
 
-import System.Exit (die)
+---------------------------------------------------------------------------------------------------
+-- SMT Solving
+---------------------------------------------------------------------------------------------------
+sat :: Config -> Term -> IO Bool
+sat conf = noTimeout . trySat conf Nothing
 
+unsat :: Config -> Term -> IO Bool
+unsat conf f = not <$> sat conf f
+
+valid :: Config -> Term -> IO Bool
+valid conf f = not <$> sat conf (FOL.neg f)
+
+satModel :: Config -> Term -> IO (Maybe Model)
+satModel conf = noTimeout . trySatModel conf Nothing
+
+trySat :: Config -> Maybe Int -> Term -> IO (Maybe Bool)
+trySat conf to f = do
+  let query = SMTLib.toQuery f ++ "(check-sat)"
+  callz3 conf to query $ \case
+    'u':'n':'s':'a':'t':_ -> Just False
+    's':'a':'t':_ -> Just True
+    _ -> Nothing
+
+trySatModel :: Config -> Maybe Int -> Term -> IO (Maybe (Maybe Model))
+trySatModel conf to f = do
+  let query = SMTLib.toQuery f ++ "(check-sat-using (and-then simplify default))(get-model)"
+  callz3 conf to query $ \case
+    'u':'n':'s':'a':'t':_ -> Just Nothing
+    's':'a':'t':xr -> Just $ Just $ SMTLib.extractModel (FOL.frees f) xr
+    _ -> Nothing
+
+---------------------------------------------------------------------------------------------------
+-- Simplification
+---------------------------------------------------------------------------------------------------
 z3Simplify :: [String]
 z3Simplify =
   [ "simplify"
@@ -39,6 +76,7 @@ z3Simplify =
   , "qe2"
   , "simplify"
   , "propagate-ineqs"
+  , "nnf"
   , "ctx-solver-simplify"
   , "propagate-ineqs"
   , "solver-subsumption"
@@ -46,61 +84,43 @@ z3Simplify =
   , "simplify"
   ]
 
---  , "nnf"
-callz3 :: Config -> Maybe Int -> String -> (String -> Maybe a) -> IO (Maybe a)
-callz3 cfg to query parse = do
-  lgv cfg ["z3 query:", query]
-  res <- runTO to (z3cmd cfg) ["-smt2", "-in"] query
-  case res of
-    Nothing -> pure Nothing
-    Just res ->
-      case parse res of
-        Just res -> pure (Just res)
-        _ -> die $ "z3 returned unexpected: \"" ++ res ++ "\" on \"" ++ query ++ "\""
+simplify :: Config -> Term -> IO Term
+simplify conf = noTimeout . trySimplify conf Nothing
 
-satTO :: Config -> Maybe Int -> Term -> IO (Maybe Bool)
-satTO cfg to f = do
-  let query = toSMTLib2 f ++ "(check-sat)"
-  callz3 cfg to query $ \case
-    'u':'n':'s':'a':'t':_ -> Just False
-    's':'a':'t':_ -> Just True
-    _ -> Nothing
+trySimplify :: Config -> Maybe Int -> Term -> IO (Maybe Term)
+trySimplify conf to = simplifyTacs conf to z3Simplify
 
-satModel :: Config -> Term -> IO (Maybe Model)
-satModel conf = noTimeout . satModelTO conf Nothing
+simplifyHeavy :: Config -> Term -> IO Term
+simplifyHeavy conf term = do
+  term <- simplify conf term
+  term <- simplify conf $ FOL.neg term
+  simplify conf $ FOL.neg term
 
-satModelTO :: Config -> Maybe Int -> Term -> IO (Maybe (Maybe Model))
-satModelTO cfg to f = do
-  let query = toSMTLib2 f ++ "(check-sat-using (and-then simplify default))(get-model)"
-  callz3 cfg to query $ \case
-    'u':'n':'s':'a':'t':_ -> Just Nothing
-    's':'a':'t':xr -> Just $ Just $ extractModel (frees f) xr
-    _ -> Nothing
+z3SimplifyLight :: [String]
+z3SimplifyLight =
+  ["simplify", "propagate-ineqs", "qe2", "propagate-ineqs", "unit-subsume-simplify", "simplify"]
 
-sat :: Config -> Term -> IO Bool
-sat cfg = noTimeout . satTO cfg Nothing
+simplifyLight :: Config -> Term -> IO Term
+simplifyLight conf = noTimeout . simplifyTacs conf Nothing z3SimplifyLight
 
-unsat :: Config -> Term -> IO Bool
-unsat cfg f = not <$> sat cfg f
+z3SimplifyUF :: [String]
+z3SimplifyUF = ["simplify", "propagate-ineqs", "qe", "simplify"]
 
-valid :: Config -> Term -> IO Bool
-valid cfg f = not <$> sat cfg (neg f)
+simplifyUF :: Config -> Term -> IO Term
+simplifyUF conf = noTimeout . trySimplifyUF conf Nothing
 
-readTransformZ3 :: (Symbol -> Maybe Sort) -> [Token] -> Either String Term
-readTransformZ3 ty =
-  \case
-    TLPar:TId "goals":TLPar:TId "goal":tr -> andf <$> readGoals tr
-    ts -> Left $ "Invalid pattern for goals: " ++ show ts
-  where
-    readGoals =
-      \case
-        [] -> Left "assertion: found [] before ')' while reading goals"
-        TId (':':_):_:tr -> readGoals tr
-        [TRPar, TRPar] -> Right []
-        ts ->
-          case parseTerm ty ts of
-            Left err -> Left err
-            Right (f, tr) -> (f :) <$> readGoals tr
+trySimplifyUF :: Config -> Maybe Int -> Term -> IO (Maybe Term)
+trySimplifyUF conf to = simplifyTacs conf to z3SimplifyUF
+
+simplifyTacs :: Config -> Maybe Int -> [String] -> Term -> IO (Maybe Term)
+simplifyTacs conf to tactics f
+  | FOL.ufFree f = do
+    let query = SMTLib.toQuery f ++ "(apply " ++ z3TacticList tactics ++ ")"
+    callz3 conf to query $ \res ->
+      case readTransformZ3 (FOL.bindings f !?) (SMTLib.tokenize res) of
+        Right res -> Just res
+        _ -> Nothing
+  | otherwise = pure $ Just f
 
 z3TacticList :: [String] -> String
 z3TacticList =
@@ -109,54 +129,57 @@ z3TacticList =
     [t] -> t
     t:tr -> "(and-then " ++ t ++ " " ++ z3TacticList tr ++ ")"
 
-simplifyTO :: Config -> Maybe Int -> Term -> IO (Maybe Term)
-simplifyTO conf to = simplifyTacs conf to z3Simplify
+readTransformZ3 :: (Symbol -> Maybe Sort) -> [SMTLib.Token] -> Either String Term
+readTransformZ3 ty =
+  \case
+    SMTLib.TLPar:SMTLib.TId "goals":SMTLib.TLPar:SMTLib.TId "goal":tr -> FOL.andf <$> readGoals tr
+    ts -> Left $ "Invalid pattern for goals: " ++ show ts
+  where
+    readGoals =
+      \case
+        [] -> Left "assertion: found [] before ')' while reading goals"
+        SMTLib.TId (':':_):_:tr -> readGoals tr
+        [SMTLib.TRPar, SMTLib.TRPar] -> Right []
+        ts ->
+          case SMTLib.parseTerm ty ts of
+            Left err -> Left err
+            Right (f, tr) -> (f :) <$> readGoals tr
 
-simplifyTacs :: Config -> Maybe Int -> [String] -> Term -> IO (Maybe Term)
-simplifyTacs cfg to tactics f
-  | ufFree f = do
-    let query = toSMTLib2 f ++ "(apply " ++ z3TacticList tactics ++ ")"
-    callz3 cfg to query $ \res ->
-      case readTransformZ3 (bindings f !?) (tokenize res) of
-        Right res -> Just res
-        _ -> Nothing
-  | otherwise = pure $ Just f
-
-simplify :: Config -> Term -> IO Term
-simplify cfg = noTimeout . simplifyTO cfg Nothing
-
-simplifyStrong :: Config -> Term -> IO Term
-simplifyStrong cfg term = do
-  term <- simplify cfg term
-  term <- simplify cfg $ neg term
-  simplify cfg $ neg term
-
-z3SimplifyUF :: [String]
-z3SimplifyUF = ["simplify", "propagate-ineqs", "qe", "simplify"]
-
-simplifyUF :: Config -> Term -> IO Term
-simplifyUF cfg = noTimeout . trySimplifyUF cfg Nothing
-
-trySimplifyUF :: Config -> Maybe Int -> Term -> IO (Maybe Term)
-trySimplifyUF cfg to = simplifyTacs cfg to z3SimplifyUF
+---------------------------------------------------------------------------------------------------
+-- Optimal Solving
+---------------------------------------------------------------------------------------------------
+optPareto :: Config -> Term -> [Term] -> IO (Maybe Model)
+optPareto conf f = noTimeout . tryOptPareto conf Nothing f
 
 tryOptPareto :: Config -> Maybe Int -> Term -> [Term] -> IO (Maybe (Maybe Model))
 tryOptPareto conf to f maxTerms = do
   f <- simplify conf f
-  if not (quantifierFree f)
-    then satModelTO conf to f
+  if not (FOL.quantifierFree f)
+    then trySatModel conf to f
     else let maxQueries =
-               concatMap (\t -> "(maximize " ++ smtLib2 t ++ ")")
-                 $ filter ((`Set.isSubsetOf` frees f) . frees) maxTerms
+               concatMap (\t -> "(maximize " ++ SMTLib.toString t ++ ")")
+                 $ filter ((`Set.isSubsetOf` FOL.frees f) . FOL.frees) maxTerms
              query =
                "(set-option :opt.priority pareto)"
-                 ++ toSMTLib2 f
+                 ++ SMTLib.toQuery f
                  ++ maxQueries
                  ++ "(check-sat)(get-model)"
           in callz3 conf to query $ \case
                'u':'n':'s':'a':'t':_ -> Just Nothing
-               's':'a':'t':xr -> Just $ Just $ extractModel (frees f) xr
+               's':'a':'t':xr -> Just $ Just $ SMTLib.extractModel (FOL.frees f) xr
                _ -> Nothing
 
-optPareto :: Config -> Term -> [Term] -> IO (Maybe Model)
-optPareto conf f = noTimeout . tryOptPareto conf Nothing f
+---------------------------------------------------------------------------------------------------
+-- Helper and common routines
+---------------------------------------------------------------------------------------------------
+callz3 :: Config -> Maybe Int -> String -> (String -> Maybe a) -> IO (Maybe a)
+callz3 conf to query parse = do
+  lgv conf ["z3 query:", query]
+  res <- runTO to (z3cmd conf) ["-smt2", "-in"] query
+  case res of
+    Nothing -> pure Nothing
+    Just res ->
+      case parse res of
+        Just res -> pure (Just res)
+        _ -> die $ "z3 returned unexpected: \"" ++ res ++ "\" on \"" ++ query ++ "\""
+---------------------------------------------------------------------------------------------------

@@ -17,14 +17,14 @@ import qualified Issy.Base.Objectives as Obj
 import Issy.Config (Config, setName)
 import Issy.Logic.FOL (Term)
 import qualified Issy.Logic.FOL as FOL
-import Issy.Logic.SMT as SMT
+import qualified Issy.Logic.SMT as SMT
 import Issy.Monitor (Monitor, State, Trans(..), Verdict(..))
 import qualified Issy.Monitor as Mon
-import Issy.Printers.SMTLib as SMTLib
+import qualified Issy.Printers.SMTLib as SMTLib
 import Issy.SymbolicArena (Arena)
 import qualified Issy.SymbolicArena as SG
 import Issy.Utils.Logging
-import Issy.Utils.OpenList as OL
+import qualified Issy.Utils.OpenList as OL
 
 onTheFlyProduct :: Config -> Arena -> Objective -> Monitor -> IO (Arena, Objective)
 onTheFlyProduct cfg arena obj mon = do
@@ -32,7 +32,7 @@ onTheFlyProduct cfg arena obj mon = do
   when (SG.variables arena /= Mon.variables mon)
     $ error "assert: variables of monitor and symbolic game do not match"
   (mon, product) <- explore cfg arena (Obj.initialLoc obj) mon
-  lg cfg ["Product", strM (strP show show) (strM (strP show show) SMTLib.smtLib2) product]
+  lg cfg ["Product", strM (strP show show) (strM (strP show show) SMTLib.toString) product]
   mon <- Mon.finish cfg mon
   let (prodArena, winEnv, winSys, toProd) = productArena arena mon product
   let prodObj =

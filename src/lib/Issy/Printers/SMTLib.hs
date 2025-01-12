@@ -1,26 +1,53 @@
+---------------------------------------------------------------------------------------------------
 {-# LANGUAGE LambdaCase #-}
 
+---------------------------------------------------------------------------------------------------
 module Issy.Printers.SMTLib
-  ( smtLib2
-  , toSMTLib2
-  , s2Term
+  ( toString
+  , toQuery
+  , sortToString
   ) where
 
+---------------------------------------------------------------------------------------------------
 import qualified Data.Map as Map (toList)
 import Data.Ratio (denominator, numerator)
 
-import Issy.Logic.FOL
+import Issy.Logic.FOL (Constant(..), Function(..), Quantifier(..), Sort(..), Term(..))
+import qualified Issy.Logic.FOL as FOL
 
---
+---------------------------------------------------------------------------------------------------
 -- Quantified Variable Naming
 --
 -- To name quantified variables we track the current nesting depth DEPTH 
 -- of the quantifiers and a unique name prefix. For each quantifier 
 -- the variable is names PREFIX ++ DEPTH. So given a de-Brunijn index I
 -- the variables name is PREFIX ++ (DEPTH - I)
---
-s2Term :: Sort -> String
-s2Term =
+---------------------------------------------------------------------------------------------------
+toString :: Term -> String
+toString f = t2Term (FOL.unusedPrefix "qv" f ++ "x", 0) f
+
+toQuery :: Term -> String
+toQuery f =
+  concatMap
+    (\(v, t) ->
+       case t of
+         SFunc sargs starg ->
+           "(declare-fun "
+             ++ v
+             ++ " ("
+             ++ concatMap ((" " ++) . sortToString) sargs
+             ++ " ) "
+             ++ sortToString starg
+             ++ ")"
+         _ -> "(declare-const " ++ v ++ " " ++ sortToString t ++ ")")
+    (Map.toList (FOL.bindings f))
+    ++ "(assert "
+    ++ toString f
+    ++ ")"
+
+---------------------------------------------------------------------------------------------------
+sortToString :: Sort -> String
+sortToString =
   \case
     SBool -> "Bool"
     SInt -> "Int"
@@ -54,26 +81,5 @@ t2Term a =
       | otherwise -> "false"
   where
     hQwant t f =
-      fst a ++ show (snd a) ++ " " ++ s2Term t ++ ")) " ++ t2Term (fst a, snd a + 1) f ++ ")"
-
-smtLib2 :: Term -> String
-smtLib2 f = t2Term (unusedPrefix "qv" f ++ "x", 0) f
-
-toSMTLib2 :: Term -> String
-toSMTLib2 f =
-  concatMap
-    (\(v, t) ->
-       case t of
-         SFunc sargs starg ->
-           "(declare-fun "
-             ++ v
-             ++ " ("
-             ++ concatMap ((" " ++) . s2Term) sargs
-             ++ " ) "
-             ++ s2Term starg
-             ++ ")"
-         _ -> "(declare-const " ++ v ++ " " ++ s2Term t ++ ")")
-    (Map.toList (bindings f))
-    ++ "(assert "
-    ++ smtLib2 f
-    ++ ")"
+      fst a ++ show (snd a) ++ " " ++ sortToString t ++ ")) " ++ t2Term (fst a, snd a + 1) f ++ ")"
+---------------------------------------------------------------------------------------------------
