@@ -1,5 +1,6 @@
 {-# LANGUAGE LambdaCase, RecordWildCards #-}
 
+-- TODO: Rename
 module Issy.Solver.ControlFlowGraph
   ( ProgTrans
   , CFG

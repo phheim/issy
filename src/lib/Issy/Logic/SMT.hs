@@ -11,10 +11,10 @@ module Issy.Logic.SMT
   , valid
   , -- Simplification
     simplify
-  , simplifyLight
-  , simplifyHeavy
+  , simplifyQE
   , simplifyUF
   , trySimplify
+  , trySimplifyQE
   , trySimplifyUF
   , -- Max SMT
     optPareto
@@ -69,42 +69,51 @@ trySatModel conf to f = do
 ---------------------------------------------------------------------------------------------------
 -- Simplification
 ---------------------------------------------------------------------------------------------------
-z3Simplify :: [String]
-z3Simplify =
+z3SimplifyQE :: [String]
+z3SimplifyQE =
   [ "simplify"
   , "propagate-ineqs"
   , "qe2"
   , "simplify"
   , "propagate-ineqs"
+  , "solver-subsumption"
+  , "simplify"
+  ]
+
+z3Simplify :: [String]
+z3Simplify =
+  [ "simplify"
+  , "blast-term-ite"
   , "nnf"
   , "ctx-solver-simplify"
   , "propagate-ineqs"
-  , "solver-subsumption"
   , "unit-subsume-simplify"
+  , "solver-subsumption"
   , "simplify"
   ]
+
+z3SimplifyUF :: [String]
+z3SimplifyUF = ["simplify", "propagate-ineqs", "qe", "simplify"]
 
 simplify :: Config -> Term -> IO Term
 simplify conf = noTimeout . trySimplify conf Nothing
 
 trySimplify :: Config -> Maybe Int -> Term -> IO (Maybe Term)
-trySimplify conf to = simplifyTacs conf to z3Simplify
+trySimplify conf to term = do
+  term <- simplifyTacs conf to z3SimplifyQE term
+  case term of
+    Nothing -> pure Nothing
+    Just term -> do
+      term <- simplifyTacs conf to z3Simplify $ FOL.neg term
+      case term of
+        Nothing -> pure Nothing
+        Just term -> simplifyTacs conf to z3Simplify $ FOL.neg term
 
-simplifyHeavy :: Config -> Term -> IO Term
-simplifyHeavy conf term = do
-  term <- simplify conf term
-  term <- simplify conf $ FOL.neg term
-  simplify conf $ FOL.neg term
+simplifyQE :: Config -> Term -> IO Term
+simplifyQE conf = noTimeout . trySimplifyQE conf Nothing
 
-z3SimplifyLight :: [String]
-z3SimplifyLight =
-  ["simplify", "propagate-ineqs", "qe2", "propagate-ineqs", "unit-subsume-simplify", "simplify"]
-
-simplifyLight :: Config -> Term -> IO Term
-simplifyLight conf = noTimeout . simplifyTacs conf Nothing z3SimplifyLight
-
-z3SimplifyUF :: [String]
-z3SimplifyUF = ["simplify", "propagate-ineqs", "qe", "simplify"]
+trySimplifyQE :: Config -> Maybe Int -> Term -> IO (Maybe Term)
+trySimplifyQE conf to = simplifyTacs conf to z3SimplifyQE
 
 simplifyUF :: Config -> Term -> IO Term
 simplifyUF conf = noTimeout . trySimplifyUF conf Nothing

@@ -28,7 +28,7 @@ import qualified Issy.Utils.OpenList as OL (fromSet, pop, push)
 -------------------------------------------------------------------------------
 accelReach :: Config -> Int -> Player -> Game -> Loc -> SymSt -> IO (Term, CFG)
 accelReach ctx limit p g l st = do
-  ctx <- pure $ setName "AccReach" ctx
+  ctx <- pure $ setName "UinAc" ctx
   lg ctx ["Accelerate in", locName g l, "on", strSt g st]
   lg ctx ["Depth bound", show (limit2depth limit)]
   lg ctx ["Size bound", show (limit2size limit)]

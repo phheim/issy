@@ -70,4 +70,6 @@ defaultConfig =
     }
 
 setName :: String -> Config -> Config
-setName name cfg = cfg {logName = "[" ++ name ++ "]"}
+setName name conf =
+  let padName = "[" ++ name ++ "]" ++ replicate (5 - length name) ' '
+   in conf {logName = padName}

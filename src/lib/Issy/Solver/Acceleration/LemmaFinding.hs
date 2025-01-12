@@ -215,7 +215,7 @@ resolveQE cfg limit vars cons f ls =
       meta = Set.toList (frees (andf cons'))
       query = exists meta (andf (f' : cons'))
    in do
-        cfg <- pure $ setName "Resolve QE" cfg
+        cfg <- pure $ setName "ResQE" cfg
         lg cfg ["Try qelim on", SMTLib.toString query]
         resQE <- SMT.trySimplify cfg (Just (limit2to limit)) query
         case resQE of
@@ -235,7 +235,7 @@ resolveBoth cfg limit vars cons f ls =
       sk = skolemize limit vars meta
       query = exists (Set.toList meta) theta
    in do
-        cfg <- pure $ setName "Resolve QE+SK" cfg
+        cfg <- pure $ setName "ResSK" cfg
         lg cfg ["Try Qelim on", SMTLib.toString query]
         resQE <- SMT.trySimplify cfg (Just (limit2to limit)) query
         case resQE of

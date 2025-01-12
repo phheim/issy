@@ -36,7 +36,7 @@ import qualified Issy.Utils.OpenList as OL (fromSet, pop, push)
 -- It assume that the arena is cycic in the location it accelerates.
 accelReach :: Config -> Int -> Player -> Arena -> Loc -> SymSt -> IO (Term, CFG)
 accelReach conf limit player arena loc reach = do
-  conf <- pure $ setName "AccReachMD" conf
+  conf <- pure $ setName "GeoAc" conf
   lg conf ["Accelerate in", locName arena loc, "on", strSt arena reach]
   lg conf ["Size bound", show (limit2size limit)]
   let prime = FOL.uniquePrefix "init_" $ usedSymbols arena
@@ -108,7 +108,7 @@ tryFindInv conf prime player arena (step, conc) (loc, loc') fixInv reach = iter 
                             -- TODO: Build proper CFG
         let (stAcc, _) = iterA player arena reach' loc' CFG.empty
         let res = unprime prime $ stAcc `get` loc
-        res <- SMT.simplifyLight conf res
+        res <- SMT.simplify conf res
         let query = Vars.forallX (vars arena) $ FOL.andf [inv arena loc, conc, invar] `FOL.impl` res
         unless (null (FOL.frees query)) $ error "assert: found free variables in query"
         holds <- SMT.valid conf query

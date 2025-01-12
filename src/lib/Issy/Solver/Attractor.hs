@@ -48,7 +48,7 @@ attractorEx cfg player arena stopCheck target = do
     pure
       $ if generateProgram cfg
           then setName "AttrE" cfg
-          else setName "Attr" cfg
+          else setName "Attr " cfg
   attractorFull cfg player arena stopCheck target
 
 -------------------------------------------------------------------------------
@@ -78,13 +78,13 @@ attractorFull cfg player arena stopCheck target = do
     attrStep vcnt open reach prog l = do
       vcnt <- pure $ visit l vcnt
       let old = reach `get` l
-      lg cfg ["Step in", locName arena l, "with", SMTLib.toString old]
+      lgd cfg ["Step in", locName arena l, "with", SMTLib.toString old]
           -- Enforcable predecessor step
-      new <- SMT.simplifyHeavy cfg $ FOL.orf [cpre player arena reach l, old]
-      lg cfg ["Compute new", SMTLib.toString new]
+      new <- SMT.simplify cfg $ FOL.orf [cpre player arena reach l, old]
+      lgd cfg ["Compute new", SMTLib.toString new]
           -- Check if this changed something in this location
       unchanged <- SMT.valid cfg $ new `FOL.impl` old
-      lg cfg ["which has changed?", show (not unchanged)]
+      lgd cfg ["which has changed?", show (not unchanged)]
       if unchanged
         then attr vcnt open reach prog
         else do
