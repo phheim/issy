@@ -17,8 +17,8 @@ import Issy.Config (Config)
 import Issy.Logic.FOL (Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.SMT as SMT
-import Issy.Solver.ControlFlowGraph (SyBo)
-import qualified Issy.Solver.ControlFlowGraph as Synt
+import Issy.Solver.Synthesis (SyBo)
+import qualified Issy.Solver.Synthesis as Synt
 import Issy.Solver.GameInterface
 import Issy.Utils.Extra (allM)
 

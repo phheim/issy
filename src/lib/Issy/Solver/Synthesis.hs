@@ -2,8 +2,7 @@
 {-# LANGUAGE LambdaCase #-}
 
 ---------------------------------------------------------------------------------------------------
--- TODO: Rename
-module Issy.Solver.ControlFlowGraph
+module Issy.Solver.Synthesis
   ( SyBo
   , -- Book keeping
     empty

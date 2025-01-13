@@ -18,8 +18,8 @@ import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.SMT as SMT
 import qualified Issy.Printers.SMTLib as SMTLib (toString)
 import Issy.Solver.Acceleration (accelReach, canAccel)
-import Issy.Solver.ControlFlowGraph (SyBo)
-import qualified Issy.Solver.ControlFlowGraph as Synt
+import Issy.Solver.Synthesis (SyBo)
+import qualified Issy.Solver.Synthesis as Synt
 import Issy.Solver.GameInterface
 import Issy.Utils.Logging
 import Issy.Utils.OpenList (OpenList)

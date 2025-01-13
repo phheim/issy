@@ -11,7 +11,7 @@ import Issy.Logic.FOL (Term)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Solver.Acceleration.MDAcceleration as MDAcc (accelReach)
 import qualified Issy.Solver.Acceleration.UFLAcceleration as UFLAcc (accelReach)
-import Issy.Solver.ControlFlowGraph (SyBo)
+import Issy.Solver.Synthesis (SyBo)
 import Issy.Solver.GameInterface
 
 -------------------------------------------------------------------------------

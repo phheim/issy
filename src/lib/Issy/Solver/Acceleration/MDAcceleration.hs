@@ -26,8 +26,8 @@ import qualified Issy.Logic.SMT as SMT
 import qualified Issy.Printers.SMTLib as SMTLib (toString)
 import Issy.Solver.Acceleration.Heuristics
 import Issy.Solver.Acceleration.LoopScenario (loopScenario)
-import Issy.Solver.ControlFlowGraph (SyBo)
-import qualified Issy.Solver.ControlFlowGraph as Synt
+import Issy.Solver.Synthesis (SyBo)
+import qualified Issy.Solver.Synthesis as Synt
 import Issy.Solver.GameInterface
 import Issy.Utils.Logging
 import qualified Issy.Utils.OpenList as OL (fromSet, pop, push)

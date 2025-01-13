@@ -69,9 +69,9 @@ library
     , Issy.Solver.Acceleration.MDAcceleration
     , Issy.Solver.Acceleration.UFLAcceleration
     , Issy.Solver.Attractor
-    , Issy.Solver.ControlFlowGraph
     , Issy.Solver.GameInterface
     , Issy.Solver.ObjectiveSolver
+    , Issy.Solver.Synthesis
     , Issy.Specification
     , Issy.SymbolicArena
     , Issy.Translation
