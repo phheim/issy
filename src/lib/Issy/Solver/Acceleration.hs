@@ -11,8 +11,8 @@ import Issy.Logic.FOL (Term)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Solver.Acceleration.MDAcceleration as MDAcc (accelReach)
 import qualified Issy.Solver.Acceleration.UFLAcceleration as UFLAcc (accelReach)
-import Issy.Solver.Synthesis (SyBo)
 import Issy.Solver.GameInterface
+import Issy.Solver.Synthesis (SyBo)
 
 -------------------------------------------------------------------------------
 -- TODO: Replace limit by more abstract limiting state, that is tracking over time!

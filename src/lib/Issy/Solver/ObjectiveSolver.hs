@@ -24,9 +24,9 @@ import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.SMT as SMT
 import qualified Issy.Printers.SMTLib as SMTLib (toString)
 import Issy.Solver.Attractor (attractor, attractorEx, noCheck)
+import Issy.Solver.GameInterface
 import Issy.Solver.Synthesis (SyBo)
 import qualified Issy.Solver.Synthesis as Synt
-import Issy.Solver.GameInterface
 import Issy.Utils.Logging
 
 ---------------------------------------------------------------------------------------------------
@@ -159,12 +159,10 @@ iterBuechi conf player arena accept init = iter (selectInv arena accept) (0 :: W
 solveParity :: Config -> Arena -> Map Loc Word -> Loc -> IO (Bool, SyBo)
 solveParity conf arena colors init = do
   lg conf ["Game type Parity with colors", strM (locName arena) show colors]
-  (_, wsys) <- zielonka arena
+  (_, (wsys, prog)) <- zielonka arena
   res <- SMT.valid conf $ inv arena init `FOL.impl` (wsys `get` init)
-  lg conf ["Game is realizable? ", show res]
-  if res && generateProgram conf
-    then error "TODO IMPLEMENT: Parity extraction"
-    else return (res, Synt.empty)
+  lg conf ["Game realizable =>", show res]
+  pure (res, prog)
   where
     colorList = Map.toList colors
     --
@@ -176,17 +174,18 @@ solveParity conf arena colors init = do
       | even col = Env
       | otherwise = Sys
     --
-    playerSet Env = fst
-    playerSet Sys = snd
+    playerSet Env (env, sys) = (env, sys)
+    playerSet Sys (env, sys) = (sys, env)
     mkPlSet Env (wply, wopp) = (wply, wopp)
     mkPlSet Sys (wply, wopp) = (wopp, wply)
     removeFromGame symst arena = do
       newInv <- SymSt.simplify conf (invSymSt arena `SymSt.difference` symst)
       pure $ foldl (\arena l -> setInv arena l (newInv `get` l)) arena (locations arena)
     --
-    zielonka :: Arena -> IO (SymSt, SymSt)
+    zielonka :: Arena -> IO ((SymSt, SyBo), (SymSt, SyBo))
     zielonka arena
-      | SymSt.null (invSymSt arena) = pure (emptySt arena, emptySt arena)
+      | SymSt.null (invSymSt arena) =
+        pure ((emptySt arena, Synt.empty), (emptySt arena, Synt.empty))
       | otherwise = do
         let color = maxColor arena
         let player = colorPlayer color
@@ -199,34 +198,46 @@ solveParity conf arena colors init = do
                      then inv arena l
                      else FOL.false)
         let full = invSymSt arena
-        lg conf ["Parity on", strSt arena full]
-        lg conf ["Parity color", show color]
+        lg conf ["Parity for", show player, "with color", show color]
+        lg conf ["Parity arena", strSt arena full]
         lg conf ["Parity target", strSt arena targ]
-        aset <- attractor conf player arena noCheck targ
+        (aset, progA) <- attractorEx conf player arena noCheck targ
         eqiv <- SymSt.implies conf full aset
         if eqiv
           then do
-            -- TODO IMPLEMENT: extraction does basically looping game through aset attractor
-            lg conf ["Parity return 0"]
-            pure $ mkPlSet player (full, emptySt arena)
+            -- In this case this means that 'player' can reach the highest color
+            -- for which it always win from every, therefore it wins everyhwere.
+            lg conf ["Parity return:", show player, "wins everywhere"]
+            let prog = Synt.callOnSt full progA $ Synt.fromStayIn conf arena targ full
+            pure $ mkPlSet player ((full, prog), (emptySt arena, Synt.empty))
           else do
             arena' <- removeFromGame aset arena
-            lg conf ["Parity Recurse 1"]
-            winOp' <- playerSet opp <$> zielonka arena'
-            winOp' <- SymSt.simplify conf winOp'
-            if SymSt.null winOp'
+            lg conf ["Zielonka first recursion"]
+            ((winSys, progP1), (winOp, progO1)) <- playerSet player <$> zielonka arena'
+            winOp <- SymSt.simplify conf winOp
+            if SymSt.null winOp
               then do
-                -- TODO IMPLEMENT: extraction does: aset strategy, otherwise sub startegy in subgame!
-                lg conf ["Parity return 1"]
-                pure $ mkPlSet player (full, emptySt arena)
+                -- In this case either 'player' player can win from everywhere where it cannot 
+                -- reach the highest color. Hence it either reaches it or it wins and wins
+                -- therefore everywhere.
+                lg conf ["Parity return: ", show player, "ereaches maxcolor or wins in subgame"]
+                let prog =
+                      Synt.callOnSt winSys progP1
+                        $ Synt.callOnSt aset progA
+                        $ Synt.fromStayIn conf arena targ full
+                pure $ mkPlSet player ((full, prog), (emptySt arena, Synt.empty))
               else do
-                remove <- attractor conf opp arena noCheck winOp'
+                (remove, progOR) <- attractorEx conf opp arena noCheck winOp
                 arena'' <- removeFromGame remove arena
-                lg conf ["Parity Recurse 2"]
-                winPl'' <- playerSet player <$> zielonka arena''
-                lg conf ["Parity return 2"]
-                -- TODO IMPLEMENT: extraction does: in remove opponent stargey is got to winOp' and exectures is startegy there, otherwise it executes the other recusrive strategy, player executes recursive strategy
-                pure $ mkPlSet player (winPl'', full `SymSt.difference` winPl'')
+                lg conf ["Zielonka second recursion"]
+                ((winPl'', progP2), (winOp'', progO2)) <- playerSet player <$> zielonka arena''
+                lg conf ["Parity return final"]
+                -- Now we construct both strategies, for the player and the opponen as both
+                -- win on some part of the game
+                -- - Opponent, wins if either it goes into the first subgame and wins there or win in the remaining game
+                -- - Player, winf if it wins in the remaining game
+                let progO = Synt.callOnSt winOp'' progO2 $ Synt.callOnSt remove progOR progO1
+                pure $ mkPlSet player ((winPl'', progP2), (full `SymSt.difference` winPl'', progO))
 
 ---------------------------------------------------------------------------------------------------
 -- Helper methods
