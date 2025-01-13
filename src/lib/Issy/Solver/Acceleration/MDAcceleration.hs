@@ -26,15 +26,15 @@ import qualified Issy.Logic.SMT as SMT
 import qualified Issy.Printers.SMTLib as SMTLib (toString)
 import Issy.Solver.Acceleration.Heuristics
 import Issy.Solver.Acceleration.LoopScenario (loopScenario)
-import Issy.Solver.ControlFlowGraph (CFG)
-import qualified Issy.Solver.ControlFlowGraph as CFG
+import Issy.Solver.ControlFlowGraph (SyBo)
+import qualified Issy.Solver.ControlFlowGraph as Synt
 import Issy.Solver.GameInterface
 import Issy.Utils.Logging
 import qualified Issy.Utils.OpenList as OL (fromSet, pop, push)
 
 -------------------------------------------------------------------------------
 -- It assume that the arena is cycic in the location it accelerates.
-accelReach :: Config -> Int -> Player -> Arena -> Loc -> SymSt -> IO (Term, CFG)
+accelReach :: Config -> Int -> Player -> Arena -> Loc -> SymSt -> IO (Term, SyBo)
 accelReach conf limit player arena loc reach = do
   conf <- pure $ setName "GeoAc" conf
   lg conf ["Accelerate in", locName arena loc, "on", strSt arena reach]
@@ -48,7 +48,7 @@ accelReach conf limit player arena loc reach = do
   case lemma of
     Nothing -> do
       lg conf ["Lemma guessing failed"]
-      pure (FOL.false, CFG.empty)
+      pure (FOL.false, Synt.empty)
     Just (base, step, conc) -> do
       lg
         conf
@@ -79,11 +79,11 @@ accelReach conf limit player arena loc reach = do
               case invRes of
                 Left err -> do
                   lg conf ["MaxCHC invariant computation failed with", err]
-                  pure (FOL.false, CFG.empty)
+                  pure (FOL.false, Synt.empty)
                 Right (conc, prog) -> do
                   lg conf ["MaxCHC invariant computation resulted in", SMTLib.toString conc]
                   pure (conc, prog)
-            else pure (FOL.false, CFG.empty)
+            else pure (FOL.false, Synt.empty)
 
 -------------------------------------------------------------------------------
 -- Invariant Iteration
@@ -97,7 +97,7 @@ tryFindInv ::
   -> (Loc, Loc)
   -> Term
   -> SymSt
-  -> IO (Either Term (Term, CFG))
+  -> IO (Either Term (Term, SyBo))
 tryFindInv conf prime player arena (step, conc) (loc, loc') fixInv reach = iter 0 FOL.true
   where
     iter cnt invar
@@ -105,15 +105,15 @@ tryFindInv conf prime player arena (step, conc) (loc, loc') fixInv reach = iter 
       | otherwise = do
         lg conf ["Try invariant", SMTLib.toString invar]
         let reach' = set reach loc' $ FOL.orf [reach `get` loc, FOL.andf [step, invar]]
-                            -- TODO: Build proper CFG
-        let (stAcc, _) = iterA player arena reach' loc' CFG.empty
+        let prog = Synt.returnOn reach $ Synt.loopSyBo conf arena loc loc'
+        (stAcc, prog) <- pure $ iterA player arena reach' loc' prog
         let res = unprime prime $ stAcc `get` loc
         res <- SMT.simplify conf res
         let query = Vars.forallX (vars arena) $ FOL.andf [inv arena loc, conc, invar] `FOL.impl` res
         unless (null (FOL.frees query)) $ error "assert: found free variables in query"
         holds <- SMT.valid conf query
         if holds
-          then pure $ Right (FOL.andf [inv arena loc, conc, invar, fixInv], CFG.empty)
+          then pure $ Right (FOL.andf [inv arena loc, conc, invar, fixInv], prog)
           else iter (cnt + 1) res
 
 unprime :: Symbol -> Term -> Term
@@ -123,20 +123,21 @@ unprime prime =
       then drop (length prime) v
       else v
 
-iterA :: Player -> Arena -> SymSt -> Loc -> CFG -> (SymSt, CFG)
+iterA :: Player -> Arena -> SymSt -> Loc -> SyBo -> (SymSt, SyBo)
 iterA player arena attr shadow = go (noVisits arena) (OL.fromSet (preds arena shadow)) attr
   where
-    go vcnt open attr cfgl =
+    go vcnt open attr prog =
       case OL.pop open of
-        Nothing -> (attr, cfgl)
+        Nothing -> (attr, prog)
         Just (l, open)
           | visits l vcnt < visitingThreshold ->
-            go
-              (visit l vcnt)
-              (preds arena l `OL.push` open)
-              (SymSt.disj attr l $ cpre player arena attr l)
-              (CFG.addUpd attr arena l cfgl)
-          | otherwise -> go vcnt open attr cfgl
+            let new = cpre player arena attr l
+             in go
+                  (visit l vcnt)
+                  (preds arena l `OL.push` open)
+                  (SymSt.disj attr l new)
+                  (Synt.enforceTo l new attr prog)
+          | otherwise -> go vcnt open attr prog
 
 exactInv ::
      Config
@@ -148,7 +149,7 @@ exactInv ::
   -> Term
   -> SymSt
   -> Term
-  -> IO (Either String (Term, CFG))
+  -> IO (Either String (Term, SyBo))
 exactInv conf prime player arena (step, conc) (loc, loc') fixInv reach invApprox = do
     -- TODO: Add logging
   let invName = FOL.uniquePrefix "chc_invar" $ Set.insert prime $ usedSymbols arena
@@ -159,7 +160,8 @@ exactInv conf prime player arena (step, conc) (loc, loc') fixInv reach invApprox
           $ map (\v -> FOL.Var v (Vars.sortOf (vars arena) v))
           $ Vars.stateVarL (vars arena)
   let reach' = set reach loc' $ FOL.orf [reach `get` loc, FOL.andf [step, invar]]
-  let (stAcc, _) = iterA player arena reach' loc' CFG.empty
+  let prog = Synt.returnOn reach $ Synt.loopSyBo conf arena loc loc'
+  (stAcc, prog) <- pure $ iterA player arena reach' loc' prog
   let res = unprime prime $ stAcc `get` loc
   res <- SMT.simplifyUF conf res --TODO: Maybe add timeout here?
   let query = Vars.forallX (vars arena) $ FOL.andf [inv arena loc, conc, invar] `FOL.impl` res
@@ -168,7 +170,11 @@ exactInv conf prime player arena (step, conc) (loc, loc') fixInv reach invApprox
   chcRes <- CHC.computeMax conf (vars arena) invName [query, minQuery]
   case chcRes of
     Left err -> pure $ Left err
-    Right invar -> pure $ Right (FOL.andf [inv arena loc, conc, invar, fixInv], CFG.empty)
+    Right invar ->
+      pure
+        $ Right
+            ( FOL.andf [inv arena loc, conc, invar, fixInv]
+            , Synt.replaceUnint (error "TODO: IMPLEMENT") undefined prog)
 
 -------------------------------------------------------------------------------
 -- Manhatten distance lemma generation

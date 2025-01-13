@@ -18,8 +18,8 @@ import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.SMT as SMT
 import qualified Issy.Printers.SMTLib as SMTLib (toString)
 import Issy.Solver.Acceleration (accelReach, canAccel)
-import Issy.Solver.ControlFlowGraph (CFG)
-import qualified Issy.Solver.ControlFlowGraph as CFG
+import Issy.Solver.ControlFlowGraph (SyBo)
+import qualified Issy.Solver.ControlFlowGraph as Synt
 import Issy.Solver.GameInterface
 import Issy.Utils.Logging
 import Issy.Utils.OpenList (OpenList)
@@ -42,7 +42,7 @@ attractor cfg player arena stopCheck target = do
 -------------------------------------------------------------------------------
 -- | 'attractorEx' compute the attractor for a given player, game, and symbolic
 -- state and does program extraction if indicated in the 'Config'.
-attractorEx :: Config -> Player -> Arena -> StopCheck -> SymSt -> IO (SymSt, CFG)
+attractorEx :: Config -> Player -> Arena -> StopCheck -> SymSt -> IO (SymSt, SyBo)
 attractorEx cfg player arena stopCheck target = do
   cfg <-
     pure
@@ -55,16 +55,16 @@ attractorEx cfg player arena stopCheck target = do
 -- | 'attractorFull' does the complete attractor computation and is later used
 -- for the different type of attractor computations (with/without extraction)
 --
-attractorFull :: Config -> Player -> Arena -> StopCheck -> SymSt -> IO (SymSt, CFG)
+attractorFull :: Config -> Player -> Arena -> StopCheck -> SymSt -> IO (SymSt, SyBo)
 attractorFull cfg player arena stopCheck target = do
   satLocs <- Set.fromList . map fst <$> filterM (SMT.sat cfg . snd) (SymSt.toList target)
   lg cfg ["Attractor for", show player, "from", strLocs satLocs, "to reach", strStA target]
-  (res, prog) <-
-    attr (noVisits arena) (OL.fromSet (predSet arena satLocs)) target (CFG.goalCFG target)
+  let prog = Synt.returnOn target $ Synt.normSyBo cfg arena
+  (res, prog) <- attr (noVisits arena) (OL.fromSet (predSet arena satLocs)) target prog
   lg cfg ["Result", strStA res]
   return (res, prog)
   where
-    attr :: VisitCounter -> OpenList Loc -> SymSt -> CFG -> IO (SymSt, CFG)
+    attr :: VisitCounter -> OpenList Loc -> SymSt -> SyBo -> IO (SymSt, SyBo)
     attr vcnt open reach prog =
       case OL.pop open of
         Nothing -> pure (reach, prog)
@@ -74,7 +74,7 @@ attractorFull cfg player arena stopCheck target = do
             then pure (reach, prog)
             else attrStep vcnt open reach prog l
     --
-    attrStep :: VisitCounter -> OpenList Loc -> SymSt -> CFG -> Loc -> IO (SymSt, CFG)
+    attrStep :: VisitCounter -> OpenList Loc -> SymSt -> SyBo -> Loc -> IO (SymSt, SyBo)
     attrStep vcnt open reach prog l = do
       vcnt <- pure $ visit l vcnt
       let old = reach `get` l
@@ -88,8 +88,7 @@ attractorFull cfg player arena stopCheck target = do
       if unchanged
         then attr vcnt open reach prog
         else do
-          prog <- extr $ CFG.addUpd reach arena l prog
-          prog <- simpCFG prog
+          prog <- pure $ Synt.enforceTo l new reach prog
           reach <- pure $ set reach l new
           open <- pure $ preds arena l `OL.push` open
               -- Check if we accelerate
@@ -105,21 +104,13 @@ attractorFull cfg player arena stopCheck target = do
               if succ
                       -- Acceleration succeed
                 then do
-                  prog <- extr $ CFG.integrate progSub prog
-                  prog <- simpCFG prog
+                  prog <- pure $ Synt.callOn l acc progSub prog
                   attr vcnt open (set reach l res) prog
                 else attr vcnt open reach prog
             else attr vcnt open reach prog
     -- Logging helper
     strLocs = strS (locName arena)
     strStA = strSt arena
-    -- Extraction helpers
-    extr prog
-      | generateProgram cfg = pure prog
-      | otherwise = pure CFG.empty
-    simpCFG prog
-      | generateProgram cfg = CFG.simplify cfg prog
-      | otherwise = pure prog
 
 -------------------------------------------------------------------------------
 -- Heuristics

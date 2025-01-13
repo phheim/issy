@@ -1,26 +1,21 @@
-{-# LANGUAGE LambdaCase, RecordWildCards #-}
+{-# LANGUAGE LambdaCase #-}
 
 -- TODO: Rename
 module Issy.Solver.ControlFlowGraph
-  ( ProgTrans
-  , CFG
-  , -- Creation
+  ( SyBo
+  , -- Book keeping
     empty
-  , goalCFG
-  , loopCFG
-  , mkCFG
-  , -- Transition Modification
-    setLemmas
-  , mapCFG
-  , addUpd
-  , redirectGoal
-  , -- Strucutual Changes 
-    integrate
-  , setInitialCFG
-  , -- Processing
-    simplify
-  , -- Printing
-    printCFG
+  , normSyBo
+  , loopSyBo
+  , returnOn
+  , enforceTo
+  , enforceFromTo
+  , callOn
+  , callOnSt
+  , replaceUnint
+  , fromStayIn
+  , -- Extraction
+    extractProg
   ) where
 
 import Data.Map.Strict (Map, (!?))
@@ -29,7 +24,7 @@ import qualified Data.Map.Strict as Map
 import Issy.Base.SymbolicState (SymSt, get)
 import qualified Issy.Base.SymbolicState as SymSt
 import Issy.Base.Variables (Variables)
-import Issy.Config (Config)
+import Issy.Config (Config, generateProgram)
 import Issy.Logic.FOL (Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.SMT as SMT
@@ -37,6 +32,71 @@ import qualified Issy.Printers.SMTLib as SMTLib (toString)
 import Issy.Solver.Acceleration.LemmaFinding (LemSyms(..), Lemma, prime)
 import Issy.Solver.GameInterface
 
+--
+-- This is the book-keeping part!
+--
+data SyBo
+  = SyBoNone
+  | SyBoNorm [(Loc, Term, ProgType)]
+  | SyBoLoop Loc Loc [(Loc, Term, ProgType)]
+  deriving (Eq, Ord, Show)
+
+data ProgType
+  = Enforce SymSt
+  | Return
+  | SubProg SyBo
+  deriving (Eq, Ord, Show)
+
+--TODO: Optimize toward SyBoNone
+normSyBo :: Config -> Arena -> SyBo
+normSyBo conf _
+  | generateProgram conf = SyBoNorm []
+  | otherwise = SyBoNone
+
+loopSyBo :: Config -> Arena -> Loc -> Loc -> SyBo
+loopSyBo conf _ loc loc'
+  | generateProgram conf = SyBoLoop loc loc' []
+  | otherwise = SyBoNone
+
+fromStayIn :: Config -> Arena -> SymSt -> SymSt -> SyBo
+fromStayIn conf arena src trg = enforceFromTo src trg $ normSyBo conf arena
+
+addTrans :: Loc -> Term -> ProgType -> SyBo -> SyBo
+addTrans loc cond tran =
+  \case
+    SyBoNone -> SyBoNone
+    SyBoNorm trans -> SyBoNorm $ (loc, cond, tran) : trans
+    SyBoLoop l l' trans -> SyBoLoop l l' $ (loc, cond, tran) : trans
+
+returnOn :: SymSt -> SyBo -> SyBo
+returnOn reach sybo =
+  let retList = filter ((/= FOL.false) . snd) $ SymSt.toList reach
+   in foldl (\sybo (loc, cond) -> addTrans loc cond Return sybo) sybo retList
+
+enforceTo :: Loc -> Term -> SymSt -> SyBo -> SyBo
+enforceTo loc cond = addTrans loc cond . Enforce
+
+enforceFromTo :: SymSt -> SymSt -> SyBo -> SyBo
+enforceFromTo = error "TODO IMPLEMENT"
+
+callOn :: Loc -> Term -> SyBo -> SyBo -> SyBo
+callOn loc cond = addTrans loc cond . SubProg
+
+callOnSt :: SymSt -> SyBo -> SyBo -> SyBo
+callOnSt = error "TODO IMPLEMENT"
+
+replaceUnint :: Symbol -> ([Term] -> Term) -> SyBo -> SyBo
+replaceUnint = error "TODO IMPLEMENT"
+
+extractProg :: Config -> Loc -> SyBo -> IO String
+extractProg = error "TODO IMPLEMENT"
+
+empty :: SyBo
+empty = SyBoNone
+
+--
+-- This is for the finial program, make into a separate processing step!
+--
 newtype CFGLoc =
   CFGLoc Int
   deriving (Eq, Ord, Show)
@@ -59,13 +119,13 @@ mapLoc cfg l =
     Nothing -> error $ "assert: mapLoc expects everything to be mapped " ++ show l
 
 addLoc :: CFG -> Loc -> CFG
-addLoc cfg@CFG {..} l
-  | l `Map.member` locMap = error "assert: cannot add exisiting locations"
+addLoc cfg l
+  | l `Map.member` locMap cfg = error "assert: cannot add exisiting locations"
   | otherwise =
     cfg
-      { cfgTrans = Map.insert (CFGLoc cfgLocCnt) (PT []) cfgTrans
-      , cfgLocCnt = cfgLocCnt + 1
-      , locMap = Map.insert l (CFGLoc cfgLocCnt) locMap
+      { cfgTrans = Map.insert (CFGLoc (cfgLocCnt cfg)) (PT []) (cfgTrans cfg)
+      , cfgLocCnt = cfgLocCnt cfg + 1
+      , locMap = Map.insert l (CFGLoc (cfgLocCnt cfg)) (locMap cfg)
       }
 
 data Statement
@@ -86,8 +146,8 @@ newtype ProgTrans =
 mapTrans :: (CFGLoc -> [Statement] -> [Statement]) -> CFG -> CFG
 mapTrans f cfg = cfg {cfgTrans = Map.mapWithKey (\l (PT st) -> PT (f l st)) (cfgTrans cfg)}
 
-empty :: CFG
-empty = CFG {cfgTrans = Map.empty, cfgLocCnt = 0, cfgLocInit = CFGLoc 0, locMap = Map.empty}
+emptyCFG :: CFG
+emptyCFG = CFG {cfgTrans = Map.empty, cfgLocCnt = 0, cfgLocInit = CFGLoc 0, locMap = Map.empty}
 
 append :: Loc -> [Statement] -> CFG -> CFG
 append l stmts cfg =
@@ -124,10 +184,10 @@ setLemmas states col = mapTrans (const (map go))
 --  TSys upds -> map (redUpds cs) upds
 -- redUpds cs (u, l) =
 -- (andf (reverse (mapTermM u (oldAttr `get` l) : cs)), u, mapLoc cfg l)
-makeTrans :: CFG -> Game -> SymSt -> CFGLoc -> [(Term, Map Symbol Term, CFGLoc)]
+makeTrans :: CFG -> Arena -> SymSt -> CFGLoc -> [(Term, Map Symbol Term, CFGLoc)]
 makeTrans _ _ _ _ = error "TODO IMPLEMENT"
 
-addUpd :: SymSt -> Game -> Loc -> CFG -> CFG
+addUpd :: SymSt -> Arena -> Loc -> CFG -> CFG
 addUpd st g l cfg =
   append
     l
@@ -135,7 +195,7 @@ addUpd st g l cfg =
     cfg
 
 mkCFG :: [Loc] -> CFG
-mkCFG = foldl addLoc empty
+mkCFG = foldl addLoc emptyCFG
 
 goalCFG :: SymSt -> CFG
 goalCFG st =
@@ -150,7 +210,7 @@ loopCFG (l, l') st lSyms stepTerm =
    in append l' [CondJump (FOL.orf [st `get` l, stepTerm]) (mapLoc cfg l)]
         $ append l [DummyCopy FOL.true lSyms] cfg
 
-redirectGoal :: Game -> SymSt -> CFG -> CFG
+redirectGoal :: Arena -> SymSt -> CFG -> CFG
 redirectGoal g symSt cfg = mapTrans (concatMap . go) cfg
   where
     go l =

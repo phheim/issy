@@ -19,30 +19,29 @@ import qualified Issy.Printers.SMTLib as SMTLib (toString)
 import Issy.Solver.Acceleration.Heuristics
 import Issy.Solver.Acceleration.LemmaFinding (Constraint, LemSyms(..), replaceLemma, resolve)
 import Issy.Solver.Acceleration.LoopScenario (loopScenario)
-import Issy.Solver.ControlFlowGraph (CFG)
-import qualified Issy.Solver.ControlFlowGraph as CFG
+import Issy.Solver.ControlFlowGraph (SyBo)
+import qualified Issy.Solver.ControlFlowGraph as Synt
 import Issy.Solver.GameInterface
 import Issy.Utils.Logging
 import qualified Issy.Utils.OpenList as OL (fromSet, pop, push)
 
 -------------------------------------------------------------------------------
-accelReach :: Config -> Int -> Player -> Game -> Loc -> SymSt -> IO (Term, CFG)
-accelReach ctx limit p g l st = do
-  ctx <- pure $ setName "UinAc" ctx
-  lg ctx ["Accelerate in", locName g l, "on", strSt g st]
-  lg ctx ["Depth bound", show (limit2depth limit)]
-  lg ctx ["Size bound", show (limit2size limit)]
-  let acst = accState ctx limit p g
-  (cons, f, cfg, acst) <- accReach acst g l st
-  cons <- pure $ cons ++ [Vars.existsX (vars g) (FOL.andf [f, FOL.neg (st `get` l)])]
+accelReach :: Config -> Int -> Player -> Arena -> Loc -> SymSt -> IO (Term, SyBo)
+accelReach conf limit player arena loc reach = do
+  conf <- pure $ setName "UinAc" conf
+  lg conf ["Accelerate in", locName arena loc, "on", strSt arena reach]
+  lg conf ["Depth bound", show (limit2depth limit)]
+  lg conf ["Size bound", show (limit2size limit)]
+  let acst = accState conf limit player arena
+  (cons, f, prog, acst) <- accReach acst arena loc reach
+  cons <- pure $ cons ++ [Vars.existsX (vars arena) (FOL.andf [f, FOL.neg (reach `get` loc)])]
   unless (all (null . FOL.frees) cons)
     $ error
     $ "assert: constraint with free variables " ++ strL (strS show . FOL.frees) cons
-  (res, col) <- resolve ctx limit (vars g) cons f (lemmaSyms acst)
-  cfg <- pure $ foldl (flip (\(l, li) -> CFG.mapCFG (replaceLemma (vars g) li l))) cfg col
-  cfg <- pure $ CFG.setLemmas (Vars.stateVarL (vars g)) col cfg
-  lg ctx ["Acceleration resulted in", SMTLib.toString res]
-  return (res, cfg)
+  (res, lemmaAssign) <- resolve conf limit (vars arena) cons f (lemmaSyms acst)
+  prog <- pure $ foldl (error "TODO IMPLEMENT with Synt.replaceUntInt") prog lemmaAssign
+  lg conf ["Acceleration resulted in", SMTLib.toString res]
+  return (res, prog)
 
 -------------------------------------------------------------------------------
 -- IterA and accReach
@@ -92,18 +91,18 @@ doIterA :: AccState -> Game -> AccState
 doIterA acst arena =
   acst {visitCounters = noVisits arena : visitCounters acst, depth = depth acst + 1}
 
-accReach :: AccState -> Game -> Loc -> SymSt -> IO (Constraint, Term, CFG, AccState)
+accReach :: AccState -> Game -> Loc -> SymSt -> IO (Constraint, Term, SyBo, AccState)
 accReach acst g loc st = do
   let targetInv = g `inv` loc
   -- Compute loop scenario
   (gl, loc, loc', st, fixedInv) <- loopScenario (config acst) (sizeLimit acst) g loc st
   -- Compute new lemma symbols
-  (base, step, conc, lsym, stepSym, acst) <- pure $ lemmaSymbols (vars g) acst
+  (base, step, conc, stepSym, acst) <- pure $ lemmaSymbols (vars g) acst
   -- Initialize loop-program
-  cfg <- pure $ CFG.loopCFG (loc, loc') st lsym step
+  let prog = Synt.returnOn st $ Synt.loopSyBo (config acst) gl loc loc'
   -- Finialize loop game target with step relation and compute loop attractor
   let st' = set st loc' $ FOL.orf [st `get` loc, step]
-  (cons, stAcc, cfg, acst) <- iterA acst gl st' loc' cfg
+  (cons, stAcc, prog, acst) <- iterA acst gl st' loc' prog
   -- Derive constraints
   let quantSub f = Vars.forallX (vars g) $ FOL.andf [targetInv, conc] `FOL.impl` f
   cons <- pure $ map (expandStep (vars g) stepSym) cons
@@ -114,36 +113,37 @@ accReach acst g loc st = do
       , quantSub (stAcc `get` loc)
       , quantSub (FOL.andf cons)
       ]
-  pure (cons, FOL.andf [conc, fixedInv], cfg, acst)
+  pure (cons, FOL.andf [conc, fixedInv], prog, acst)
 
-iterA :: AccState -> Game -> SymSt -> Loc -> CFG -> IO (Constraint, SymSt, CFG, AccState)
+iterA :: AccState -> Game -> SymSt -> Loc -> SyBo -> IO (Constraint, SymSt, SyBo, AccState)
 iterA acst g attr shadow = go (doIterA acst g) (OL.fromSet (preds g shadow)) [] attr
   where
-    go acst open cons attr cfgl =
+    go acst open cons attr prog =
       case OL.pop open of
-        Nothing -> pure (cons, attr, cfgl, acst)
+        Nothing -> pure (cons, attr, prog, acst)
         Just (l, open)
           -- Normal IterA update
           | visiting l acst -> do
             open <- pure $ preds g l `OL.push` open
-            cfgl <- pure $ CFG.addUpd attr g l cfgl
-            attr <- pure $ SymSt.disj attr l $ cpre (player acst) g attr l
-            go (doVisit acst l) open cons attr cfgl
+            let new = cpre (player acst) g attr l
+            prog <- pure $ Synt.enforceTo l new attr prog
+            attr <- pure $ SymSt.disj attr l new
+            go (doVisit acst l) open cons attr prog
           -- Nested IterA update
           | nest l acst -> do
-            (consA, fA, cfgSub, acst) <- accReach acst g l attr
+            (consA, fA, subProg, acst) <- accReach acst g l attr
             open <- pure $ preds g l `OL.push` open
             cons <- pure $ cons ++ consA
             attr <- pure $ set attr l $ FOL.orf [fA, attr `get` l]
-            cfgl <- pure $ CFG.integrate cfgSub cfgl
-            go (unnest acst l) open cons attr cfgl
+            prog <- pure $ Synt.callOn l fA subProg prog
+            go (unnest acst l) open cons attr prog
           -- Do nothing
-          | otherwise -> go acst open cons attr cfgl
+          | otherwise -> go acst open cons attr prog
 
 -------------------------------------------------------------------------------
 -- Symbol Management
 -------------------------------------------------------------------------------
-lemmaSymbols :: Variables -> AccState -> (Term, Term, Term, LemSyms, Function, AccState)
+lemmaSymbols :: Variables -> AccState -> (Term, Term, Term, Function, AccState)
 lemmaSymbols vars acst =
   let base = FOL.uniqueName "b" $ usedSyms acst
       step = FOL.uniqueName "s" $ usedSyms acst
@@ -152,7 +152,6 @@ lemmaSymbols vars acst =
    in ( Vars.unintPredTerm vars base
       , Vars.unintPredTerm vars step
       , Vars.unintPredTerm vars conc
-      , lsym
       , Vars.unintPred vars step
       , acst
           { usedSyms = usedSyms acst `Set.union` Set.fromList [base, step, conc]

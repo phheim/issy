@@ -24,8 +24,8 @@ import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.SMT as SMT
 import qualified Issy.Printers.SMTLib as SMTLib (toString)
 import Issy.Solver.Attractor (attractor, attractorEx, noCheck)
-import Issy.Solver.ControlFlowGraph (CFG)
-import qualified Issy.Solver.ControlFlowGraph as CFG
+import Issy.Solver.ControlFlowGraph (SyBo)
+import qualified Issy.Solver.ControlFlowGraph as Synt
 import Issy.Solver.GameInterface
 import Issy.Utils.Logging
 
@@ -46,30 +46,31 @@ solve conf (arena, obj) = do
   if res
     then do
       putStrLn "Realizable"
-      when (generateProgram conf) $ CFG.simplify conf prog >>= putStrLn . CFG.printCFG (vars arena)
+      when (generateProgram conf) $ Synt.extractProg conf init prog >>= putStrLn
     else putStrLn "Unrealizable"
 
 ---------------------------------------------------------------------------------------------------
 -- Safety and reachability solving
 ---------------------------------------------------------------------------------------------------
-solveReach :: Config -> Arena -> Set Loc -> Loc -> IO (Bool, CFG)
+solveReach :: Config -> Arena -> Set Loc -> Loc -> IO (Bool, SyBo)
 solveReach conf arena reach init = do
   lg conf ["Reachability game with target", strS (locName arena) reach]
+  let fullSt = selectInv arena (locations arena)
+  let reachSt = selectInv arena reach
   let stopCheck l st
         | l == init = SMT.valid conf $ inv arena init `FOL.impl` (st `get` init)
         | otherwise = pure False
-  (wsys, prog) <- attractorEx conf Sys arena (Just stopCheck) $ selectInv arena reach
+  (wsys, attrProg) <- attractorEx conf Sys arena (Just stopCheck) reachSt
   lg conf ["Sys. winning region", strSt arena wsys]
   res <- SMT.valid conf $ inv arena init `FOL.impl` (wsys `get` init)
   lg conf ["Game realizable =>", show res]
-  if res && generateProgram conf
-    then do
-      prog <- pure $ CFG.redirectGoal arena (invSymSt arena) prog
-      prog <- pure $ CFG.setInitialCFG prog init
-      return (res, prog)
-    else return (res, CFG.empty)
+  let prog =
+        Synt.enforceFromTo fullSt fullSt
+          $ Synt.callOnSt wsys attrProg
+          $ Synt.fromStayIn conf arena reachSt fullSt
+  pure (res, prog)
 
-solveSafety :: Config -> Arena -> Set Loc -> Loc -> IO (Bool, CFG)
+solveSafety :: Config -> Arena -> Set Loc -> Loc -> IO (Bool, SyBo)
 solveSafety conf arena safes init = do
   lg conf ["Safety game with safe locations", strS (locName arena) safes]
   let envGoal = selectInv arena $ locations arena `Set.difference` safes
@@ -80,72 +81,65 @@ solveSafety conf arena safes init = do
   lg conf ["Env. winning region", strSt arena wenv]
   res <- SMT.unsat conf $ FOL.andf [inv arena init, wenv `get` init]
   lg conf ["Game realizable =>", show res]
-  if res && generateProgram conf
-    then do
-      prog <-
-        pure
-          $ foldLocs (locations arena) (CFG.addUpd (SymSt.map FOL.neg wenv) arena)
-          $ CFG.mkCFG
-          $ Set.toList
-          $ locations arena
-      prog <- pure $ CFG.setInitialCFG prog init
-      return (res, prog)
-    else return (res, CFG.empty)
+  let wsys = SymSt.map FOL.neg wenv
+  let prog = Synt.fromStayIn conf arena wsys wsys
+  return (res, prog)
 
 ---------------------------------------------------------------------------------------------------
 -- Buechi and coBuechi solving
 ---------------------------------------------------------------------------------------------------
-solveBuechi :: Config -> Arena -> Set Loc -> Loc -> IO (Bool, CFG)
+solveBuechi :: Config -> Arena -> Set Loc -> Loc -> IO (Bool, SyBo)
 solveBuechi conf arena accepts init = do
   lg conf ["Game type Buechi with GF", strS (locName arena) accepts]
-  (wenv, fset) <- iterBuechi conf Sys arena accepts init
+  (wenv, progSys, _) <- iterBuechi conf Sys arena accepts init
   lg conf ["Winning region Env in initial location", SMTLib.toString (wenv `get` init)]
   res <- SMT.unsat conf $ FOL.andf [inv arena init, wenv `get` init]
   lg conf ["Game realizable =>", show res]
-  if res && generateProgram conf
-    then do
-      (attr, prog) <- attractorEx conf Sys arena noCheck fset
-      prog <- pure $ CFG.redirectGoal arena attr prog
-      prog <- pure $ CFG.setInitialCFG prog init
-      return (True, prog)
-    else return (res, CFG.empty)
+  return (res, progSys)
 
-solveCoBuechi :: Config -> Arena -> Set Loc -> Loc -> IO (Bool, CFG)
+solveCoBuechi :: Config -> Arena -> Set Loc -> Loc -> IO (Bool, SyBo)
 solveCoBuechi conf arena stays init = do
   let rejects = locations arena `Set.difference` stays
   lg conf ["Game type coBuechi with not GF", strS (locName arena) rejects]
-  (wsys, _) <- iterBuechi conf Env arena rejects init
+  (wsys, _, progSys) <- iterBuechi conf Env arena rejects init
   lg conf ["Winning region Sys in initial location", SMTLib.toString (wsys `get` init)]
   res <- SMT.valid conf $ inv arena init `FOL.impl` (wsys `get` init)
   lg conf ["Game realizable =>", show res]
-  if res && generateProgram conf
-    then do
-      safeSt <- SymSt.map FOL.neg <$> attractor conf Env arena noCheck (selectInv arena rejects)
-      (_, prog) <- attractorEx conf Sys arena noCheck $ SymSt.map FOL.neg safeSt
-      prog <- pure $ CFG.redirectGoal arena safeSt prog
-      prog <- pure $ CFG.setInitialCFG prog init
-      return (True, prog)
-    else return (res, CFG.empty)
+  return (res, progSys)
 
-iterBuechi :: Config -> Player -> Arena -> Set Loc -> Loc -> IO (SymSt, SymSt)
-iterBuechi conf player arena accept init = iter (selectInv arena accept) (0 :: Word)
+iterBuechi :: Config -> Player -> Arena -> Set Loc -> Loc -> IO (SymSt, SyBo, SyBo)
+iterBuechi conf player arena accept init = iter (selectInv arena accept) (0 :: Word) Synt.empty
   where
-    iter fset i = do
+    iter fset i progOp = do
       lg conf ["Iteration", show i]
       lg conf ["F_i =", strSt arena fset]
-      bset <- attractor conf player arena noCheck fset
+      (bset, progReachF) <- attractorEx conf player arena noCheck fset
+      -- Extraction
+      let progPlayer = Synt.callOnSt bset progReachF $ Synt.fromStayIn conf arena fset bset
+      progOp <-
+        pure
+          $ if i == 0
+              then Synt.fromStayIn conf arena (SymSt.map FOL.neg fset) (SymSt.map FOL.neg fset)
+              else progOp
+      --
       lg conf ["B_i =", strSt arena bset]
       cset <- cpreS conf player arena bset
       lg conf ["C_i =", strSt arena cset]
-      wset <- attractor conf (opponent player) arena noCheck $ SymSt.map FOL.neg cset
+      (wset, subProg) <- attractorEx conf (opponent player) arena noCheck $ SymSt.map FOL.neg cset
       lg conf ["W_i+1 =", strSt arena wset]
+      -- Extraction 
+      progOp <-
+        pure
+          $ Synt.callOnSt wset subProg
+          $ Synt.enforceFromTo (SymSt.map FOL.neg cset) (SymSt.map FOL.neg fset) progOp
+      -- 
       fset' <- SymSt.simplify conf $ fset `SymSt.difference` wset
       lg conf ["F_i+1 =", strSt arena fset']
       fp <- SymSt.implies conf fset fset'
       if fp
         then do
-          lg conf ["Fixed point reaced", strSt arena fset']
-          return (wset, fset)
+          lg conf ["Fixed point reached", strSt arena fset']
+          return (wset, progPlayer, progOp)
         else do
           earlyStop <-
             case player of
@@ -154,15 +148,15 @@ iterBuechi conf player arena accept init = iter (selectInv arena accept) (0 :: W
           if earlyStop
             then do
               lg conf ["Early stop reached"]
-              return (wset, fset)
+              return (wset, progPlayer, progOp)
             else do
               lg conf ["Recursion with", strSt arena fset']
-              iter fset' (i + 1)
+              iter fset' (i + 1) progOp
 
 ---------------------------------------------------------------------------------------------------
 -- Parity solving
 ---------------------------------------------------------------------------------------------------
-solveParity :: Config -> Arena -> Map Loc Word -> Loc -> IO (Bool, CFG)
+solveParity :: Config -> Arena -> Map Loc Word -> Loc -> IO (Bool, SyBo)
 solveParity conf arena colors init = do
   lg conf ["Game type Parity with colors", strM (locName arena) show colors]
   (_, wsys) <- zielonka arena
@@ -170,7 +164,7 @@ solveParity conf arena colors init = do
   lg conf ["Game is realizable? ", show res]
   if res && generateProgram conf
     then error "TODO IMPLEMENT: Parity extraction"
-    else return (res, CFG.empty)
+    else return (res, Synt.empty)
   where
     colorList = Map.toList colors
     --
@@ -212,6 +206,7 @@ solveParity conf arena colors init = do
         eqiv <- SymSt.implies conf full aset
         if eqiv
           then do
+            -- TODO IMPLEMENT: extraction does basically looping game through aset attractor
             lg conf ["Parity return 0"]
             pure $ mkPlSet player (full, emptySt arena)
           else do
@@ -221,6 +216,7 @@ solveParity conf arena colors init = do
             winOp' <- SymSt.simplify conf winOp'
             if SymSt.null winOp'
               then do
+                -- TODO IMPLEMENT: extraction does: aset strategy, otherwise sub startegy in subgame!
                 lg conf ["Parity return 1"]
                 pure $ mkPlSet player (full, emptySt arena)
               else do
@@ -229,6 +225,7 @@ solveParity conf arena colors init = do
                 lg conf ["Parity Recurse 2"]
                 winPl'' <- playerSet player <$> zielonka arena''
                 lg conf ["Parity return 2"]
+                -- TODO IMPLEMENT: extraction does: in remove opponent stargey is got to winOp' and exectures is startegy there, otherwise it executes the other recusrive strategy, player executes recursive strategy
                 pure $ mkPlSet player (winPl'', full `SymSt.difference` winPl'')
 
 ---------------------------------------------------------------------------------------------------
@@ -242,7 +239,4 @@ selectInv arena locs =
        if l `elem` locs
          then arena `inv` l
          else FOL.false)
-
-foldLocs :: Set Loc -> (Loc -> CFG -> CFG) -> CFG -> CFG
-foldLocs locs f prog = foldl (flip f) prog locs
 ---------------------------------------------------------------------------------------------------
