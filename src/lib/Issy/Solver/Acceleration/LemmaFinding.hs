@@ -25,14 +25,20 @@ type Constraint = [Term]
 
 -- Add primed stuff to lemma
 data LemSyms =
-  LemSyms Symbol Symbol Symbol
+  LemSyms Symbol Symbol Symbol Symbol
   deriving (Eq, Ord, Show)
 
+primeOf :: LemSyms -> Symbol
+primeOf (LemSyms _ _ _ prime) = prime
+
+symbolsOf :: LemSyms -> Set Symbol
+symbolsOf (LemSyms bs ss cs prime) = Set.fromList [bs, ss, cs, prime]
+
 data Lemma =
-  Lemma Term Term Term Symbol
+  Lemma Term Term Term
 
 mapL :: (Term -> Term) -> Lemma -> Lemma
-mapL m (Lemma b s c prime) = Lemma (m b) (m s) (m c) prime
+mapL m (Lemma b s c) = Lemma (m b) (m s) (m c)
 
 data LemInst =
   LemInst Constraint Lemma
@@ -52,7 +58,7 @@ extInt :: Symbol -> Integer -> Symbol
 extInt prefix i = prefix ++ "_" ++ show i ++ "_"
 
 replaceLemma :: Variables -> Lemma -> LemSyms -> Term -> Term
-replaceLemma vars (Lemma b s c prime) (LemSyms bs ss cs) =
+replaceLemma vars (Lemma b s c) (LemSyms bs ss cs prime) =
   let vs = Vars.stateVarL vars
    in FOL.replaceUF ss (vs ++ map (prime ++) vs) s . FOL.replaceUF cs vs c . FOL.replaceUF bs vs b
 
@@ -89,16 +95,15 @@ rankingFunc vars prf =
   where
     br n c = ite (bvarT (varcl prf n c))
 
-rankLemma :: Variables -> Symbol -> (Lemma, [Term])
-rankLemma vars prf =
-  let prim = prf ++ "_nv_"
-      (r, conR) = rankingFunc vars prf
+rankLemma :: Variables -> Symbol -> Symbol -> (Lemma, [Term])
+rankLemma vars prime prf =
+  let (r, conR) = rankingFunc vars prf
       (diff, conD) =
         if any ((== SReal) . Vars.sortOf vars) (Vars.stateVars vars)
           then let eps = rvarT (varcn prf "epislon")
                 in (eps, [func ">" [eps, zeroT], eps `leqT` oneT])
           else (oneT, [])
-   in (Lemma (r `leqT` zeroT) (addT [diff, primeT vars prim r] `leqT` r) true prim, conR ++ conD)
+   in (Lemma (r `leqT` zeroT) (addT [diff, primeT vars prime r] `leqT` r) true, conR ++ conD)
 
 invc :: Integer -> Variables -> Symbol -> (Term, [Term])
 invc restr vars prf =
@@ -134,40 +139,36 @@ constCompInv rest vars prf =
           br n = ite (bvarT (varcl prf n c))
        in br "a" (br "b" true (func "=" [cc, var])) (br "b" (cc `leqT` var) (var `leqT` cc))
 
-genInstH :: Int -> Variables -> Symbol -> LemInst
-genInstH limit vars pref =
+genInstH :: Int -> Variables -> Symbol -> Symbol -> LemInst
+genInstH limit vars prime pref =
   let (ccomp, cinvc) = templateConfig limit
       act = bvarT (pref ++ "_act")
-      (Lemma bi si ci prime, cnr) = rankLemma vars (pref ++ "_r_")
+      (Lemma bi si ci, cnr) = rankLemma vars prime (pref ++ "_r_")
       (invs, cnis) = unzip $ imap (\i l -> invc l vars (extInt pref i)) cinvc
       (inv0, cni0) = constCompInv ccomp vars (pref ++ "_i0_")
       inv = andf (inv0 : invs)
    in LemInst
         (cnr ++ cni0 ++ concat cnis)
-        (Lemma
-           (andf [act, bi, inv])
-           (andf [act, si, primeT vars prime inv])
-           (andf [act, ci, inv])
-           prime)
+        (Lemma (andf [act, bi, inv]) (andf [act, si, primeT vars prime inv]) (andf [act, ci, inv]))
 
 genInst :: Int -> Variables -> Symbol -> LemSyms -> Constraint -> Term -> (Constraint, Term, Lemma)
 genInst limit vars pref l cons f =
-  let LemInst consL li = genInstH limit vars pref
+  let LemInst consL li = genInstH limit vars (primeOf l) pref
       rep = replaceLemma vars li l
    in (consL ++ map rep cons, rep f, li)
 
-skolemize :: Int -> Variables -> Set Symbol -> Term -> Term
-skolemize limit vars metas =
+skolemize :: Variables -> Set Symbol -> Term -> Term
+skolemize vars metas =
   mapTerm
-    (\v s ->
-       if v `elem` metas && (s == SBool || limit2skolemNum limit) --TODO: HACKY
+    (\v _ ->
+       if v `elem` metas
          then Just $ Vars.unintPredTerm vars v
          else Nothing)
 
 instantiate ::
      Int -> Variables -> Constraint -> Term -> [LemSyms] -> (Constraint, Term, [(LemSyms, Lemma)])
 instantiate limit vars cons f ls =
-  let syms = Set.unions (Vars.stateVars vars : symbols f : (symbols <$> cons))
+  let syms = Set.unions $ Vars.stateVars vars : symbols f : map symbols cons ++ map symbolsOf ls
       pref = uniquePrefix "p" syms
    in foldl
         (\(c, f, col) (l, i) ->
@@ -203,7 +204,7 @@ resolveBoth cfg limit vars cons f ls =
   let (cons', f', col) = instantiate limit vars cons f ls
       meta = frees (andf cons')
       theta = andf (f' : cons')
-      sk = skolemize limit vars meta
+      sk = skolemize vars meta
       query = exists (Set.toList meta) theta
    in do
         cfg <- pure $ setName "ResSK" cfg

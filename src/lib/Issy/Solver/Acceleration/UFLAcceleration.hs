@@ -95,10 +95,9 @@ accReach :: AccState -> Game -> Loc -> SymSt -> IO (Constraint, Term, SyBo, AccS
 accReach acst g loc st = do
   let targetInv = g `inv` loc
   -- Compute new lemma symbols
-  (base, step, conc, stepSym, acst) <- pure $ lemmaSymbols (vars g) acst
+  (base, step, conc, stepSym, prime, acst) <- pure $ lemmaSymbols (vars g) acst
   -- Compute loop scenario
-  (gl, loc, loc', st, fixedInv, prog) <-
-    loopScenario (config acst) (sizeLimit acst) g loc st (error "TODO IMPLEMENT")
+  (gl, loc, loc', st, fixedInv, prog) <- loopScenario (config acst) (sizeLimit acst) g loc st prime
   -- Finialize loop game target with step relation and compute loop attractor
   let st' = set st loc' $ FOL.orf [st `get` loc, step]
   (cons, stAcc, prog, acst) <- iterA acst gl st' loc' prog
@@ -142,23 +141,25 @@ iterA acst g attr shadow = go (doIterA acst g) (OL.fromSet (preds g shadow)) [] 
 -------------------------------------------------------------------------------
 -- Symbol Management
 -------------------------------------------------------------------------------
-lemmaSymbols :: Variables -> AccState -> (Term, Term, Term, Function, AccState)
+lemmaSymbols :: Variables -> AccState -> (Term, Term, Term, Function, Symbol, AccState)
 lemmaSymbols vars acst =
   let base = FOL.uniqueName "b" $ usedSyms acst
       step = FOL.uniqueName "s" $ usedSyms acst
       conc = FOL.uniqueName "c" $ usedSyms acst
-      lsym = LemSyms base step conc
+      prime = FOL.uniquePrefix "prime_" $ usedSyms acst
+      lsym = LemSyms base step conc prime
    in ( Vars.unintPredTerm vars base
       , Vars.unintPredTerm vars step
       , Vars.unintPredTerm vars conc
       , Vars.unintPred vars step
+      , prime
       , acst
-          { usedSyms = usedSyms acst `Set.union` Set.fromList [base, step, conc]
+          { usedSyms = usedSyms acst `Set.union` Set.fromList [base, step, conc, prime]
           , lemmaSyms = lsym : lemmaSyms acst
           })
 
 replaceLemma :: Variables -> SyBo -> (LemSyms, Lemma) -> SyBo
-replaceLemma vars sybo (LemSyms bs ss cs, Lemma b s c prime) =
+replaceLemma vars sybo (LemSyms bs ss cs prime, Lemma b s c) =
   let vs = Vars.stateVarL vars
    in Synt.replaceUF ss (vs ++ map (prime ++) vs) s
         $ Synt.replaceUF cs vs c
