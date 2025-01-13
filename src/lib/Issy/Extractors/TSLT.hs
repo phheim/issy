@@ -84,7 +84,7 @@ encTerm upd =
     op name args = "(" ++ name ++ concatMap ((" " ++) . encTerm upd) args ++ ")"
 
 encLoc :: Game -> Loc -> String
-encLoc g l = "[loc  <- i" ++ show (Locs.toNumber (locationSet g) l) ++ "()]"
+encLoc _ l = "[loc  <- i" ++ show (Locs.toNumber l) ++ "()]"
 
 encTrans :: Game -> Transition -> String
 encTrans g =

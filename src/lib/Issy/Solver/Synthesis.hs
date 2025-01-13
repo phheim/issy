@@ -20,13 +20,22 @@ module Issy.Solver.Synthesis
   ) where
 
 ---------------------------------------------------------------------------------------------------
+import Control.Monad (unless)
 import Data.Map.Strict (Map)
+import qualified Data.Map.Strict as Map
+import Data.Set (Set)
+import qualified Data.Set as Set
+import System.Exit (die)
 
+import qualified Issy.Base.Locations as Locs
 import Issy.Base.SymbolicState (SymSt)
 import qualified Issy.Base.SymbolicState as SymSt
-import Issy.Config (Config, generateProgram)
+import qualified Issy.Base.Variables as Vars
+import Issy.Config (Config, generateProgram, setName)
 import Issy.Logic.FOL (Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
+import qualified Issy.Logic.SMT as SMT
+import qualified Issy.Printers.SMTLib as SMTLib
 import Issy.Solver.GameInterface
 
 ---------------------------------------------------------------------------------------------------
@@ -34,36 +43,33 @@ import Issy.Solver.GameInterface
 ---------------------------------------------------------------------------------------------------
 data SyBo
   = SyBoNone
-  | SyBoNorm [(Loc, Term, ProgType)]
-  | SyBoLoop LoopSyBo
-  deriving (Eq, Ord, Show)
+  | SyBoNorm Arena [(Loc, Term, BookType)]
+  | SyBoLoop Arena LoopSyBo
 
 data LoopSyBo = LoopSyBo
   { loopLoc :: Loc
   , loopLoc' :: Loc
-  , loopTrans :: [(Loc, Term, ProgType)]
+  , loopTrans :: [(Loc, Term, BookType)]
         -- ^ in loop game locations
   , loopToMain :: Map Loc Loc
         -- ^ maps loop locations EXCEPT loopLoc' to old locations
   , loopPrime :: Symbol
-  } deriving (Eq, Ord, Show)
+  }
 
-data ProgType
+data BookType
   = Enforce SymSt
   | Return
   | SubProg SyBo
-  deriving (Eq, Ord, Show)
 
---TODO: Optimize toward SyBoNone
 normSyBo :: Config -> Arena -> SyBo
-normSyBo conf _
-  | generateProgram conf = SyBoNorm []
+normSyBo conf arena
+  | generateProgram conf = SyBoNorm arena []
   | otherwise = SyBoNone
 
 loopSyBo :: Config -> Arena -> Loc -> Loc -> Symbol -> Map Loc Loc -> SyBo
-loopSyBo conf _ loc loc' prime newToOld
+loopSyBo conf arena loc loc' prime newToOld
   | generateProgram conf =
-    SyBoLoop
+    SyBoLoop arena
       $ LoopSyBo
           {loopLoc = loc, loopLoc' = loc', loopTrans = [], loopPrime = prime, loopToMain = newToOld}
   | otherwise = SyBoNone
@@ -71,17 +77,20 @@ loopSyBo conf _ loc loc' prime newToOld
 fromStayIn :: Config -> Arena -> SymSt -> SymSt -> SyBo
 fromStayIn conf arena src trg = enforceFromTo src trg $ normSyBo conf arena
 
-addTrans :: Loc -> Term -> ProgType -> SyBo -> SyBo
+addTrans :: Loc -> Term -> BookType -> SyBo -> SyBo
 addTrans loc cond tran =
   \case
     SyBoNone -> SyBoNone
-    SyBoNorm trans -> SyBoNorm $ (loc, cond, tran) : trans
-    SyBoLoop prog -> SyBoLoop $ prog {loopTrans = (loc, cond, tran) : loopTrans prog}
+    SyBoNorm arena trans -> SyBoNorm arena $ (loc, cond, tran) : trans
+    SyBoLoop arena prog -> SyBoLoop arena $ prog {loopTrans = (loc, cond, tran) : loopTrans prog}
 
-chainOn :: (Loc -> Term -> a -> a) -> SymSt -> a -> a
-chainOn f st init =
-  let retList = filter ((/= FOL.false) . snd) $ SymSt.toList st
-   in foldl (\a (loc, cond) -> f loc cond a) init retList
+chainOn :: (Loc -> Term -> SyBo -> SyBo) -> SymSt -> SyBo -> SyBo
+chainOn f st =
+  \case
+    SyBoNone -> SyBoNone
+    init ->
+      let retList = filter ((/= FOL.false) . snd) $ SymSt.toList st
+       in foldl (\a (loc, cond) -> f loc cond a) init retList
 
 returnOn :: SymSt -> SyBo -> SyBo
 returnOn = chainOn (\loc cond -> addTrans loc cond Return)
@@ -105,8 +114,8 @@ mapTerms :: (Term -> Term) -> SyBo -> SyBo
 mapTerms f =
   \case
     SyBoNone -> SyBoNone
-    SyBoNorm trans -> SyBoNorm $ map mapTrans trans
-    SyBoLoop prog -> SyBoLoop $ prog {loopTrans = map mapTrans (loopTrans prog)}
+    SyBoNorm arena trans -> SyBoNorm arena $ map mapTrans trans
+    SyBoLoop arena prog -> SyBoLoop arena $ prog {loopTrans = map mapTrans (loopTrans prog)}
   where
     mapTrans (loc, cond, pt) =
       case pt of
@@ -117,12 +126,34 @@ mapTerms f =
 empty :: SyBo
 empty = SyBoNone
 
+symbols :: SyBo -> Set Symbol
+symbols =
+  \case
+    SyBoNone -> Set.empty
+    SyBoNorm arena trans ->
+      Set.unions
+        $ usedSymbols arena
+            : map (\(_, cond, tran) -> FOL.symbols cond `Set.union` symbolsBT tran) trans
+    SyBoLoop arena prog ->
+      Set.unions
+        $ usedSymbols arena
+            : Set.map (loopPrime prog ++) (stateVars arena)
+            : map (\(_, cond, tran) -> FOL.symbols cond `Set.union` symbolsBT tran) (loopTrans prog)
+
+symbolsBT :: BookType -> Set Symbol
+symbolsBT =
+  \case
+    Enforce st -> Set.unions $ map (FOL.symbols . snd) $ SymSt.toList st
+    Return -> Set.empty
+    SubProg prog -> symbols prog
+
 ---------------------------------------------------------------------------------------------------
 -- Extraction
 ---------------------------------------------------------------------------------------------------
 data Stmt
-  = InfLoop [Stmt]
+  = InfLoop Stmt
   | Cond Term Stmt
+  | Sequence [Stmt]
   | Assign Symbol Term
   | Break
   | Continue
@@ -130,42 +161,65 @@ data Stmt
   | Read
 
 extractProg :: Config -> Loc -> SyBo -> IO String
-extractProg conf _ sybo = do
-  prog <- extractPG conf sybo
+extractProg conf init sybo = do
+  conf <- pure $ setName "Synth" conf
+  let locVar = FOL.uniquePrefix "prog_counter" $ symbols sybo
+  prog <- extractPG conf locVar sybo
+  prog <- pure $ Sequence [Assign locVar (toLoc init), prog]
   pure $ printProg prog
 
 ---------------------------------------------------------------------------------------------------
 -- Translation to program
 ---------------------------------------------------------------------------------------------------
-locVar :: Term
-locVar = error "TODO IMPLEMENT"
-
-locNum :: Loc -> Term
-locNum = error "TODO IMPLEMENT"
-
-extractPG :: Config -> SyBo -> IO Stmt
-extractPG conf =
+extractPG :: Config -> Symbol -> SyBo -> IO Stmt
+extractPG conf locVar =
   \case
     SyBoNone -> error "assert: this should not be there when extracting a program"
-    SyBoNorm trans -> do
-      trans <- mapM (\(loc, cond, tr) -> extractTT conf loc cond tr) trans
-      pure $ InfLoop $ reverse $ Abort : trans
-    SyBoLoop prog -> error "TODO"
-           -- pure $ 
-           --     InfLoop $ Cond (locVar `FOL.equal` locNum loc') (error "TODO: set locVar to locNum loc") :
-           --               Cond (locVar `FOL.equal` locNum loc ) (error "TODO: copy variables according to used loop prime, maybe this has to part of the loop game too!!!") :
-           --               error "TODO: Map transitions, on return go back to old location type"
+    SyBoNorm arena trans -> do
+      trans <- mapM (extractTT conf locVar arena Nothing) $ reverse trans
+      pure $ InfLoop $ Sequence $ trans ++ [Abort]
+    SyBoLoop arena prog -> do
+      let loopBack = Cond (isLoc locVar (loopLoc' prog)) $ Assign locVar (toLoc (loopLoc prog))
+      let copyVars =
+            Cond (isLoc locVar (loopLoc prog))
+              $ Sequence
+              $ map (\v -> Assign (loopPrime prog ++ v) (FOL.Var v (sortOf arena v)))
+              $ Vars.stateVarL
+              $ vars arena
+      let mapLoc l = Map.findWithDefault (error "assert: unreachable code") l $ loopToMain prog
+      trans <- mapM (extractTT conf locVar arena (Just mapLoc)) $ reverse $ loopTrans prog
+      pure $ InfLoop $ Sequence $ loopBack : copyVars : trans ++ [Abort]
 
-extractTT :: Config -> Loc -> Term -> ProgType -> IO Stmt
-extractTT conf loc cond =
-  \case
-    Return -> error "TODO: condition; maybe map location to old location type; then break;"
-    SubProg prog -> error "TODO: condition; insert sub program; then continue;"
-    Enforce _ -> error "TODO: condition; then read inputs; then skolmeize; then continue"
+extractTT :: Config -> Symbol -> Arena -> Maybe (Loc -> Loc) -> (Loc, Term, BookType) -> IO Stmt
+extractTT conf locVar arena mapLoc (loc, cond, pt) = do
+  cond <- SMT.simplify conf cond
+  unless (FOL.quantifierFree cond)
+    $ die
+    $ "synthesis failure: could not qelim" ++ SMTLib.toString cond
+  let condStmt = Cond $ FOL.andf [isLoc locVar loc, cond]
+   in case pt of
+        Return ->
+          case mapLoc of
+            Nothing -> pure $ condStmt Break
+            Just mapLoc -> pure $ condStmt $ Sequence [Assign locVar (toLoc (mapLoc loc)), Break]
+        SubProg sub -> do
+          sub <- extractPG conf locVar sub
+          pure $ condStmt $ Sequence [sub, Continue]
+        Enforce _ -> do
+          assign <-
+            error
+              "TODO: compute next statments via skolemeization, ensure that primed variables stay the same, they are not to be changed"
+          pure $ condStmt $ Sequence [Read, assign, Continue]
+
+isLoc :: Symbol -> Loc -> Term
+isLoc locVar l = FOL.Var locVar FOL.SInt `FOL.equal` toLoc l
+
+toLoc :: Loc -> Term
+toLoc = FOL.Const . FOL.CInt . Locs.toNumber
 
 ---------------------------------------------------------------------------------------------------
 -- Printing
 ---------------------------------------------------------------------------------------------------
 printProg :: Stmt -> String
-printProg = error "TODO: IMPLEMENT"
+printProg = error "TODO IMPLEMENT"
 ---------------------------------------------------------------------------------------------------

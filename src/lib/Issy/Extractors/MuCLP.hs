@@ -93,8 +93,8 @@ encTerm upd =
         _ -> error (op ++ "is a binary operator")
 
 encPred :: Game -> String -> (Symbol -> String) -> [Symbol] -> Loc -> String
-encPred g name sToStr syms l =
-  name ++ show (Locs.toNumber (locationSet g) l) ++ concatMap (\v -> " (" ++ sToStr v ++ ")") syms
+encPred _ name sToStr syms l =
+  name ++ show (Locs.toNumber l) ++ concatMap (\v -> " (" ++ sToStr v ++ ")") syms
 
 encTrans :: String -> Game -> Transition -> String
 encTrans pname g =

@@ -49,5 +49,5 @@ name locs l =
 toString :: Store -> Loc -> String
 toString locs (Loc n) = "l" ++ show n ++ "_" ++ name locs (Loc n)
 
-toNumber :: Store -> Loc -> Integer
-toNumber _ (Loc n) = n
+toNumber :: Loc -> Integer
+toNumber (Loc n) = n
