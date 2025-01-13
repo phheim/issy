@@ -1,5 +1,7 @@
+---------------------------------------------------------------------------------------------------
 {-# LANGUAGE LambdaCase #-}
 
+---------------------------------------------------------------------------------------------------
 -- TODO: Rename
 module Issy.Solver.ControlFlowGraph
   ( SyBo
@@ -12,34 +14,40 @@ module Issy.Solver.ControlFlowGraph
   , enforceFromTo
   , callOn
   , callOnSt
-  , replaceUnint
+  , replaceUF
   , fromStayIn
   , -- Extraction
     extractProg
   ) where
 
-import Data.Map.Strict (Map, (!?))
-import qualified Data.Map.Strict as Map
+---------------------------------------------------------------------------------------------------
+import Data.Map.Strict (Map)
 
-import Issy.Base.SymbolicState (SymSt, get)
+import Issy.Base.SymbolicState (SymSt)
 import qualified Issy.Base.SymbolicState as SymSt
-import Issy.Base.Variables (Variables)
 import Issy.Config (Config, generateProgram)
 import Issy.Logic.FOL (Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
-import qualified Issy.Logic.SMT as SMT
-import qualified Issy.Printers.SMTLib as SMTLib (toString)
-import Issy.Solver.Acceleration.LemmaFinding (LemSyms(..), Lemma, prime)
 import Issy.Solver.GameInterface
 
---
--- This is the book-keeping part!
---
+---------------------------------------------------------------------------------------------------
+-- Bookkeeping
+---------------------------------------------------------------------------------------------------
 data SyBo
   = SyBoNone
   | SyBoNorm [(Loc, Term, ProgType)]
-  | SyBoLoop Loc Loc [(Loc, Term, ProgType)]
+  | SyBoLoop LoopSyBo
   deriving (Eq, Ord, Show)
+
+data LoopSyBo = LoopSyBo
+  { loopLoc :: Loc
+  , loopLoc' :: Loc
+  , loopTrans :: [(Loc, Term, ProgType)]
+        -- ^ in loop game locations
+  , loopToMain :: Map Loc Loc
+        -- ^ maps loop locations EXCEPT loopLoc' to old locations
+  , loopPrime :: Symbol
+  } deriving (Eq, Ord, Show)
 
 data ProgType
   = Enforce SymSt
@@ -53,9 +61,12 @@ normSyBo conf _
   | generateProgram conf = SyBoNorm []
   | otherwise = SyBoNone
 
-loopSyBo :: Config -> Arena -> Loc -> Loc -> SyBo
-loopSyBo conf _ loc loc'
-  | generateProgram conf = SyBoLoop loc loc' []
+loopSyBo :: Config -> Arena -> Loc -> Loc -> Symbol -> Map Loc Loc -> SyBo
+loopSyBo conf _ loc loc' prime newToOld
+  | generateProgram conf =
+    SyBoLoop
+      $ LoopSyBo
+          {loopLoc = loc, loopLoc' = loc', loopTrans = [], loopPrime = prime, loopToMain = newToOld}
   | otherwise = SyBoNone
 
 fromStayIn :: Config -> Arena -> SymSt -> SymSt -> SyBo
@@ -66,288 +77,96 @@ addTrans loc cond tran =
   \case
     SyBoNone -> SyBoNone
     SyBoNorm trans -> SyBoNorm $ (loc, cond, tran) : trans
-    SyBoLoop l l' trans -> SyBoLoop l l' $ (loc, cond, tran) : trans
+    SyBoLoop prog -> SyBoLoop $ prog {loopTrans = (loc, cond, tran) : loopTrans prog}
+
+chainOn :: (Loc -> Term -> a -> a) -> SymSt -> a -> a
+chainOn f st init =
+  let retList = filter ((/= FOL.false) . snd) $ SymSt.toList st
+   in foldl (\a (loc, cond) -> f loc cond a) init retList
 
 returnOn :: SymSt -> SyBo -> SyBo
-returnOn reach sybo =
-  let retList = filter ((/= FOL.false) . snd) $ SymSt.toList reach
-   in foldl (\sybo (loc, cond) -> addTrans loc cond Return sybo) sybo retList
+returnOn = chainOn (\loc cond -> addTrans loc cond Return)
 
 enforceTo :: Loc -> Term -> SymSt -> SyBo -> SyBo
 enforceTo loc cond = addTrans loc cond . Enforce
 
 enforceFromTo :: SymSt -> SymSt -> SyBo -> SyBo
-enforceFromTo = error "TODO IMPLEMENT"
+enforceFromTo src trg = chainOn (\loc cond -> enforceTo loc cond trg) src
 
 callOn :: Loc -> Term -> SyBo -> SyBo -> SyBo
 callOn loc cond = addTrans loc cond . SubProg
 
 callOnSt :: SymSt -> SyBo -> SyBo -> SyBo
-callOnSt = error "TODO IMPLEMENT"
+callOnSt src sub = chainOn (\loc cond -> callOn loc cond sub) src
 
-replaceUnint :: Symbol -> ([Term] -> Term) -> SyBo -> SyBo
-replaceUnint = error "TODO IMPLEMENT"
+replaceUF :: Symbol -> [Symbol] -> Term -> SyBo -> SyBo
+replaceUF name argVars body = mapTerms $ FOL.replaceUF name argVars body
 
-extractProg :: Config -> Loc -> SyBo -> IO String
-extractProg = error "TODO IMPLEMENT"
+mapTerms :: (Term -> Term) -> SyBo -> SyBo
+mapTerms f =
+  \case
+    SyBoNone -> SyBoNone
+    SyBoNorm trans -> SyBoNorm $ map mapTrans trans
+    SyBoLoop prog -> SyBoLoop $ prog {loopTrans = map mapTrans (loopTrans prog)}
+  where
+    mapTrans (loc, cond, pt) =
+      case pt of
+        Enforce st -> (loc, f cond, Enforce (SymSt.map f st))
+        Return -> (loc, f cond, Return)
+        SubProg sub -> (loc, f cond, SubProg (mapTerms f sub))
 
 empty :: SyBo
 empty = SyBoNone
 
---
--- This is for the finial program, make into a separate processing step!
---
-newtype CFGLoc =
-  CFGLoc Int
-  deriving (Eq, Ord, Show)
+---------------------------------------------------------------------------------------------------
+-- Extraction
+---------------------------------------------------------------------------------------------------
+data Stmt
+  = InfLoop [Stmt]
+  | Cond Term Stmt
+  | Assign Symbol Term
+  | Break
+  | Continue
+  | Abort
+  | Read
 
---Invariant: all in locMap have to mapped in cfgTrans!
-data CFG = CFG
-  { cfgTrans :: Map CFGLoc ProgTrans
-  , cfgLocCnt :: Int
-  , cfgLocInit :: CFGLoc
-  , locMap :: Map Loc CFGLoc
-  }
+extractProg :: Config -> Loc -> SyBo -> IO String
+extractProg conf _ sybo = do
+  prog <- extractPG conf sybo
+  pure $ printProg prog
 
-setInitialCFG :: CFG -> Loc -> CFG
-setInitialCFG cfg l = cfg {cfgLocInit = mapLoc cfg l}
+---------------------------------------------------------------------------------------------------
+-- Translation to program
+---------------------------------------------------------------------------------------------------
+locVar :: Term
+locVar = error "TODO IMPLEMENT"
 
-mapLoc :: CFG -> Loc -> CFGLoc
-mapLoc cfg l =
-  case locMap cfg !? l of
-    Just cl -> cl
-    Nothing -> error $ "assert: mapLoc expects everything to be mapped " ++ show l
+locNum :: Loc -> Term
+locNum = error "TODO IMPLEMENT"
 
-addLoc :: CFG -> Loc -> CFG
-addLoc cfg l
-  | l `Map.member` locMap cfg = error "assert: cannot add exisiting locations"
-  | otherwise =
-    cfg
-      { cfgTrans = Map.insert (CFGLoc (cfgLocCnt cfg)) (PT []) (cfgTrans cfg)
-      , cfgLocCnt = cfgLocCnt cfg + 1
-      , locMap = Map.insert l (CFGLoc (cfgLocCnt cfg)) (locMap cfg)
-      }
-
-data Statement
-  = CondJump Term CFGLoc
-  -- ^ This jumps after reading in the successor location
-  | CondAssign Term (Map Symbol Term) CFGLoc
-  -- ^ This jumps before reading in the successor location
-  | CondCopy Term [(Symbol, Symbol)]
-  -- Dummies
-  | DummyCopy Term LemSyms
-  | DummyGoal Term
-  deriving (Eq, Ord, Show)
-
-newtype ProgTrans =
-  PT [Statement]
-  deriving (Eq, Ord, Show)
-
-mapTrans :: (CFGLoc -> [Statement] -> [Statement]) -> CFG -> CFG
-mapTrans f cfg = cfg {cfgTrans = Map.mapWithKey (\l (PT st) -> PT (f l st)) (cfgTrans cfg)}
-
-emptyCFG :: CFG
-emptyCFG = CFG {cfgTrans = Map.empty, cfgLocCnt = 0, cfgLocInit = CFGLoc 0, locMap = Map.empty}
-
-append :: Loc -> [Statement] -> CFG -> CFG
-append l stmts cfg =
-  cfg {cfgTrans = Map.adjust (\(PT pt) -> PT (pt ++ stmts)) (mapLoc cfg l) (cfgTrans cfg)}
-
-mapCFG :: (Term -> Term) -> CFG -> CFG
-mapCFG m = mapTrans (const (map go))
-  where
-    go =
-      \case
-        CondJump cond l -> CondJump (m cond) l
-        CondAssign cond asgn l -> CondAssign (m cond) (fmap m asgn) l
-        DummyGoal cond -> DummyGoal (m cond)
-        st -> st
-
-setLemmas :: [Symbol] -> [(LemSyms, Lemma)] -> CFG -> CFG
-setLemmas states col = mapTrans (const (map go))
-  where
-    mapping = Map.fromList col
-    go =
-      \case
-        DummyCopy cond lems ->
-          case mapping !? lems of
-            Nothing -> error $ "assert: " ++ show lems ++ " not mapped"
-            Just lemma -> CondCopy cond $ map (\v -> (prime lemma ++ v, v)) states
-        st -> st
-
--- OLD:
--- go [] (tran g l)
--- Invariant should be covered by attractor!
--- go cs = 
--- \case
---  TIf p tt tf -> go (p : cs) tt ++ go (neg p : cs) tf
---  TSys upds -> map (redUpds cs) upds
--- redUpds cs (u, l) =
--- (andf (reverse (mapTermM u (oldAttr `get` l) : cs)), u, mapLoc cfg l)
-makeTrans :: CFG -> Arena -> SymSt -> CFGLoc -> [(Term, Map Symbol Term, CFGLoc)]
-makeTrans _ _ _ _ = error "TODO IMPLEMENT"
-
-addUpd :: SymSt -> Arena -> Loc -> CFG -> CFG
-addUpd st g l cfg =
-  append
-    l
-    (map (\(cond, asg, l') -> CondAssign cond asg l') (makeTrans cfg g st (mapLoc cfg l)))
-    cfg
-
-mkCFG :: [Loc] -> CFG
-mkCFG = foldl addLoc emptyCFG
-
-goalCFG :: SymSt -> CFG
-goalCFG st =
-  foldl
-    (\cfg (l, cond) -> append l [DummyGoal cond] cfg)
-    (mkCFG (SymSt.locations st))
-    (SymSt.toList st)
-
-loopCFG :: (Loc, Loc) -> SymSt -> LemSyms -> Term -> CFG
-loopCFG (l, l') st lSyms stepTerm =
-  let cfg = addLoc (goalCFG st) l'
-   in append l' [CondJump (FOL.orf [st `get` l, stepTerm]) (mapLoc cfg l)]
-        $ append l [DummyCopy FOL.true lSyms] cfg
-
-redirectGoal :: Arena -> SymSt -> CFG -> CFG
-redirectGoal g symSt cfg = mapTrans (concatMap . go) cfg
-  where
-    go l =
-      \case
-        DummyGoal cond ->
-          map (\(c, asg, l') -> CondAssign (FOL.andf [cond, c]) asg l') $ makeTrans cfg g symSt l
-        st -> [st]
-
-goalToJump :: (CFGLoc -> Maybe CFGLoc) -> CFG -> CFG
-goalToJump mp = mapTrans (map . go)
-  where
-    go l =
-      \case
-        DummyGoal cond ->
-          case mp l of
-            Nothing -> DummyGoal cond
-            Just l' -> CondJump cond l'
-        st -> st
-
--- TODO: this need for sure something that maps some parts of the main stuff to the sub initial location!!!
--- TODO: this needs to take into account the empty CFG
-integrate :: CFG -> CFG -> CFG
-integrate sub main =
-  let merged =
-        CFG
-          { cfgTrans =
-              Map.union (cfgTrans main)
-                $ Map.mapKeys (\(CFGLoc l) -> CFGLoc (l + offset))
-                $ Map.map (\(PT stmts) -> PT (map go stmts))
-                $ cfgTrans sub
-          , cfgLocCnt = offset + cfgLocCnt sub
-          , cfgLocInit = cfgLocInit main
-          , locMap = locMap main
-          }
-   in goalToJump
-        (\(CFGLoc l) ->
-           if l >= offset
-             then Just (CFGLoc (l + offset))
-             else Nothing)
-        merged
-  where
-    offset = cfgLocCnt main
-    go =
-      \case
-        CondJump c (CFGLoc l) -> CondJump c (CFGLoc (l + offset))
-        CondAssign c u (CFGLoc l) -> CondAssign c u (CFGLoc (l + offset))
-        st -> st
-
---
--- Simplification
---
-totalize :: [Statement] -> [Statement]
-totalize = go []
-  where
-    go cond =
-      \case
-        CondJump c l:sr -> CondJump (FOL.andf (c : cond)) l : go (FOL.neg c : cond) sr
-        CondAssign c a l:sr -> CondAssign (FOL.andf (c : cond)) a l : go (FOL.neg c : cond) sr
-        CondCopy c a:sr -> CondCopy (FOL.andf (c : cond)) a : go cond sr
-        _ -> error "assert: dummies should not appear here anymore"
-
-mergeTotalUp :: [Statement] -> [Statement]
-mergeTotalUp = id -- TODO IMPLEMENT: merge subsequent updates, if no copy is there
-
-simplifySt :: Config -> Statement -> IO Statement
-simplifySt ctx =
+extractPG :: Config -> SyBo -> IO Stmt
+extractPG conf =
   \case
-    CondJump c l -> do
-      c <- SMT.simplify ctx c
-      pure $ CondJump c l
-    CondAssign c a l -> do
-      c <- SMT.simplify ctx c
-      a <- mapM (SMT.simplify ctx) a
-      pure $ CondAssign c a l
-    CondCopy c a -> do
-      c <- SMT.simplify ctx c
-      pure $ CondCopy c a
-    _ -> error "assert: dummies should not appear here anymore"
+    SyBoNone -> error "assert: this should not be there when extracting a program"
+    SyBoNorm trans -> do
+      trans <- mapM (\(loc, cond, tr) -> extractTT conf loc cond tr) trans
+      pure $ InfLoop $ reverse $ Abort : trans
+    SyBoLoop prog -> error "TODO"
+           -- pure $ 
+           --     InfLoop $ Cond (locVar `FOL.equal` locNum loc') (error "TODO: set locVar to locNum loc") :
+           --               Cond (locVar `FOL.equal` locNum loc ) (error "TODO: copy variables according to used loop prime, maybe this has to part of the loop game too!!!") :
+           --               error "TODO: Map transitions, on return go back to old location type"
 
-emptyCond :: Statement -> Bool
-emptyCond =
+extractTT :: Config -> Loc -> Term -> ProgType -> IO Stmt
+extractTT conf loc cond =
   \case
-    CondJump c _ -> c == FOL.false
-    CondAssign c _ _ -> c == FOL.false
-    CondCopy c _ -> c == FOL.false
-    _ -> error "assert: dummies should not appear here anymore"
+    Return -> error "TODO: condition; maybe map location to old location type; then break;"
+    SubProg prog -> error "TODO: condition; insert sub program; then continue;"
+    Enforce _ -> error "TODO: condition; then read inputs; then skolmeize; then continue"
 
-simplifyTr :: Config -> ProgTrans -> IO ProgTrans
-simplifyTr ctx (PT stmts) = do
-  stmts <- pure $ totalize stmts
-  stmts <- mapM (simplifySt ctx) stmts
-  stmts <- pure $ filter (not . emptyCond) stmts
-  stmts <- pure $ mergeTotalUp stmts
-  PT <$> mapM (simplifySt ctx) stmts
-
-simplify :: Config -> CFG -> IO CFG
-simplify ctx cfg = do
-  newTrans <- mapM (simplifyTr ctx) (cfgTrans cfg)
-  pure $ cfg {cfgTrans = newTrans}
-
---
+---------------------------------------------------------------------------------------------------
 -- Printing
---
--- TODO: add variable declarations!
---
-printCFG :: Variables -> CFG -> String
-printCFG _ cfg =
-  unlines
-    $ ["int main() {", "goto " ++ preRead (cfgLocInit cfg) ++ ";"]
-        ++ map (\(l, PT st) -> printLoc l st) (Map.toList (cfgTrans cfg))
-        ++ ["}"]
-
-printLoc :: CFGLoc -> [Statement] -> String
-printLoc l stmts =
-  unlines $ [preRead l ++ ":", "  read();", postRead l ++ ":"] ++ map printST stmts ++ ["abort();"]
-
-preRead :: CFGLoc -> String
-preRead (CFGLoc i) = "loc" ++ show i ++ "_pre"
-
-postRead :: CFGLoc -> String
-postRead (CFGLoc i) = "loc" ++ show i ++ "_post"
-
-printST :: Statement -> String
-printST =
-  \case
-    CondJump cond loc -> " if (" ++ printTerm cond ++ ") goto " ++ postRead loc ++ ";"
-    CondAssign cond asgn loc ->
-      unlines
-        $ [" if (" ++ printTerm cond ++ ") {"]
-            ++ map (\(v, t) -> "    " ++ v ++ " = " ++ printTerm t ++ ";") (Map.toList asgn)
-            ++ ["    goto " ++ preRead loc ++ ";", "}"]
-    CondCopy cond asgn ->
-      unlines
-        $ [" if (" ++ printTerm cond ++ ") {"]
-            ++ map (\(v, v') -> "    " ++ v ++ " = " ++ v' ++ ";") asgn
-            ++ ["}"]
-    _ -> error "assert: dummies should not appear here anymore"
-
-printTerm :: Term -> String
-printTerm = SMTLib.toString
+---------------------------------------------------------------------------------------------------
+printProg :: Stmt -> String
+printProg = error "TODO: IMPLEMENT"
+---------------------------------------------------------------------------------------------------

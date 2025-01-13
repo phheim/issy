@@ -27,6 +27,7 @@ module Issy.Logic.FOL
   , mapTermM
   , mapSymbol
   , setTerm
+  , replaceUF
   , --
     forAll
   , exists
@@ -242,6 +243,23 @@ setTerm targ val = go
           Func (PredefF "=>") [f, g] -> go f `impl` go g
           Func (PredefF "distinct") fs -> distinct (map go fs)
           _ -> f
+
+replaceUF :: Symbol -> [Symbol] -> Term -> Term -> Term
+replaceUF name argVars body = go
+  where
+    go =
+      \case
+        Quant q t f -> Quant q t (go f)
+        Lambda t f -> Lambda t (go f)
+        Func fun args ->
+          case fun of
+            CustomF n _ _
+              | n == name -> mapTermM (Map.fromList (zip argVars args)) body
+              | otherwise -> Func fun $ map go args
+            _ -> Func fun $ map go args
+        QVar k -> QVar k
+        Const c -> Const c
+        Var v t -> Var v t
 
 -------------------------------------------------------------------------------
 true :: Term

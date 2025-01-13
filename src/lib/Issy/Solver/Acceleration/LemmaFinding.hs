@@ -1,16 +1,11 @@
-{-# LANGUAGE LambdaCase #-}
-
 module Issy.Solver.Acceleration.LemmaFinding
   ( Constraint
   , LemSyms(..)
-  , Lemma
-  , prime
+  , Lemma(..)
   , resolve
-  , replaceLemma
   ) where
 
 import Data.Bifunctor (second)
-import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe)
 import Data.Set (Set)
 import qualified Data.Set as Set
@@ -19,6 +14,7 @@ import Issy.Base.Variables (Variables)
 import qualified Issy.Base.Variables as Vars
 import Issy.Config (Config, generateProgram, setName)
 import Issy.Logic.FOL
+import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.SMT as SMT
 import qualified Issy.Printers.SMTLib as SMTLib (toString)
 import Issy.Solver.Acceleration.Heuristics
@@ -34,9 +30,6 @@ data LemSyms =
 
 data Lemma =
   Lemma Term Term Term Symbol
-
-prime :: Lemma -> Symbol
-prime (Lemma _ _ _ p) = p
 
 mapL :: (Term -> Term) -> Lemma -> Lemma
 mapL m (Lemma b s c prime) = Lemma (m b) (m s) (m c) prime
@@ -59,31 +52,9 @@ extInt :: Symbol -> Integer -> Symbol
 extInt prefix i = prefix ++ "_" ++ show i ++ "_"
 
 replaceLemma :: Variables -> Lemma -> LemSyms -> Term -> Term
-replaceLemma vars (Lemma b s c prime) (LemSyms bs ss cs) = go
-  where
-    go =
-      \case
-        Quant q t f -> Quant q t (go f)
-        Lambda t f -> Lambda t (go f)
-        Func fun args ->
-          case fun of
-            CustomF n _ _
-              | n == bs ->
-                let m = Map.fromList $ zip (Vars.stateVarL vars) args
-                 in mapTermM m b
-              | n == cs ->
-                let m = Map.fromList $ zip (Vars.stateVarL vars) args
-                 in mapTermM m c
-              | n == ss ->
-                let m =
-                      Map.fromList
-                        $ zip (Vars.stateVarL vars ++ map (prime ++) (Vars.stateVarL vars)) args
-                 in mapTermM m s
-              | otherwise -> Func fun $ map go args
-            _ -> Func fun $ map go args
-        QVar k -> QVar k
-        Const c -> Const c
-        Var v t -> Var v t
+replaceLemma vars (Lemma b s c prime) (LemSyms bs ss cs) =
+  let vs = Vars.stateVarL vars
+   in FOL.replaceUF ss (vs ++ map (prime ++) vs) s . FOL.replaceUF cs vs c . FOL.replaceUF bs vs b
 
 -------------------------------------------------------------------------------
 -- Lemma generation

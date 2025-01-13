@@ -1,4 +1,3 @@
--------------------------------------------------------------------------------
 module Issy.Solver.Acceleration.LoopScenario
   ( loopScenario
   ) where
@@ -6,6 +5,7 @@ module Issy.Solver.Acceleration.LoopScenario
 -------------------------------------------------------------------------------
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
+import Data.Maybe (mapMaybe)
 import Data.Set (Set)
 import qualified Data.Set as Set
 
@@ -17,12 +17,15 @@ import Issy.Config (Config)
 import Issy.Logic.FOL (Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.SMT as SMT
+import Issy.Solver.ControlFlowGraph (SyBo)
+import qualified Issy.Solver.ControlFlowGraph as Synt
 import Issy.Solver.GameInterface
 import Issy.Utils.Extra (allM)
 
 -------------------------------------------------------------------------------
-loopScenario :: Config -> Maybe Int -> Game -> Loc -> SymSt -> IO (Game, Loc, Loc, SymSt, Term)
-loopScenario ctx pathBound arena loc target = do
+loopScenario ::
+     Config -> Maybe Int -> Game -> Loc -> SymSt -> Symbol -> IO (Game, Loc, Loc, SymSt, Term, SyBo)
+loopScenario ctx pathBound arena loc target prime = do
   (loopAr, loc') <- pure $ loopGame arena loc
   let subs = subArena pathBound loopAr (loc, loc')
   (loopAr, oldToNew) <- pure $ inducedSubGame loopAr subs
@@ -40,7 +43,17 @@ loopScenario ctx pathBound arena loc target = do
           subs
   indeps <- independentProgVars ctx loopAr
   (loopTarget, fixedInv) <- accTarget ctx (vars loopAr) loc indeps loopTarget
-  pure (loopAr, loc, loc', loopTarget, fixedInv)
+  let newToOld =
+        Map.fromList
+          $ mapMaybe
+              (\old ->
+                 if old `elem` subs
+                   then Just (oldToNew old, old)
+                   else Nothing)
+          $ Set.toList
+          $ locations arena
+  let prog = Synt.returnOn loopTarget $ Synt.loopSyBo ctx loopAr loc loc' prime newToOld
+  pure (loopAr, loc, loc', loopTarget, fixedInv, prog)
 
 accTarget :: Config -> Variables -> Loc -> Set Symbol -> SymSt -> IO (SymSt, Term)
 accTarget ctx vars loc indeps st = do

@@ -41,7 +41,8 @@ accelReach conf limit player arena loc reach = do
   lg conf ["Size bound", show (limit2size limit)]
   let prime = FOL.uniquePrefix "init_" $ usedSymbols arena
   -- 0. Compute loop sceneario
-  (arena, loc, loc', reach, fixInv) <- loopScenario conf (Just (limit2size limit)) arena loc reach
+  (arena, loc, loc', reach, fixInv, prog) <-
+    loopScenario conf (Just (limit2size limit)) arena loc reach prime
   lg conf ["Fixed invariant", SMTLib.toString fixInv]
   -- 1. Guess lemma
   lemma <- lemmaGuess conf prime (vars arena) (reach `get` loc)
@@ -64,7 +65,7 @@ accelReach conf limit player arena loc reach = do
           $ FOL.andf [inv arena loc, base] `FOL.impl` (reach `get` loc)
       unless baseCond $ error "assert: the base should be computed that this holds"
         -- 2. try a few explicit iterations to find invariant
-      invRes <- tryFindInv conf prime player arena (step, conc) (loc, loc') fixInv reach
+      invRes <- tryFindInv conf prime player arena (step, conc) (loc, loc') fixInv reach prog
       case invRes of
         Right (conc, prog) -> do
           lg conf ["Invariant iteration resulted in", SMTLib.toString conc]
@@ -75,7 +76,17 @@ accelReach conf limit player arena loc reach = do
             then do
               lg conf ["MaxCHC invariant computation"]
               invRes <-
-                exactInv conf prime player arena (step, conc) (loc, loc') fixInv reach overApprox
+                exactInv
+                  conf
+                  prime
+                  player
+                  arena
+                  (step, conc)
+                  (loc, loc')
+                  fixInv
+                  reach
+                  overApprox
+                  prog
               case invRes of
                 Left err -> do
                   lg conf ["MaxCHC invariant computation failed with", err]
@@ -97,15 +108,15 @@ tryFindInv ::
   -> (Loc, Loc)
   -> Term
   -> SymSt
+  -> SyBo
   -> IO (Either Term (Term, SyBo))
-tryFindInv conf prime player arena (step, conc) (loc, loc') fixInv reach = iter 0 FOL.true
+tryFindInv conf prime player arena (step, conc) (loc, loc') fixInv reach prog = iter 0 FOL.true
   where
     iter cnt invar
       | cnt >= invariantIterations conf = pure $ Left invar
       | otherwise = do
         lg conf ["Try invariant", SMTLib.toString invar]
         let reach' = set reach loc' $ FOL.orf [reach `get` loc, FOL.andf [step, invar]]
-        let prog = Synt.returnOn reach $ Synt.loopSyBo conf arena loc loc'
         (stAcc, prog) <- pure $ iterA player arena reach' loc' prog
         let res = unprime prime $ stAcc `get` loc
         res <- SMT.simplify conf res
@@ -149,18 +160,18 @@ exactInv ::
   -> Term
   -> SymSt
   -> Term
+  -> SyBo
   -> IO (Either String (Term, SyBo))
-exactInv conf prime player arena (step, conc) (loc, loc') fixInv reach invApprox = do
+exactInv conf prime player arena (step, conc) (loc, loc') fixInv reach invApprox prog = do
     -- TODO: Add logging
   let invName = FOL.uniquePrefix "chc_invar" $ Set.insert prime $ usedSymbols arena
     -- TODO: enhance by only useing usefull stuff! Needs change in CHC stuff
-  let sorts = map (Vars.sortOf (vars arena)) (Vars.stateVarL (vars arena))
+  let invArgs = Vars.stateVarL (vars arena)
+  let sorts = map (Vars.sortOf (vars arena)) invArgs
   let invar =
         FOL.Func (FOL.CustomF invName sorts FOL.SBool)
-          $ map (\v -> FOL.Var v (Vars.sortOf (vars arena) v))
-          $ Vars.stateVarL (vars arena)
+          $ map (\v -> FOL.Var v (Vars.sortOf (vars arena) v)) invArgs
   let reach' = set reach loc' $ FOL.orf [reach `get` loc, FOL.andf [step, invar]]
-  let prog = Synt.returnOn reach $ Synt.loopSyBo conf arena loc loc'
   (stAcc, prog) <- pure $ iterA player arena reach' loc' prog
   let res = unprime prime $ stAcc `get` loc
   res <- SMT.simplifyUF conf res --TODO: Maybe add timeout here?
@@ -174,7 +185,7 @@ exactInv conf prime player arena (step, conc) (loc, loc') fixInv reach invApprox
       pure
         $ Right
             ( FOL.andf [inv arena loc, conc, invar, fixInv]
-            , Synt.replaceUnint (error "TODO: IMPLEMENT") undefined prog)
+            , Synt.replaceUF invName invArgs invar prog)
 
 -------------------------------------------------------------------------------
 -- Manhatten distance lemma generation

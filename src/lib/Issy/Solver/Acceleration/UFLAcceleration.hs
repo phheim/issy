@@ -17,7 +17,7 @@ import Issy.Logic.FOL (Function, Symbol, Term(Func, Lambda, Quant, Var))
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Printers.SMTLib as SMTLib (toString)
 import Issy.Solver.Acceleration.Heuristics
-import Issy.Solver.Acceleration.LemmaFinding (Constraint, LemSyms(..), replaceLemma, resolve)
+import Issy.Solver.Acceleration.LemmaFinding (Constraint, LemSyms(..), Lemma(..), resolve)
 import Issy.Solver.Acceleration.LoopScenario (loopScenario)
 import Issy.Solver.ControlFlowGraph (SyBo)
 import qualified Issy.Solver.ControlFlowGraph as Synt
@@ -39,7 +39,7 @@ accelReach conf limit player arena loc reach = do
     $ error
     $ "assert: constraint with free variables " ++ strL (strS show . FOL.frees) cons
   (res, lemmaAssign) <- resolve conf limit (vars arena) cons f (lemmaSyms acst)
-  prog <- pure $ foldl (error "TODO IMPLEMENT with Synt.replaceUntInt") prog lemmaAssign
+  prog <- pure $ foldl (replaceLemma (vars arena)) prog lemmaAssign
   lg conf ["Acceleration resulted in", SMTLib.toString res]
   return (res, prog)
 
@@ -94,12 +94,11 @@ doIterA acst arena =
 accReach :: AccState -> Game -> Loc -> SymSt -> IO (Constraint, Term, SyBo, AccState)
 accReach acst g loc st = do
   let targetInv = g `inv` loc
-  -- Compute loop scenario
-  (gl, loc, loc', st, fixedInv) <- loopScenario (config acst) (sizeLimit acst) g loc st
   -- Compute new lemma symbols
   (base, step, conc, stepSym, acst) <- pure $ lemmaSymbols (vars g) acst
-  -- Initialize loop-program
-  let prog = Synt.returnOn st $ Synt.loopSyBo (config acst) gl loc loc'
+  -- Compute loop scenario
+  (gl, loc, loc', st, fixedInv, prog) <-
+    loopScenario (config acst) (sizeLimit acst) g loc st (error "TODO IMPLEMENT")
   -- Finialize loop game target with step relation and compute loop attractor
   let st' = set st loc' $ FOL.orf [st `get` loc, step]
   (cons, stAcc, prog, acst) <- iterA acst gl st' loc' prog
@@ -157,6 +156,13 @@ lemmaSymbols vars acst =
           { usedSyms = usedSyms acst `Set.union` Set.fromList [base, step, conc]
           , lemmaSyms = lsym : lemmaSyms acst
           })
+
+replaceLemma :: Variables -> SyBo -> (LemSyms, Lemma) -> SyBo
+replaceLemma vars sybo (LemSyms bs ss cs, Lemma b s c prime) =
+  let vs = Vars.stateVarL vars
+   in Synt.replaceUF ss (vs ++ map (prime ++) vs) s
+        $ Synt.replaceUF cs vs c
+        $ Synt.replaceUF bs vs b sybo
 
 --
 -- Step relation [EX ++ CELLS]
