@@ -63,7 +63,7 @@ trySatModel conf to f = do
   let query = SMTLib.toQuery f ++ "(check-sat-using (and-then simplify default))(get-model)"
   callz3 conf to query $ \case
     'u':'n':'s':'a':'t':_ -> Just Nothing
-    's':'a':'t':xr -> Just $ Just $ SMTLib.extractModel (FOL.frees f) xr
+    's':'a':'t':xr -> Just $ Just $ SMTLib.extractModel (FOL.decls f) xr
     _ -> Nothing
 
 ---------------------------------------------------------------------------------------------------

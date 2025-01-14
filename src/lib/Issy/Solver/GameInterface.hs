@@ -34,6 +34,7 @@ module Issy.Solver.GameInterface
   , cpreS
   , independentProgVars
   , inducedSubGame
+  , syntCPre
   , -- Visit counting
     VisitCounter
   , noVisits
@@ -117,6 +118,10 @@ inducedSubGame (Sym a) = first Sym . Sym.inducedSubArena a
 independentProgVars :: Config -> Game -> IO (Set Symbol)
 independentProgVars cfg (RPG g) = RPG.independentProgVars cfg g
 independentProgVars cfg (Sym a) = Sym.independentProgVars cfg a
+
+syntCPre ::
+     Config -> Arena -> Symbol -> (Loc -> Term) -> Loc -> Term -> SymSt -> IO [(Symbol, Term)]
+syntCPre conf = liftG (error "TODO IMPLEMENT") (Sym.syntCPre conf)
 
 setInv :: Game -> Loc -> Term -> Game
 setInv (RPG g) l t = RPG $ RPG.setInv g l t

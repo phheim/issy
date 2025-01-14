@@ -29,6 +29,8 @@ module Issy.SymbolicArena
   , -- Solving
     independentProgVars
   , inducedSubArena
+  , -- Synthesis
+    syntCPre
   ) where
 
 import Control.Monad (foldM)
@@ -37,6 +39,7 @@ import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
+import System.Exit (die)
 
 import Issy.Base.Locations (Loc)
 import qualified Issy.Base.Locations as Locs
@@ -47,9 +50,10 @@ import qualified Issy.Base.SymbolicState as SymSt
 import Issy.Base.Variables (Variables)
 import qualified Issy.Base.Variables as Vars
 import Issy.Config (Config)
-import Issy.Logic.FOL (Symbol, Term)
+import Issy.Logic.FOL (Sort, Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.SMT as SMT
+import Issy.Utils.Logging
 import qualified Issy.Utils.OpenList as OL
 
 data Arena = Arena
@@ -328,3 +332,58 @@ simplifySG cfg (arena, obj) = do
           (\rank -> foldl (\r l -> Map.insert l 0 r) rank notReachable)
           (winningCond obj)
   pure (arena, obj {winningCond = wc})
+
+--
+-- Synthesis
+--
+syntCPre ::
+     Config -> Arena -> Symbol -> (Loc -> Term) -> Loc -> Term -> SymSt -> IO [(Symbol, Term)]
+syntCPre conf arena locVar toLoc loc cond targ
+    -- Get new symbols
+ =
+  let syms = Set.insert locVar $ usedSymbols arena `Set.union` SymSt.symbols targ
+      skolemPref = FOL.uniquePrefix "skolem_" syms
+    -- Build type and arguments for skolem functions
+      vs = variables arena
+      inputSL = (\v -> (v, Vars.sortOf vs v)) <$> Vars.inputL vs
+      stateSL = (\v -> (v, Vars.sortOf vs v)) <$> Vars.stateVarL vs
+      newSL = getNewVars vs targ
+      args = stateSL ++ inputSL ++ newSL
+    -- Build skolem functions for variables and location
+      skolem var = FOL.unintFunc (skolemPref ++ var) (Vars.sortOf vs var) args
+      skolemL = FOL.unintFunc (skolemPref ++ locVar) FOL.SInt args
+      skolemsRes = (locVar, skolemL) : map (\v -> (v, skolem v)) (Vars.stateVarL vs)
+    -- Modified enforcable predecessor with skolem constraint
+      f =
+        FOL.impl (FOL.andf [validInput arena loc, cond, domain arena loc])
+          $ FOL.orfL (succL arena loc)
+          $ \loc' ->
+              FOL.andf
+                [ FOL.equal skolemL (toLoc loc')
+                , trans arena loc loc'
+                , Vars.primeT vs (domain arena loc')
+                , Vars.primeT vs (SymSt.get targ loc')
+                ]
+      g =
+        FOL.mapTerm
+          (\var _ ->
+             if Vars.isPrimed var
+               then Just (skolem (Vars.unprime var))
+               else Nothing)
+          f
+      query = FOL.pushdownQE $ FOL.forAll (Set.toList (FOL.frees g)) g
+   in do
+        model <- SMT.satModel conf query
+        case model of
+          Nothing -> die "synthesis failure: could not compute skolem function!"
+          Just model -> do
+            lg conf [show model]
+            pure $ map (second (FOL.setModel model)) skolemsRes
+
+getNewVars :: Variables -> SymSt -> [(Symbol, Sort)]
+getNewVars vars =
+  filter (\(v, _) -> not (Vars.isInput vars v || Vars.isStateVar vars v))
+    . Set.toList
+    . Set.fromList
+    . concatMap (Map.toList . FOL.bindings . snd)
+    . SymSt.toList

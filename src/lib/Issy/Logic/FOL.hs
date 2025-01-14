@@ -62,6 +62,7 @@ module Issy.Logic.FOL
   , --
     bindings
   , frees
+  , decls
   , quantifierFree
   , ufFree
   , symbols
@@ -73,6 +74,7 @@ module Issy.Logic.FOL
   , unusedPrefix
   , --
     toNNF
+  , pushdownQE
   ) where
 
 -------------------------------------------------------------------------------
@@ -390,6 +392,9 @@ bindingsS =
 frees :: Term -> Set Symbol
 frees = Set.map fst . Set.filter (not . isFuncSort . snd) . bindingsS
 
+decls :: Term -> Set Symbol
+decls = Set.map fst . bindingsS
+
 bindings :: Term -> Map Symbol Sort
 bindings =
   Map.fromListWithKey
@@ -499,3 +504,18 @@ toNNF =
     Func (PredefF "not") [Func (PredefF "or") args] -> andf $ map (toNNF . neg) args
     Func (PredefF "not") [Func (PredefF "and") args] -> orf $ map (toNNF . neg) args
     atom -> atom
+
+--
+-- Custom simplifications
+--
+-- TODO: remove dangling quantifiers after pushdown
+pushdownQE :: Term -> Term
+pushdownQE =
+  \case
+    Quant q s t ->
+      case (q, pushdownQE t) of
+        (Forall, Func (PredefF "and") args) -> andf $ map (Quant q s) args
+        (Exists, Func (PredefF "or") args) -> orf $ map (Quant q s) args
+        (q, t) -> Quant q s t
+    Func f args -> Func f (map pushdownQE args)
+    term -> term

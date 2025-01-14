@@ -21,7 +21,6 @@ module Issy.Solver.Synthesis
 
 ---------------------------------------------------------------------------------------------------
 import Control.Monad (unless)
-import Data.Bifunctor (first)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Ratio (denominator, numerator)
@@ -220,57 +219,9 @@ extractTT conf locVar arena mapLoc (loc, cond, pt) = do
           sub <- extractPG conf locVar sub
           pure $ condStmt $ Sequence [sub, Continue]
         Enforce target -> do
-          assigns <- extractCPre conf arena locVar loc cond target
+          assigns <- syntCPre conf arena locVar toLoc loc cond target
           assigns <- pure $ map (uncurry Assign) $ filter (uncurry isProperAssign) assigns
           pure $ condStmt $ Sequence $ [Read] ++ assigns ++ [Continue]
-
-extractCPre :: Config -> Arena -> Symbol -> Loc -> Term -> SymSt -> IO [(Symbol, Term)]
-extractCPre conf arena locVar loc cond targ = do
-  targ <- pure $ SymSt.restrictTo (succs arena loc) targ
-    -- Get new symbols
-  let syms = Set.insert locVar $ usedSymbols arena `Set.union` SymSt.symbols targ
-  let skolemPref = FOL.uniquePrefix "skolem_" syms
-  let copyPref = FOL.uniquePrefix "copy_" syms
-    -- Build type and arguments for skolem functions
-  let vs = vars arena
-  let inputSL = (\v -> (v, Vars.sortOf vs v)) <$> Vars.inputL vs
-  let stateSL = (\v -> (v, Vars.sortOf vs v)) <$> Vars.stateVarL vs
-  let stateSLC = map (first (copyPref ++)) stateSL
-  let newSL = getNewVars vs targ
-  let args = stateSL ++ inputSL ++ newSL
-  let argsC = stateSLC ++ inputSL ++ newSL
-    -- Build skolem functions for variables and location
-  let skolem var = FOL.unintFunc (skolemPref ++ var) (Vars.sortOf vs var) args
-  let skolemC var = FOL.unintFunc (skolemPref ++ var) (Vars.sortOf vs var) argsC
-  let skolemL = FOL.unintFunc (skolemPref ++ locVar) FOL.SInt args
-  let skolemLC = FOL.unintFunc (skolemPref ++ locVar) FOL.SInt argsC
-    -- Build skolem constraints and skolem results
-  let genSkolems l =
-        FOL.equal skolemLC (toLoc l)
-          : map (\v -> Vars.mk vs v `FOL.equal` skolemC v) (Vars.stateVarL vs)
-  let skolemsRes = (locVar, skolemL) : map (\v -> (v, skolem v)) (Vars.stateVarL vs)
-    -- Build new target with skolem functions
-  targ <- pure $ SymSt.mapWithLoc (\l term -> FOL.andf (genSkolems l ++ [term])) targ
-  let res = FOL.removePref copyPref $ cpre Sys arena targ loc
-    -- Find skolem functions
-  res <- SMT.simplifyUF conf $ Vars.forallX vs $ cond `FOL.impl` res
-  model <- SMT.satModel conf res
-  case model of
-    Nothing -> die "synthesis failure: could not compute skolem function!"
-    Just model ->
-      mapM
-        (\(v, f) -> do
-           f <- SMT.simplify conf (FOL.setModel model f)
-           pure (v, f))
-        skolemsRes
-
-getNewVars :: Variables -> SymSt -> [(Symbol, Sort)]
-getNewVars vars =
-  filter (\(v, _) -> not (Vars.isInput vars v || Vars.isStateVar vars v))
-    . Set.toList
-    . Set.fromList
-    . concatMap (Map.toList . FOL.bindings . snd)
-    . SymSt.toList
 
 isLoc :: Symbol -> Loc -> Term
 isLoc locVar l = FOL.Var locVar FOL.SInt `FOL.equal` toLoc l
@@ -320,7 +271,7 @@ printTerm :: Term -> String
 printTerm =
   \case
     FOL.Var v _ -> v
-    FOL.Func (FOL.CustomF {}) _ -> error "assert: unreachable code"
+    FOL.Func (FOL.CustomF name _ _) _ -> error $ "assert: unreachable code, found " ++ name
     FOL.QVar _ -> error "assert: unreachable code"
     FOL.Quant {} -> error "assert: unreachable code"
     FOL.Lambda _ _ -> error "assert: unreachable code"
