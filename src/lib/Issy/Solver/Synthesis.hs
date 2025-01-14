@@ -220,12 +220,12 @@ extractTT conf locVar arena mapLoc (loc, cond, pt) = do
           sub <- extractPG conf locVar sub
           pure $ condStmt $ Sequence [sub, Continue]
         Enforce target -> do
-          assigns <- extractCPre conf arena locVar loc target
+          assigns <- extractCPre conf arena locVar loc cond target
           assigns <- pure $ map (uncurry Assign) $ filter (uncurry isProperAssign) assigns
           pure $ condStmt $ Sequence $ [Read] ++ assigns ++ [Continue]
 
-extractCPre :: Config -> Arena -> Symbol -> Loc -> SymSt -> IO [(Symbol, Term)]
-extractCPre conf arena locVar loc targ = do
+extractCPre :: Config -> Arena -> Symbol -> Loc -> Term -> SymSt -> IO [(Symbol, Term)]
+extractCPre conf arena locVar loc cond targ = do
   targ <- pure $ SymSt.restrictTo (succs arena loc) targ
     -- Get new symbols
   let syms = Set.insert locVar $ usedSymbols arena `Set.union` SymSt.symbols targ
@@ -253,6 +253,7 @@ extractCPre conf arena locVar loc targ = do
   targ <- pure $ SymSt.mapWithLoc (\l term -> FOL.andf (genSkolems l ++ [term])) targ
   let res = FOL.removePref copyPref $ cpre Sys arena targ loc
     -- Find skolem functions
+  res <- SMT.simplifyUF conf $ Vars.forallX vs $ cond `FOL.impl` res
   model <- SMT.satModel conf res
   case model of
     Nothing -> die "synthesis failure: could not compute skolem function!"

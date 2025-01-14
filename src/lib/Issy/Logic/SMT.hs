@@ -115,12 +115,6 @@ simplifyQE conf = noTimeout . trySimplifyQE conf Nothing
 trySimplifyQE :: Config -> Maybe Int -> Term -> IO (Maybe Term)
 trySimplifyQE conf to = simplifyTacs conf to z3SimplifyQE
 
-simplifyUF :: Config -> Term -> IO Term
-simplifyUF conf = noTimeout . trySimplifyUF conf Nothing
-
-trySimplifyUF :: Config -> Maybe Int -> Term -> IO (Maybe Term)
-trySimplifyUF conf to = simplifyTacs conf to z3SimplifyUF
-
 simplifyTacs :: Config -> Maybe Int -> [String] -> Term -> IO (Maybe Term)
 simplifyTacs conf to tactics f
   | FOL.ufFree f = do
@@ -130,6 +124,17 @@ simplifyTacs conf to tactics f
         Right res -> Just res
         _ -> Nothing
   | otherwise = pure $ Just f
+
+simplifyUF :: Config -> Term -> IO Term
+simplifyUF conf = noTimeout . trySimplifyUF conf Nothing
+
+trySimplifyUF :: Config -> Maybe Int -> Term -> IO (Maybe Term)
+trySimplifyUF conf to f = do
+  let query = SMTLib.toQuery f ++ "(apply " ++ z3TacticList z3SimplifyUF ++ ")"
+  callz3 conf to query $ \res ->
+    case readTransformZ3 (FOL.bindings f !?) (SMTLib.tokenize res) of
+      Right res -> Just res
+      _ -> Nothing
 
 z3TacticList :: [String] -> String
 z3TacticList =
