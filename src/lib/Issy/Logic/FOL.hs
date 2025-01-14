@@ -28,6 +28,7 @@ module Issy.Logic.FOL
   , mapSymbol
   , setTerm
   , replaceUF
+  , removePref
   , --
     forAll
   , exists
@@ -52,6 +53,7 @@ module Issy.Logic.FOL
   , zeroT
   , oneT
   , func
+  , unintFunc
   , leqT
   , geqT
   , equal
@@ -438,6 +440,13 @@ unusedName prefix f = uniqueName prefix (symbols f)
 unusedPrefix :: Symbol -> Term -> Symbol
 unusedPrefix prefix f = uniquePrefix prefix (symbols f)
 
+removePref :: Symbol -> Term -> Term
+removePref pref =
+  mapSymbol $ \v ->
+    if pref `isPrefixOf` v
+      then drop (length pref) v
+      else v
+
 -------------------------------------------------------------------------------
 -- More constructors
 bvarT :: String -> Term
@@ -457,6 +466,9 @@ oneT = Const (CInt 1)
 
 func :: String -> [Term] -> Term
 func = Func . PredefF
+
+unintFunc :: String -> Sort -> [(Symbol, Sort)] -> Term
+unintFunc name resSort args = Func (CustomF name (map snd args) resSort) $ map (uncurry Var) args
 
 leqT :: Term -> Term -> Term
 leqT a b = func "<=" [a, b]

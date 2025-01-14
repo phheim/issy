@@ -9,7 +9,6 @@ module Issy.Solver.Acceleration.MDAcceleration
 -------------------------------------------------------------------------------
 import Control.Monad (unless)
 import Data.Bifunctor (second)
-import Data.List (isPrefixOf)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe)
 import qualified Data.Set as Set
@@ -118,7 +117,7 @@ tryFindInv conf prime player arena (step, conc) (loc, loc') fixInv reach prog = 
         lg conf ["Try invariant", SMTLib.toString invar]
         let reach' = set reach loc' $ FOL.orf [reach `get` loc, FOL.andf [step, invar]]
         (stAcc, prog) <- pure $ iterA player arena reach' loc' prog
-        let res = unprime prime $ stAcc `get` loc
+        let res = FOL.removePref prime $ stAcc `get` loc
         res <- SMT.simplify conf res
         let query = Vars.forallX (vars arena) $ FOL.andf [inv arena loc, conc, invar] `FOL.impl` res
         unless (null (FOL.frees query)) $ error "assert: found free variables in query"
@@ -126,13 +125,6 @@ tryFindInv conf prime player arena (step, conc) (loc, loc') fixInv reach prog = 
         if holds
           then pure $ Right (FOL.andf [inv arena loc, conc, invar, fixInv], prog)
           else iter (cnt + 1) res
-
-unprime :: Symbol -> Term -> Term
-unprime prime =
-  FOL.mapSymbol $ \v ->
-    if prime `isPrefixOf` v
-      then drop (length prime) v
-      else v
 
 iterA :: Player -> Arena -> SymSt -> Loc -> SyBo -> (SymSt, SyBo)
 iterA player arena attr shadow = go (noVisits arena) (OL.fromSet (preds arena shadow)) attr
@@ -173,7 +165,7 @@ exactInv conf prime player arena (step, conc) (loc, loc') fixInv reach invApprox
           $ map (\v -> FOL.Var v (Vars.sortOf (vars arena) v)) invArgs
   let reach' = set reach loc' $ FOL.orf [reach `get` loc, FOL.andf [step, invar]]
   (stAcc, prog) <- pure $ iterA player arena reach' loc' prog
-  let res = unprime prime $ stAcc `get` loc
+  let res = FOL.removePref prime $ stAcc `get` loc
   res <- SMT.simplifyUF conf res --TODO: Maybe add timeout here?
   let query = Vars.forallX (vars arena) $ FOL.andf [inv arena loc, conc, invar] `FOL.impl` res
   let minQuery = Vars.forallX (vars arena) $ invar `FOL.impl` invApprox

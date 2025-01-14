@@ -7,11 +7,14 @@ module Issy.Base.SymbolicState
   , disjS
   , difference
   , implies
+  , restrictTo
   , locations
   , toList
   , null
   , simplify
   , map
+  , mapWithLoc
+  , symbols
   , toString
   ) where
 
@@ -22,10 +25,11 @@ import Data.Map.Strict (Map, (!?))
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe)
 import Data.Set (Set)
+import qualified Data.Set as Set
 
 import Issy.Base.Locations (Loc)
 import Issy.Config (Config)
-import Issy.Logic.FOL (Term)
+import Issy.Logic.FOL (Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.SMT as SMT (simplify, valid)
 import qualified Issy.Printers.SMTLib as SMTLib (toString)
@@ -73,7 +77,23 @@ simplify :: Config -> SymSt -> IO SymSt
 simplify cfg (SymSt s) = SymSt <$> mapM (SMT.simplify cfg) s
 
 map :: (Term -> Term) -> SymSt -> SymSt
-map mp (SymSt s) = SymSt (fmap mp s)
+map mp (SymSt s) = SymSt (Map.map mp s)
+
+mapWithLoc :: (Loc -> Term -> Term) -> SymSt -> SymSt
+mapWithLoc mp (SymSt s) = SymSt (Map.mapWithKey mp s)
 
 toString :: (Loc -> String) -> SymSt -> String
 toString locToStr (SymSt s) = strM locToStr SMTLib.toString s
+
+restrictTo :: Set Loc -> SymSt -> SymSt
+restrictTo locs (SymSt s) =
+  SymSt
+    $ Map.mapWithKey
+        (\l v ->
+           if l `elem` locs
+             then v
+             else FOL.false)
+        s
+
+symbols :: SymSt -> Set Symbol
+symbols (SymSt s) = Set.unions $ FOL.symbols <$> Map.elems s
