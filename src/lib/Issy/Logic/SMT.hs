@@ -52,7 +52,7 @@ satModel conf = noTimeout . trySatModel conf Nothing
 
 trySat :: Config -> Maybe Int -> Term -> IO (Maybe Bool)
 trySat conf to f = do
-  let query = SMTLib.toQuery f ++ "(check-sat)"
+  let query = SMTLib.toQuery f ++ satCommand f
   callz3 conf to query $ \case
     'u':'n':'s':'a':'t':_ -> Just False
     's':'a':'t':_ -> Just True
@@ -60,11 +60,17 @@ trySat conf to f = do
 
 trySatModel :: Config -> Maybe Int -> Term -> IO (Maybe (Maybe Model))
 trySatModel conf to f = do
-  let query = SMTLib.toQuery f ++ "(check-sat-using (and-then simplify default))(get-model)"
+  let query = SMTLib.toQuery f ++ satCommand f ++ "(get-model)"
   callz3 conf to query $ \case
     'u':'n':'s':'a':'t':_ -> Just Nothing
     's':'a':'t':xr -> Just $ Just $ SMTLib.extractModel (FOL.decls f) xr
     _ -> Nothing
+
+satCommand :: Term -> String
+satCommand f
+  | FOL.SInt `elem` FOL.sorts f && FOL.SReal `elem` FOL.sorts f && not (FOL.quantifierFree f) =
+    "(check-sat-using (and-then qe default))"
+  | otherwise = "(check-sat)"
 
 ---------------------------------------------------------------------------------------------------
 -- Simplification

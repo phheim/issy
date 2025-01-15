@@ -62,6 +62,7 @@ module Issy.Logic.FOL
   , --
     bindings
   , frees
+  , sorts
   , decls
   , quantifierFree
   , ufFree
@@ -387,6 +388,18 @@ bindingsS =
           Set.unions (Set.singleton (f, SFunc sarg starg) : map bindingsS args)
     Quant _ _ f -> bindingsS f
     Lambda _ f -> bindingsS f
+    _ -> Set.empty
+
+sorts :: Term -> Set Sort
+sorts =
+  \case
+    Var _ s -> Set.singleton s
+    Func f args ->
+      case f of
+        PredefF _ -> Set.unions $ map sorts args
+        CustomF _ sarg starg -> Set.fromList (starg : sarg) `Set.union` Set.unions (map sorts args)
+    Quant _ s f -> Set.singleton s `Set.union` sorts f
+    Lambda _ f -> sorts f
     _ -> Set.empty
 
 frees :: Term -> Set Symbol
