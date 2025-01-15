@@ -1,8 +1,15 @@
 module Issy.Config
   ( Config(..)
+  , AccelLevel(..)
   , defaultConfig
   , setName
   ) where
+
+data AccelLevel
+  = AccelEasy
+  | AccelNorm
+  | AccelHard
+  deriving (Eq, Ord, Show)
 
 data Config = Config
   { logName :: String
@@ -20,6 +27,7 @@ data Config = Config
   , accelerateObjective :: Bool
   , ufAcceleration :: Bool
   , extendAcceleration :: Bool
+  , accelerationLevel :: AccelLevel
   -- ^ if this is set, depending if is set ufAcceleration, we nest or use chc 
   , invariantIterations :: Int
   , manhattenTermCount :: Int
@@ -56,6 +64,7 @@ defaultConfig =
     , extendAcceleration = False
     , invariantIterations = 3
     , manhattenTermCount = 2
+    , accelerationLevel = AccelNorm
     -- Synthesis
     , generateProgram = False
     -- External tools

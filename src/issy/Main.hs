@@ -212,7 +212,12 @@ configParser = go defaultConfig
             "unint" -> go (cfg {ufAcceleration = True, extendAcceleration = False}) ar
             "unint-nest" -> go (cfg {ufAcceleration = True, extendAcceleration = True}) ar
             _ -> Left $ "found invalid attractor acceleration mode: " ++ arg
-        "--accel-difficulty":_ -> Left "'--accel-difficulty' not implemented yet!"
+        "--accel-difficulty":arg:ar ->
+          case arg of
+            "easy" -> go (cfg {accelerationLevel = AccelEasy}) ar
+            "medium" -> go (cfg {accelerationLevel = AccelNorm}) ar
+            "hard" -> go (cfg {accelerationLevel = AccelHard}) ar
+            _ -> Left $ "found invalid attractor acceleration difficulty: " ++ arg
         -- Synthesis
         "--synt":sr -> go (cfg {generateProgram = True}) sr
         -- External tools

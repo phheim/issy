@@ -1,5 +1,6 @@
 module Issy
   ( Config(..)
+  , AccelLevel(..)
   , defaultConfig
   , -- Solving
     solve
@@ -24,7 +25,7 @@ module Issy
   ) where
 
 -- Config
-import Issy.Config (Config(..), defaultConfig)
+import Issy.Config (AccelLevel(..), Config(..), defaultConfig)
 
 -- Extractors
 import Issy.Extractors.MuCLP (rpgToMuCLP)

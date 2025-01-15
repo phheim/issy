@@ -284,6 +284,8 @@ printTerm =
       case (name, args) of
         ("abs", [arg]) -> "(abs(" ++ printTerm arg ++ "))"
         ("not", [arg]) -> "(!(" ++ printTerm arg ++ "))"
+        ("ite", [c, th, el]) ->
+          "(" ++ printTerm c ++ " ? " ++ printTerm th ++ " : " ++ printTerm el ++ ")"
         ("=", args) -> mulOp "==" args
         ("mod", args) -> mulOp "%" args
         ("and", args) -> mulOp "&&" args
