@@ -68,6 +68,7 @@ module Issy.Logic.FOL
   , ufFree
   , symbols
   , nonBoolTerms
+  , equalitiesFor
   , --
     uniqueName
   , uniquePrefix
@@ -436,6 +437,22 @@ nonBoolTerms =
       | f `elem` booleanFunctions -> Set.unions $ map nonBoolTerms args
       | otherwise -> Set.singleton $ Func (PredefF f) args
     f -> Set.singleton f
+
+equalitiesFor :: Symbol -> Term -> Set Term
+equalitiesFor var = go
+  where
+    go =
+      \case
+        Func (PredefF "=") [Var v _, t]
+          | v == var -> Set.singleton t
+          | otherwise -> go t
+        Func (PredefF "=") [t, Var v _]
+          | v == var -> Set.singleton t
+          | otherwise -> go t
+        Func _ args -> Set.unions $ map go args
+        Quant _ _ f -> go f
+        Lambda _ f -> go f
+        _ -> Set.empty
 
 -------------------------------------------------------------------------------
 uniqueName :: Symbol -> Set Symbol -> Symbol

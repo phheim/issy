@@ -115,6 +115,7 @@ computeFP cfg vars fpPred init trans
 
 callCHCMax :: Config -> String -> IO String
 callCHCMax cfg query = do
+  lgd cfg ["CHCMax-query", query]
   (_, stdout, _) <- readProcessWithExitCode (chcMaxScript cfg) [show (chcMaxTimeOut cfg)] query
   pure stdout
 
