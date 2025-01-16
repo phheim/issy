@@ -265,7 +265,7 @@ printStmt =
     Read -> ["read_inputs();"]
 
 indent :: [String] -> [String]
-indent = map ("    " ++)
+indent = map ("  " ++)
 
 printTerm :: Term -> String
 printTerm =
@@ -283,6 +283,7 @@ printTerm =
     FOL.Func (FOL.PredefF name) args ->
       case (name, args) of
         ("abs", [arg]) -> "(abs(" ++ printTerm arg ++ "))"
+        ("-", [arg]) -> "(- (" ++ printTerm arg ++ "))"
         ("not", [arg]) -> "(!(" ++ printTerm arg ++ "))"
         ("ite", [c, th, el]) ->
           "(" ++ printTerm c ++ " ? " ++ printTerm th ++ " : " ++ printTerm el ++ ")"

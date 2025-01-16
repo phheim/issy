@@ -51,12 +51,15 @@ satModel :: Config -> Term -> IO (Maybe Model)
 satModel conf = noTimeout . trySatModel conf Nothing
 
 trySat :: Config -> Maybe Int -> Term -> IO (Maybe Bool)
-trySat conf to f = do
-  let query = SMTLib.toQuery f ++ satCommand f
-  callz3 conf to query $ \case
-    'u':'n':'s':'a':'t':_ -> Just False
-    's':'a':'t':_ -> Just True
-    _ -> Nothing
+trySat conf to f
+  | f == FOL.true = pure $ Just True
+  | f == FOL.false = pure $ Just False
+  | otherwise = do
+    let query = SMTLib.toQuery f ++ satCommand f
+    callz3 conf to query $ \case
+      'u':'n':'s':'a':'t':_ -> Just False
+      's':'a':'t':_ -> Just True
+      _ -> Nothing
 
 trySatModel :: Config -> Maybe Int -> Term -> IO (Maybe (Maybe Model))
 trySatModel conf to f = do
@@ -123,6 +126,7 @@ trySimplifyQE conf to = simplifyTacs conf to z3SimplifyQE
 
 simplifyTacs :: Config -> Maybe Int -> [String] -> Term -> IO (Maybe Term)
 simplifyTacs conf to tactics f
+  | f == FOL.true || f == FOL.false = pure (Just f)
   | FOL.ufFree f = do
     let query = SMTLib.toQuery f ++ "(apply " ++ z3TacticList tactics ++ ")"
     callz3 conf to query $ \res ->
@@ -135,12 +139,14 @@ simplifyUF :: Config -> Term -> IO Term
 simplifyUF conf = noTimeout . trySimplifyUF conf Nothing
 
 trySimplifyUF :: Config -> Maybe Int -> Term -> IO (Maybe Term)
-trySimplifyUF conf to f = do
-  let query = SMTLib.toQuery f ++ "(apply " ++ z3TacticList z3SimplifyUF ++ ")"
-  callz3 conf to query $ \res ->
-    case readTransformZ3 (FOL.bindings f !?) (SMTLib.tokenize res) of
-      Right res -> Just res
-      _ -> Nothing
+trySimplifyUF conf to f
+  | f == FOL.true || f == FOL.false = pure (Just f)
+  | otherwise = do
+    let query = SMTLib.toQuery f ++ "(apply " ++ z3TacticList z3SimplifyUF ++ ")"
+    callz3 conf to query $ \res ->
+      case readTransformZ3 (FOL.bindings f !?) (SMTLib.tokenize res) of
+        Right res -> Just res
+        _ -> Nothing
 
 z3TacticList :: [String] -> String
 z3TacticList =

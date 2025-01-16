@@ -54,6 +54,7 @@ import Issy.Config (Config)
 import Issy.Logic.FOL (Sort, Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.SMT as SMT
+import qualified Issy.Printers.SMTLib as SMTLib
 import Issy.Utils.Extra (justOn)
 import Issy.Utils.Logging
 import qualified Issy.Utils.OpenList as OL
@@ -368,16 +369,22 @@ syntCPre conf arena locVar toLoc loc cond targ = do
             , Vars.primeT vs (domain arena loc')
             , Vars.primeT vs (SymSt.get targ loc')
             ]
-  -- TODO: this is bogus!
-  elimRes <-
-    mapM
-      (\var -> do
-         t <- syntElim conf vs (skolem var) var preCond postCond
-         pure (Vars.unprime var, t))
-      $ locVar : Vars.stateVarL' vs
-  let f = FOL.impl preCond $ FOL.mapTermM (Map.fromList elimRes) postCond
+  lgd conf ["Synthesize in", locName arena loc, "on", SymSt.toString (locName arena) targ]
+  let doElim (elimRes, skolemRes, postCond) var
+        | var `notElem` FOL.frees postCond = pure (elimRes, skolemRes, postCond)
+        | otherwise = do
+          t <- syntElim conf vs var preCond postCond
+          case t of
+            Nothing -> pure (elimRes, (Vars.unprime var, skolem var) : skolemRes, postCond)
+            Just t -> do
+              postCond <- SMT.simplify conf $ FOL.mapTerm (\v _ -> justOn (v == var) t) postCond
+              pure ((Vars.unprime var, t) : elimRes, skolemRes, postCond)
+  (elimRes, skolemRes, postCond) <- foldM doElim ([], [], postCond) (locVar : Vars.stateVarL' vs)
+  postCond <-
+    pure $ FOL.mapTerm (\v _ -> justOn (Vars.isPrimed v || v == locVar) (skolem v)) postCond
+  let f = FOL.impl preCond postCond
   let query = FOL.pushdownQE $ FOL.forAll (Set.toList (FOL.frees f)) f
-  if null (FOL.decls query)
+  if null skolemRes
     then pure elimRes
     else do
       model <- SMT.satModel conf query
@@ -385,28 +392,31 @@ syntCPre conf arena locVar toLoc loc cond targ = do
         Nothing -> die "synthesis failure: could not compute skolem function!"
         Just model -> do
           lgv conf ["Skolem model", show model]
-          pure $ map (second (FOL.setModel model)) elimRes
+          pure $ elimRes ++ map (second (FOL.setModel model)) skolemRes
 
-syntElim :: Config -> Variables -> Term -> Symbol -> Term -> Term -> IO Term
-syntElim conf vars skolem var preCond postCond =
-  go preCond $ Set.toList $ FOL.equalitiesFor var postCond
+syntElim :: Config -> Variables -> Symbol -> Term -> Term -> IO (Maybe Term)
+syntElim conf vars var preCond postCond = do
+  let equals = FOL.equalitiesFor var postCond
+  lgd conf ["For", var, "use equalties", strS SMTLib.toString equals]
+  res <- go preCond $ Set.toList equals
+  case res of
+    Nothing -> lgd conf ["Failed to derive skolem function"]
+    Just res -> lgd conf ["Derive skolem function", var, ":=", SMTLib.toString res]
+  pure res
   where
     go preCond =
       \case
-        [] -> pure skolem
+        [] -> pure Nothing
         eq:eqr -> do
-          let cond =
-                FOL.impl preCond
-                  $ Vars.forallX' vars
-                  $ FOL.mapTerm (\v _ -> justOn (v == var) eq) postCond
-          postCondSet <- SMT.simplify conf cond
-          satT <- SMT.sat conf postCondSet
-          preCond' <- SMT.simplify conf $ FOL.andf [preCond, FOL.neg postCond]
-          satE <- SMT.sat conf preCond
+          let condSet = Vars.existsX' vars $ FOL.mapTerm (\v _ -> justOn (v == var) eq) postCond
+          condSet <- SMT.simplify conf condSet
+          satT <- SMT.sat conf condSet
+          preCond' <- SMT.simplify conf $ FOL.andf [preCond, FOL.neg condSet]
+          satE <- SMT.sat conf preCond'
           if satT
             then if satE
-                   then FOL.ite postCondSet eq <$> go preCond' eqr
-                   else pure eq
+                   then fmap (FOL.ite condSet eq) <$> go preCond' eqr
+                   else pure $ Just eq
             else go preCond eqr
 
 skolemFuncs :: Arena -> Symbol -> Term -> SymSt -> Symbol -> Term
