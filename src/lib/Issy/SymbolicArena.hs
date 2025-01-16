@@ -13,6 +13,7 @@ module Issy.SymbolicArena
   , setDomain
   , usedSymbols
   , cyclicIn
+  , pre
   , cpreEnv
   , cpreSys
   , variables
@@ -187,6 +188,22 @@ validInput a l =
    in Vars.existsX' v
         $ FOL.orfL (succL a l)
         $ \l' -> FOL.andf [trans a l l', Vars.primeT v (domain a l')]
+
+pre :: Arena -> SymSt -> Loc -> Term
+pre a d l =
+  let v = variables a
+      f =
+        Vars.existsI v
+          $ Vars.existsX' v
+          $ FOL.andf
+              [ validInput a l
+              , FOL.orfL
+                  (succL a l)
+                  (\l' ->
+                     FOL.andf
+                       [trans a l l', Vars.primeT v (domain a l'), Vars.primeT v (SymSt.get d l')])
+              ]
+   in FOL.andf [f, domain a l]
 
 cpreEnv :: Arena -> SymSt -> Loc -> Term
 cpreEnv a d l =

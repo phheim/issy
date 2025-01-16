@@ -32,7 +32,8 @@ module Issy.RPG
   , --
     simplifyRPG
   , -- Solving
-    cpreEnv
+    pre
+  , cpreEnv
   , cpreSys
   , loopGame
   , independentProgVars
@@ -228,6 +229,16 @@ simplifyRPG cfg (game, wc) = do
       $ game
           {transRel = newTrans, predecessors = predecessorRelation (succT . next) (locations game)}
   pure (pruneUnreachables (Obj.initialLoc wc) game, wc)
+
+pre :: Game -> SymSt -> Loc -> Term
+pre g st l =
+  FOL.andf [g `inv` l, Vars.existsI (variables g) (FOL.andf [validInput g l, cpreST (trans g l)])]
+  where
+    cpreST =
+      \case
+        TIf p tt te -> FOL.ite p (cpreST tt) (cpreST te)
+        TSys upds ->
+          FOL.orf [FOL.mapTermM u (FOL.andf [st `SymSt.get` l, g `inv` l]) | (u, l) <- upds]
 
 cpreSys :: Game -> SymSt -> Loc -> Term
 cpreSys g st l =

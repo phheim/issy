@@ -7,7 +7,7 @@ module Issy.Solver.Acceleration.MDAcceleration
   ) where
 
 -------------------------------------------------------------------------------
-import Control.Monad (unless)
+import Control.Monad (filterM, unless)
 import Data.Bifunctor (second)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe)
@@ -44,7 +44,7 @@ accelReach conf limit player arena loc reach = do
     loopScenario conf (Just (limit2size limit)) arena loc reach prime
   lg conf ["Fixed invariant", SMTLib.toString fixInv]
   -- 1. Guess lemma
-  lemma <- lemmaGuess conf prime (vars arena) (reach `get` loc)
+  lemma <- lemmaGuess conf prime player arena (reach `get` loc)
   case lemma of
     Nothing -> do
       lg conf ["Lemma guessing failed"]
@@ -180,10 +180,12 @@ exactInv conf prime player arena (step, conc) (loc, loc') fixInv reach invApprox
 -------------------------------------------------------------------------------
 -- Manhatten distance lemma generation
 -------------------------------------------------------------------------------
-lemmaGuess :: Config -> Symbol -> Variables -> Term -> IO (Maybe (Term, Term, Term))
-lemmaGuess conf prime vars reach = do
+lemmaGuess :: Config -> Symbol -> Player -> Arena -> Term -> IO (Maybe (Term, Term, Term))
+lemmaGuess conf prime player arena reach = do
   lg conf ["Guess lemma on", SMTLib.toString reach]
-  box <- mkBox conf vars reach
+  boxVars <- boxVars conf player arena reach
+  lg conf ["Use variables", strL id boxVars]
+  box <- mkBox conf (vars arena) boxVars reach
   pure
     $ if null box
         then Nothing
@@ -212,19 +214,19 @@ manhatten = FOL.addT . map go
       | upper = FOL.ite (term `FOL.leqT` bound) FOL.zeroT $ FOL.func "-" [term, bound]
       | otherwise = FOL.ite (term `FOL.geqT` bound) FOL.zeroT $ FOL.func "-" [bound, term]
 
-mkBox :: Config -> Variables -> Term -> IO (Box Term)
-mkBox conf vars reach = do
+mkBox :: Config -> Variables -> [Symbol] -> Term -> IO (Box Term)
+mkBox conf vars boxVars reach = do
   reach <- SMT.simplify conf reach
-  box <- mkOptBox conf vars reach
+  box <- mkOptBox conf vars boxVars reach
   if null box
     then do
       lg conf ["Switch to point-base"]
-      fromMaybe [] <$> completeBox conf reach
+      fromMaybe [] <$> completeBox conf boxVars reach
     else pure box
 
-mkOptBox :: Config -> Variables -> Term -> IO (Box Term)
-mkOptBox conf vars reach = do
-  let boxTerms = generateTerms (manhattenTermCount conf) vars reach
+mkOptBox :: Config -> Variables -> [Symbol] -> Term -> IO (Box Term)
+mkOptBox conf vars boxVars reach = do
+  let boxTerms = generateTerms (manhattenTermCount conf) vars boxVars
   (boxScheme, maxTerms) <- prepareBox conf reach boxTerms
   if null boxScheme
     then pure []
@@ -243,9 +245,10 @@ mkOptBox conf vars reach = do
       | null (FOL.frees term) = term
       | otherwise = error "assert: result should be an constant"
 
-completeBox :: Config -> Term -> IO (Maybe (Box Term))
-completeBox conf reach = do
-  model <- SMT.satModel conf reach
+completeBox :: Config -> [Symbol] -> Term -> IO (Maybe (Box Term))
+completeBox conf boxVars reach = do
+  let nonBoxVars = filter (`notElem` boxVars) $ Set.toList $ FOL.frees reach
+  model <- SMT.satModel conf (FOL.forAll nonBoxVars reach)
   case model of
     Nothing -> pure Nothing
     Just model -> pure $ Just $ concatMap (modelCons model) $ Map.toList $ FOL.bindings reach
@@ -300,15 +303,12 @@ boundIn conf upper dimTerm reach = do
   query <- SMT.simplify conf query
   SMT.sat conf query
 
-generateTerms :: Int -> Variables -> Term -> [Term]
-generateTerms maxSize vars reach =
+generateTerms :: Int -> Variables -> [Symbol] -> [Term]
+generateTerms maxSize vars boxVars =
   concatMap (filter (not . isMixed) . combToTerms)
     $ filter (not . null)
     $ boundPowerList
-    $ map (Vars.mk vars)
-    $ filter (FOL.isNumber . Vars.sortOf vars)
-    $ Set.toList
-    $ FOL.frees reach
+    $ map (Vars.mk vars) boxVars
   where
     combToTerms :: [Term] -> [Term]
     combToTerms =
@@ -339,6 +339,30 @@ isMixed :: Term -> Bool
 isMixed t =
   let sorts = FOL.sorts t
    in (FOL.SReal `elem` sorts) && (FOL.SInt `elem` sorts)
+
+boxVars :: Config -> Player -> Arena -> Term -> IO [Symbol]
+boxVars conf player arena reach =
+  filterM (usefullTargetVar conf player arena)
+    $ filter (FOL.isNumber . Vars.sortOf (vars arena))
+    $ Set.toList
+    $ FOL.frees reach
+
+usefullTargetVar :: Config -> Player -> Arena -> Symbol -> IO Bool
+usefullTargetVar conf player arena var = do
+  opVar <- varPlayerControlled conf (opponent player) arena var
+  if opVar
+    then varPlayerControlled conf player arena var
+    else pure True
+
+varPlayerControlled :: Config -> Player -> Arena -> Symbol -> IO Bool
+varPlayerControlled conf player arena var = do
+  let cVarName = FOL.uniqueName ("c_" ++ var) $ usedSymbols arena
+  let cvar = FOL.Var cVarName (sortOf arena var)
+  let st = SymSt.symSt (locations arena) $ const $ cvar `FOL.equal` Vars.mk (vars arena) var
+  let query =
+        FOL.orfL (Set.toList (locations arena)) $ \l ->
+          FOL.andf [pre arena st l, FOL.neg (cpre player arena st l)]
+  SMT.unsat conf query
 -------------------------------------------------------------------------------
 -- Heurisitics
 -------------------------------------------------------------------------------

@@ -27,6 +27,7 @@ module Issy.Solver.GameInterface
   , opponent
   , cpre
   , cpreS
+  , pre
   , independentProgVars
   , inducedSubArena
   , syntCPre
@@ -93,6 +94,9 @@ cyclicIn = liftG RPG.cyclicIn Sym.cyclicIn
 
 usedSymbols :: Arena -> Set Symbol
 usedSymbols = liftG RPG.usedSymbols Sym.usedSymbols
+
+pre :: Arena -> SymSt -> Loc -> Term
+pre = liftG RPG.pre Sym.pre
 
 cpreEnv :: Arena -> SymSt -> Loc -> Term
 cpreEnv = liftG RPG.cpreEnv Sym.cpreEnv
