@@ -212,7 +212,7 @@ parseTerm vars = go
         SId p name
           | name == "true" -> pure FOL.true
           | name == "false" -> pure FOL.false
-          | name `elem` Vars.allSymbols vars -> pure $ FOL.Var name $ Vars.sortOf vars name
+          | name `elem` Vars.allSymbols vars -> pure $ Vars.mk vars name
           | otherwise ->
             case SMTLib.tryParseInt 0 name of
               Just n -> pure $ FOL.Const $ FOL.CInt n

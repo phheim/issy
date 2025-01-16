@@ -58,11 +58,11 @@ solveReach conf arena reach init = do
   let fullSt = selectInv arena (locations arena)
   let reachSt = selectInv arena reach
   let stopCheck l st
-        | l == init = SMT.valid conf $ inv arena init `FOL.impl` (st `get` init)
+        | l == init = SMT.valid conf $ dom arena init `FOL.impl` (st `get` init)
         | otherwise = pure False
   (wsys, attrProg) <- attractorEx conf Sys arena (Just stopCheck) reachSt
   lg conf ["Sys. winning region", strSt arena wsys]
-  res <- SMT.valid conf $ inv arena init `FOL.impl` (wsys `get` init)
+  res <- SMT.valid conf $ dom arena init `FOL.impl` (wsys `get` init)
   lg conf ["Game realizable =>", show res]
   let prog =
         Synt.enforceFromTo fullSt fullSt
@@ -75,11 +75,11 @@ solveSafety conf arena safes init = do
   lg conf ["Safety game with safe locations", strS (locName arena) safes]
   let envGoal = selectInv arena $ locations arena `Set.difference` safes
   let stopCheck l st
-        | l == init = SMT.sat conf (FOL.andf [inv arena init, st `get` init])
+        | l == init = SMT.sat conf (FOL.andf [dom arena init, st `get` init])
         | otherwise = pure False
   wenv <- attractor conf Env arena (Just stopCheck) envGoal
   lg conf ["Env. winning region", strSt arena wenv]
-  res <- SMT.unsat conf $ FOL.andf [inv arena init, wenv `get` init]
+  res <- SMT.unsat conf $ FOL.andf [dom arena init, wenv `get` init]
   lg conf ["Game realizable =>", show res]
   let wsys = SymSt.map FOL.neg wenv
   let prog = Synt.fromStayIn conf arena wsys wsys
@@ -93,7 +93,7 @@ solveBuechi conf arena accepts init = do
   lg conf ["Game type Buechi with GF", strS (locName arena) accepts]
   (wenv, progSys, _) <- iterBuechi conf Sys arena accepts init
   lg conf ["Winning region Env in initial location", SMTLib.toString (wenv `get` init)]
-  res <- SMT.unsat conf $ FOL.andf [inv arena init, wenv `get` init]
+  res <- SMT.unsat conf $ FOL.andf [dom arena init, wenv `get` init]
   lg conf ["Game realizable =>", show res]
   return (res, progSys)
 
@@ -103,7 +103,7 @@ solveCoBuechi conf arena stays init = do
   lg conf ["Game type coBuechi with not GF", strS (locName arena) rejects]
   (wsys, _, progSys) <- iterBuechi conf Env arena rejects init
   lg conf ["Winning region Sys in initial location", SMTLib.toString (wsys `get` init)]
-  res <- SMT.valid conf $ inv arena init `FOL.impl` (wsys `get` init)
+  res <- SMT.valid conf $ dom arena init `FOL.impl` (wsys `get` init)
   lg conf ["Game realizable =>", show res]
   return (res, progSys)
 
@@ -160,14 +160,14 @@ solveParity :: Config -> Arena -> Map Loc Word -> Loc -> IO (Bool, SyBo)
 solveParity conf arena colors init = do
   lg conf ["Game type Parity with colors", strM (locName arena) show colors]
   (_, (wsys, prog)) <- zielonka arena
-  res <- SMT.valid conf $ inv arena init `FOL.impl` (wsys `get` init)
+  res <- SMT.valid conf $ dom arena init `FOL.impl` (wsys `get` init)
   lg conf ["Game realizable =>", show res]
   pure (res, prog)
   where
     colorList = Map.toList colors
     --
     maxColor :: Arena -> Word
-    maxColor arena = maximum [col | (l, col) <- colorList, inv arena l /= FOL.false]
+    maxColor arena = maximum [col | (l, col) <- colorList, dom arena l /= FOL.false]
     --
     colorPlayer :: Word -> Player
     colorPlayer col
@@ -179,12 +179,12 @@ solveParity conf arena colors init = do
     mkPlSet Env (wply, wopp) = (wply, wopp)
     mkPlSet Sys (wply, wopp) = (wopp, wply)
     removeFromGame symst arena = do
-      newInv <- SymSt.simplify conf (invSymSt arena `SymSt.difference` symst)
+      newInv <- SymSt.simplify conf (domSymSt arena `SymSt.difference` symst)
       pure $ foldl (\arena l -> setInv arena l (newInv `get` l)) arena (locations arena)
     --
     zielonka :: Arena -> IO ((SymSt, SyBo), (SymSt, SyBo))
     zielonka arena
-      | SymSt.null (invSymSt arena) =
+      | SymSt.null (domSymSt arena) =
         pure ((emptySt arena, Synt.empty), (emptySt arena, Synt.empty))
       | otherwise = do
         let color = maxColor arena
@@ -195,9 +195,9 @@ solveParity conf arena colors init = do
                 (locations arena)
                 (\l ->
                    if colors ! l == color
-                     then inv arena l
+                     then dom arena l
                      else FOL.false)
-        let full = invSymSt arena
+        let full = domSymSt arena
         lg conf ["Parity for", show player, "with color", show color]
         lg conf ["Parity arena", strSt arena full]
         lg conf ["Parity target", strSt arena targ]
@@ -248,6 +248,6 @@ selectInv arena locs =
     (locations arena)
     (\l ->
        if l `elem` locs
-         then arena `inv` l
+         then dom arena l
          else FOL.false)
 ---------------------------------------------------------------------------------------------------

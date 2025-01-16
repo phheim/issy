@@ -1,22 +1,17 @@
 {-# LANGUAGE LambdaCase #-}
 
--- TODO RENAME
---  Game -> Arena
---  inv -> domain
---  ...
 module Issy.Solver.GameInterface
-  ( Game
-  , Arena
+  ( Arena
   , Loc
   , vars
-  , inv
+  , dom
   , locations
   , preds
   , succs
   , cyclicIn
   , usedSymbols
   , predSet
-  , loopGame
+  , loopArena
   , setInv
   , stateVars
   , inputL
@@ -26,14 +21,14 @@ module Issy.Solver.GameInterface
   , fromRPG
   , fromSG
   , strSt
-  , invSymSt
+  , domSymSt
   , emptySt
   , Player(..)
   , opponent
   , cpre
   , cpreS
   , independentProgVars
-  , inducedSubGame
+  , inducedSubArena
   , syntCPre
   , -- Visit counting
     VisitCounter
@@ -57,65 +52,63 @@ import qualified Issy.Logic.FOL as FOL
 import qualified Issy.RPG as RPG
 import qualified Issy.SymbolicArena as Sym
 
-data Game
+data Arena
   = RPG RPG.Game
   | Sym Sym.Arena
   deriving (Show)
 
-type Arena = Game
-
-fromRPG :: (RPG.Game, a) -> (Game, a)
+fromRPG :: (RPG.Game, a) -> (Arena, a)
 fromRPG = first RPG
 
-fromSG :: (Sym.Arena, a) -> (Game, a)
+fromSG :: (Sym.Arena, a) -> (Arena, a)
 fromSG = first Sym
 
-liftG :: (RPG.Game -> a) -> (Sym.Arena -> a) -> Game -> a
+liftG :: (RPG.Game -> a) -> (Sym.Arena -> a) -> Arena -> a
 liftG f _ (RPG g) = f g
 liftG _ h (Sym a) = h a
 
-liftV :: (Vars.Variables -> a) -> Game -> a
+liftV :: (Vars.Variables -> a) -> Arena -> a
 liftV f = f . liftG RPG.variables Sym.variables
 
-vars :: Game -> Vars.Variables
+vars :: Arena -> Vars.Variables
 vars = liftV id
 
-inv :: Game -> Loc -> Term
-inv = liftG RPG.inv Sym.domain
+dom :: Arena -> Loc -> Term
+dom = liftG RPG.inv Sym.domain
 
-locations :: Game -> Set Loc
+locations :: Arena -> Set Loc
 locations = liftG RPG.locations Sym.locSet
 
-preds :: Game -> Loc -> Set Loc
+preds :: Arena -> Loc -> Set Loc
 preds = liftG RPG.preds Sym.preds
 
-succs :: Game -> Loc -> Set Loc
+succs :: Arena -> Loc -> Set Loc
 succs = liftG RPG.succs Sym.succs
 
-predSet :: Game -> Set Loc -> Set Loc
+predSet :: Arena -> Set Loc -> Set Loc
 predSet = liftG RPG.predSet Sym.predSet
 
-cyclicIn :: Game -> Loc -> Bool
+cyclicIn :: Arena -> Loc -> Bool
 cyclicIn = liftG RPG.cyclicIn Sym.cyclicIn
 
-usedSymbols :: Game -> Set Symbol
+usedSymbols :: Arena -> Set Symbol
 usedSymbols = liftG RPG.usedSymbols Sym.usedSymbols
 
-cpreEnv :: Game -> SymSt -> Loc -> Term
+cpreEnv :: Arena -> SymSt -> Loc -> Term
 cpreEnv = liftG RPG.cpreEnv Sym.cpreEnv
 
-cpreSys :: Game -> SymSt -> Loc -> Term
+cpreSys :: Arena -> SymSt -> Loc -> Term
 cpreSys = liftG RPG.cpreSys Sym.cpreSys
 
-loopGame :: Game -> Loc -> (Game, Loc)
-loopGame (RPG g) = first RPG . RPG.loopGame g
-loopGame (Sym a) = first Sym . Sym.loopArena a
+loopArena :: Arena -> Loc -> (Arena, Loc)
+loopArena (RPG g) = first RPG . RPG.loopGame g
+loopArena (Sym a) = first Sym . Sym.loopArena a
 
-inducedSubGame :: Game -> Set Loc -> (Game, Loc -> Loc)
-inducedSubGame (RPG g) = first RPG . RPG.inducedSubGame g
-inducedSubGame (Sym a) = first Sym . Sym.inducedSubArena a
+inducedSubArena :: Arena -> Set Loc -> (Arena, Loc -> Loc)
+inducedSubArena (RPG g) = first RPG . RPG.inducedSubGame g
+inducedSubArena (Sym a) = first Sym . Sym.inducedSubArena a
 
-independentProgVars :: Config -> Game -> IO (Set Symbol)
+independentProgVars :: Config -> Arena -> IO (Set Symbol)
 independentProgVars cfg (RPG g) = RPG.independentProgVars cfg g
 independentProgVars cfg (Sym a) = Sym.independentProgVars cfg a
 
@@ -123,35 +116,35 @@ syntCPre ::
      Config -> Arena -> Symbol -> (Loc -> Term) -> Loc -> Term -> SymSt -> IO [(Symbol, Term)]
 syntCPre conf = liftG (error "TODO IMPLEMENT") (Sym.syntCPre conf)
 
-setInv :: Game -> Loc -> Term -> Game
+setInv :: Arena -> Loc -> Term -> Arena
 setInv (RPG g) l t = RPG $ RPG.setInv g l t
 setInv (Sym a) l t = Sym $ Sym.setDomain a l t
 
-inputL :: Game -> [Symbol]
+inputL :: Arena -> [Symbol]
 inputL = liftV Vars.inputL
 
-stateVars :: Game -> Set Symbol
+stateVars :: Arena -> Set Symbol
 stateVars = liftV Vars.stateVars
 
-boundedVar :: Game -> Symbol -> Bool
+boundedVar :: Arena -> Symbol -> Bool
 boundedVar = liftV Vars.isBounded
 
-locName :: Game -> Loc -> String
+locName :: Arena -> Loc -> String
 locName = liftG RPG.locName Sym.locName
 
-sortOf :: Game -> Symbol -> Sort
+sortOf :: Arena -> Symbol -> Sort
 sortOf = liftV Vars.sortOf
 
 --
--- Game related symbolic state handeling
+-- Arena related symbolic state handeling
 --
-strSt :: Game -> SymSt -> String
+strSt :: Arena -> SymSt -> String
 strSt = SymSt.toString . locName
 
-invSymSt :: Game -> SymSt
-invSymSt g = SymSt.symSt (locations g) (inv g)
+domSymSt :: Arena -> SymSt
+domSymSt g = SymSt.symSt (locations g) (dom g)
 
-emptySt :: Game -> SymSt
+emptySt :: Arena -> SymSt
 emptySt g = SymSt.symSt (locations g) (const FOL.false)
 
 --
@@ -171,14 +164,14 @@ opponent =
 --
 -- Enforcement
 --
-cpre :: Player -> Game -> SymSt -> Loc -> Term
+cpre :: Player -> Arena -> SymSt -> Loc -> Term
 cpre p =
   case p of
     Sys -> cpreSys
     Env -> cpreEnv
 
-cpreS :: Config -> Player -> Game -> SymSt -> IO SymSt
-cpreS ctx p g st = SymSt.simplify ctx (SymSt.symSt (locations g) (cpre p g st))
+cpreS :: Config -> Player -> Arena -> SymSt -> IO SymSt
+cpreS conf p g st = SymSt.simplify conf (SymSt.symSt (locations g) (cpre p g st))
 
 --
 -- Visit Counting
@@ -186,7 +179,7 @@ cpreS ctx p g st = SymSt.simplify ctx (SymSt.symSt (locations g) (cpre p g st))
 newtype VisitCounter =
   VC (Map Loc Int)
 
-noVisits :: Game -> VisitCounter
+noVisits :: Arena -> VisitCounter
 noVisits = VC . Map.fromSet (const 0) . locations
 
 visit :: Loc -> VisitCounter -> VisitCounter

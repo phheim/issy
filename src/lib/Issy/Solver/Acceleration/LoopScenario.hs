@@ -24,11 +24,17 @@ import Issy.Utils.Extra (allM)
 
 -------------------------------------------------------------------------------
 loopScenario ::
-     Config -> Maybe Int -> Game -> Loc -> SymSt -> Symbol -> IO (Game, Loc, Loc, SymSt, Term, SyBo)
-loopScenario ctx pathBound arena loc target prime = do
-  (loopAr, loc') <- pure $ loopGame arena loc
+     Config
+  -> Maybe Int
+  -> Arena
+  -> Loc
+  -> SymSt
+  -> Symbol
+  -> IO (Arena, Loc, Loc, SymSt, Term, SyBo)
+loopScenario conf pathBound arena loc target prime = do
+  (loopAr, loc') <- pure $ loopArena arena loc
   let subs = subArena pathBound loopAr (loc, loc')
-  (loopAr, oldToNew) <- pure $ inducedSubGame loopAr subs
+  (loopAr, oldToNew) <- pure $ inducedSubArena loopAr subs
   loc <- pure $ oldToNew loc
   loc' <- pure $ oldToNew loc'
   let loopTarget = SymSt.symSt (locations loopAr) (const FOL.false)
@@ -41,8 +47,8 @@ loopScenario ctx pathBound arena loc target prime = do
                else set st (oldToNew oldloc) (target `get` oldloc))
           loopTarget
           subs
-  indeps <- independentProgVars ctx loopAr
-  (loopTarget, fixedInv) <- accTarget ctx (vars loopAr) loc indeps loopTarget
+  indeps <- independentProgVars conf loopAr
+  (loopTarget, fixedInv) <- accTarget conf (vars loopAr) loc indeps loopTarget
   let newToOld =
         Map.fromList
           $ mapMaybe
@@ -52,20 +58,20 @@ loopScenario ctx pathBound arena loc target prime = do
                    else Nothing)
           $ Set.toList
           $ locations arena
-  let prog = Synt.returnOn loopTarget $ Synt.loopSyBo ctx loopAr loc loc' prime newToOld
+  let prog = Synt.returnOn loopTarget $ Synt.loopSyBo conf loopAr loc loc' prime newToOld
   pure (loopAr, loc, loc', loopTarget, fixedInv, prog)
 
 accTarget :: Config -> Variables -> Loc -> Set Symbol -> SymSt -> IO (SymSt, Term)
-accTarget ctx vars loc indeps st = do
+accTarget conf vars loc indeps st = do
   let deps = Vars.stateVars vars `Set.difference` indeps
-  fixedInv <- SMT.simplify ctx $ FOL.exists (Set.toList deps) $ get st loc
+  fixedInv <- SMT.simplify conf $ FOL.exists (Set.toList deps) $ get st loc
   let st' = SymSt.map (\phi -> FOL.forAll (Set.toList indeps) (fixedInv `FOL.impl` phi)) st
-  st' <- SymSt.simplify ctx st'
+  st' <- SymSt.simplify conf st'
   checkImpl <-
     allM
-      (\l -> SMT.valid ctx (FOL.andf [st' `get` l, fixedInv] `FOL.impl` get st l))
+      (\l -> SMT.valid conf (FOL.andf [st' `get` l, fixedInv] `FOL.impl` get st l))
       (SymSt.locations st)
-  checkSat <- SMT.sat ctx $ st' `get` loc
+  checkSat <- SMT.sat conf $ st' `get` loc
   if checkImpl && checkSat
     then pure (st', fixedInv)
     else pure (st, FOL.true)
@@ -74,7 +80,7 @@ accTarget ctx vars loc indeps st = do
 -- the accelerated location and all locations that are 
 -- on a (simple) path of lenght smaller equal the bound 
 -- form loc to loc'
-subArena :: Maybe Int -> Game -> (Loc, Loc) -> Set Loc
+subArena :: Maybe Int -> Arena -> (Loc, Loc) -> Set Loc
 subArena bound loopArena (loc, loc') =
   let forwDist = distances bound (succs loopArena) loc
       backDist = distances bound (preds loopArena) loc'

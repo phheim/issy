@@ -61,7 +61,7 @@ accelReach conf limit player arena loc reach = do
       baseCond <-
         SMT.valid conf
           $ Vars.forallX (vars arena)
-          $ FOL.andf [inv arena loc, base] `FOL.impl` (reach `get` loc)
+          $ FOL.andf [dom arena loc, base] `FOL.impl` (reach `get` loc)
       unless baseCond $ error "assert: the base should be computed that this holds"
         -- 2. try a few explicit iterations to find invariant
       invRes <- tryFindInv conf prime player arena (step, conc) (loc, loc') fixInv reach prog
@@ -119,11 +119,11 @@ tryFindInv conf prime player arena (step, conc) (loc, loc') fixInv reach prog = 
         (stAcc, prog) <- pure $ iterA player arena reach' loc' prog
         let res = FOL.removePref prime $ stAcc `get` loc
         res <- SMT.simplify conf res
-        let query = Vars.forallX (vars arena) $ FOL.andf [inv arena loc, conc, invar] `FOL.impl` res
+        let query = Vars.forallX (vars arena) $ FOL.andf [dom arena loc, conc, invar] `FOL.impl` res
         unless (null (FOL.frees query)) $ error "assert: found free variables in query"
         holds <- SMT.valid conf query
         if holds
-          then pure $ Right (FOL.andf [inv arena loc, conc, invar, fixInv], prog)
+          then pure $ Right (FOL.andf [dom arena loc, conc, invar, fixInv], prog)
           else iter (cnt + 1) res
 
 iterA :: Player -> Arena -> SymSt -> Loc -> SyBo -> (SymSt, SyBo)
@@ -160,14 +160,12 @@ exactInv conf prime player arena (step, conc) (loc, loc') fixInv reach invApprox
     -- TODO: enhance by only useing usefull stuff! Needs change in CHC stuff
   let invArgs = Vars.stateVarL (vars arena)
   let sorts = map (Vars.sortOf (vars arena)) invArgs
-  let invar =
-        FOL.Func (FOL.CustomF invName sorts FOL.SBool)
-          $ map (\v -> FOL.Var v (Vars.sortOf (vars arena) v)) invArgs
+  let invar = FOL.Func (FOL.CustomF invName sorts FOL.SBool) $ map (Vars.mk (vars arena)) invArgs
   let reach' = set reach loc' $ FOL.orf [reach `get` loc, FOL.andf [step, invar]]
   (stAcc, prog) <- pure $ iterA player arena reach' loc' prog
   let res = FOL.removePref prime $ stAcc `get` loc
   res <- SMT.simplifyUF conf res --TODO: Maybe add timeout here?
-  let query = Vars.forallX (vars arena) $ FOL.andf [inv arena loc, conc, invar] `FOL.impl` res
+  let query = Vars.forallX (vars arena) $ FOL.andf [dom arena loc, conc, invar] `FOL.impl` res
   let minQuery = Vars.forallX (vars arena) $ invar `FOL.impl` invApprox
   unless (null (FOL.frees query)) $ error "assert: found free variables in query"
   chcRes <- CHC.computeMax conf (vars arena) invName [query, minQuery]
@@ -176,7 +174,7 @@ exactInv conf prime player arena (step, conc) (loc, loc') fixInv reach invApprox
     Right invar ->
       pure
         $ Right
-            ( FOL.andf [inv arena loc, conc, invar, fixInv]
+            ( FOL.andf [dom arena loc, conc, invar, fixInv]
             , Synt.replaceUF invName invArgs invar prog)
 
 -------------------------------------------------------------------------------
@@ -300,7 +298,7 @@ generateTerms maxSize vars reach =
   concatMap combToTerms
     $ filter (not . null)
     $ boundPowerList
-    $ map (\v -> FOL.Var v (Vars.sortOf vars v))
+    $ map (Vars.mk vars)
     $ filter (FOL.isNumber . Vars.sortOf vars)
     $ Set.toList
     $ FOL.frees reach

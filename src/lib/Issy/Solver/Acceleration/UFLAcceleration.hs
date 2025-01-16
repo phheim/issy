@@ -56,7 +56,7 @@ data AccState = AccState
   , visitCounters :: [VisitCounter]
   }
 
-accState :: Config -> Int -> Player -> Game -> AccState
+accState :: Config -> Int -> Player -> Arena -> AccState
 accState cfg limit ply arena =
   AccState
     { config = cfg
@@ -87,13 +87,13 @@ doVisit :: AccState -> Loc -> AccState
 doVisit acst l =
   acst {visitCounters = visit l (head (visitCounters acst)) : tail (visitCounters acst)}
 
-doIterA :: AccState -> Game -> AccState
+doIterA :: AccState -> Arena -> AccState
 doIterA acst arena =
   acst {visitCounters = noVisits arena : visitCounters acst, depth = depth acst + 1}
 
-accReach :: AccState -> Game -> Loc -> SymSt -> IO (Constraint, Term, SyBo, AccState)
+accReach :: AccState -> Arena -> Loc -> SymSt -> IO (Constraint, Term, SyBo, AccState)
 accReach acst g loc st = do
-  let targetInv = g `inv` loc
+  let targetInv = dom g loc
   -- Compute new lemma symbols
   (base, step, conc, stepSym, prime, acst) <- pure $ lemmaSymbols (vars g) acst
   -- Compute loop scenario
@@ -113,7 +113,7 @@ accReach acst g loc st = do
       ]
   pure (cons, FOL.andf [conc, fixedInv], prog, acst)
 
-iterA :: AccState -> Game -> SymSt -> Loc -> SyBo -> IO (Constraint, SymSt, SyBo, AccState)
+iterA :: AccState -> Arena -> SymSt -> Loc -> SyBo -> IO (Constraint, SymSt, SyBo, AccState)
 iterA acst g attr shadow = go (doIterA acst g) (OL.fromSet (preds g shadow)) [] attr
   where
     go acst open cons attr prog =

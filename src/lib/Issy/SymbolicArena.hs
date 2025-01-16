@@ -276,7 +276,7 @@ independentProgVars cfg arena = do
     indepVar term depends v
       | v `elem` depends = pure depends
       | otherwise = do
-        let vt = FOL.Var v (Vars.sortOf vars v)
+        let vt = Vars.mk vars v
         res <- SMT.valid cfg $ term `FOL.impl` FOL.equal vt (Vars.primeT vars vt)
         pure
           $ if res
