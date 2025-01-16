@@ -189,8 +189,10 @@ lemmaGuess conf prime vars reach = do
         then Nothing
         else let dist = manhatten box
                  base = boxTerm id box
-            -- TODO: Make more real number friendly!
-                 step = FOL.mapSymbol (prime ++) dist `FOL.geqT` FOL.addT [dist, FOL.oneT]
+                 epsilon
+                   | FOL.SReal `elem` FOL.sorts dist = FOL.Const $ FOL.CReal minimalEpsilon
+                   | otherwise = FOL.oneT
+                 step = FOL.mapSymbol (prime ++) dist `FOL.geqT` FOL.addT [dist, epsilon]
                  conc = FOL.true
               in Just (base, step, conc)
 
@@ -212,6 +214,7 @@ manhatten = FOL.addT . map go
 
 mkBox :: Config -> Variables -> Term -> IO (Box Term)
 mkBox conf vars reach = do
+  reach <- SMT.simplify conf reach
   box <- mkOptBox conf vars reach
   if null box
     then do
@@ -222,13 +225,14 @@ mkBox conf vars reach = do
 mkOptBox :: Config -> Variables -> Term -> IO (Box Term)
 mkOptBox conf vars reach = do
   let boxTerms = generateTerms (manhattenTermCount conf) vars reach
-  (boxScheme, maxTerms) <- prepareBox conf vars reach boxTerms
+  (boxScheme, maxTerms) <- prepareBox conf reach boxTerms
   if null boxScheme
     then pure []
     else do
       let impCond = Vars.forallX vars $ boxTerm (uncurry FOL.Var) boxScheme `FOL.impl` reach
       let exCond = Vars.existsX vars $ boxTerm (uncurry FOL.Var) boxScheme
-      model <- SMT.optPareto conf (FOL.andf [impCond, exCond]) maxTerms
+      cond <- SMT.simplify conf $ FOL.andf [impCond, exCond]
+      model <- SMT.optPareto conf cond maxTerms --TODO: amybe add timeout here!!
       case model of
         Nothing -> pure []
         Just model ->
@@ -251,18 +255,17 @@ completeBox conf reach = do
           bound = FOL.setModel model varTerm
        in [(varTerm, (True, bound)), (varTerm, (False, bound))]
 
-prepareBox :: Config -> Variables -> Term -> [Term] -> IO (Box (Symbol, Sort), [Term])
-prepareBox conf vars reach boxTerms = go [] [] boxTerms
+prepareBox :: Config -> Term -> [Term] -> IO (Box (Symbol, Sort), [Term])
+prepareBox conf reach boxTerms = go [] [] boxTerms
   where
     go box maxTerms =
       \case
         [] -> pure (box, maxTerms)
         boxTerm:xr -> do
           let syms = FOL.symbols $ FOL.andf $ [reach] ++ boxTerms ++ map fst box
-          let sort =
-                if any ((FOL.SReal ==) . Vars.sortOf vars) (FOL.frees boxTerm)
-                  then FOL.SReal
-                  else FOL.SInt
+          let sort
+                | FOL.SReal `elem` FOL.sorts boxTerm = FOL.SReal
+                | otherwise = FOL.SInt
           let newname upper
                 | upper = FOL.uniqueName "upper" syms
                 | otherwise = FOL.uniqueName "lower" syms
@@ -283,7 +286,10 @@ prepareBox conf vars reach boxTerms = go [] [] boxTerms
 
 boundIn :: Config -> Bool -> Term -> Term -> IO Bool
 boundIn conf upper dimTerm reach = do
-  let bound = FOL.ivarT $ FOL.unusedName "bound" $ FOL.andf [dimTerm, reach]
+  let boundName = FOL.unusedName "bound" $ FOL.andf [dimTerm, reach]
+  let bound
+        | FOL.SReal `elem` FOL.sorts dimTerm = FOL.rvarT boundName
+        | otherwise = FOL.ivarT boundName
   let vars = Set.toList $ FOL.frees dimTerm `Set.union` FOL.frees reach
   let query =
         FOL.forAll vars
@@ -291,11 +297,12 @@ boundIn conf upper dimTerm reach = do
           $ if upper
               then FOL.leqT dimTerm bound
               else FOL.geqT dimTerm bound
+  query <- SMT.simplify conf query
   SMT.sat conf query
 
 generateTerms :: Int -> Variables -> Term -> [Term]
 generateTerms maxSize vars reach =
-  concatMap combToTerms
+  concatMap (filter (not . isMixed) . combToTerms)
     $ filter (not . null)
     $ boundPowerList
     $ map (Vars.mk vars)
@@ -327,6 +334,11 @@ generateTerms maxSize vars reach =
         x:xr ->
           let rec = boundPowerList xr
            in rec ++ map (x :) (filter ((< maxSize) . length) rec)
+
+isMixed :: Term -> Bool
+isMixed t =
+  let sorts = FOL.sorts t
+   in (FOL.SReal `elem` sorts) && (FOL.SInt `elem` sorts)
 -------------------------------------------------------------------------------
 -- Heurisitics
 -------------------------------------------------------------------------------

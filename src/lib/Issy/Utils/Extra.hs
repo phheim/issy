@@ -9,6 +9,11 @@ import qualified System.Timeout as Sys (timeout)
 
 import qualified Issy.Utils.OpenList as OL
 
+justOn :: Bool -> a -> Maybe a
+justOn p
+  | p = Just
+  | otherwise = const Nothing
+
 ifM :: Monad m => m Bool -> m a -> m a -> m a
 ifM b t f = do
   b <- b

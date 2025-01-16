@@ -1,6 +1,10 @@
 module Issy.Solver.Acceleration.Heuristics where
 
 import Data.List (genericReplicate)
+import Data.Ratio ((%))
+
+minimalEpsilon :: Rational
+minimalEpsilon = 1 % (10 ^ 3)
 
 visitingThreshold :: Int
 visitingThreshold = 1
