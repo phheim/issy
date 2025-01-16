@@ -61,11 +61,12 @@ accTarget ctx vars loc indeps st = do
   fixedInv <- SMT.simplify ctx $ FOL.exists (Set.toList deps) $ get st loc
   let st' = SymSt.map (\phi -> FOL.forAll (Set.toList indeps) (fixedInv `FOL.impl` phi)) st
   st' <- SymSt.simplify ctx st'
-  check <-
+  checkImpl <-
     allM
       (\l -> SMT.valid ctx (FOL.andf [st' `get` l, fixedInv] `FOL.impl` get st l))
       (SymSt.locations st)
-  if check
+  checkSat <- SMT.sat ctx $ st' `get` loc
+  if checkImpl && checkSat
     then pure (st', fixedInv)
     else pure (st, FOL.true)
 
