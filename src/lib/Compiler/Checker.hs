@@ -4,6 +4,5 @@ module Compiler.Checker
 
 import Compiler.Base
 
--- TODO IMPLEMENT
 check :: AstSpec -> PRes AstSpec
-check = Right
+check = Right -- TODO IMPLEMENT

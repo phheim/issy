@@ -1,3 +1,11 @@
+---------------------------------------------------------------------------------------------------
+-- | 
+-- Module      : Monitor.Issy
+-- Description : Module exposing all functionalities of monitors for RPLTL
+-- Copyright   : (c) Philippe Heim, 2025
+-- License     : The Unlicense
+--
+---------------------------------------------------------------------------------------------------
 module Issy.Monitor
   ( State
   , stateName
@@ -15,6 +23,7 @@ module Issy.Monitor
   , leafs
   ) where
 
+---------------------------------------------------------------------------------------------------
 import qualified Data.Map.Strict as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
@@ -27,6 +36,16 @@ import qualified Issy.Logic.TSLMT as TSL
 import Issy.Monitor.Formula (Formula)
 import qualified Issy.Monitor.Formula as MF
 import Issy.Monitor.Monitor
+  ( Monitor(..)
+  , State(..)
+  , Trans(..)
+  , Verdict(..)
+  , initial
+  , inputs
+  , leafs
+  , stateName
+  , verdict
+  )
 import Issy.Monitor.Postprocess (finish)
 import qualified Issy.Monitor.Propagation as MP
 import qualified Issy.Monitor.Rules as MR
@@ -35,19 +54,9 @@ import Issy.Monitor.Successors (generateSuccessor)
 import qualified Issy.Printers.SMTLib as SMTLib (toString)
 import Issy.Utils.Logging
 
-initializeTSL :: Config -> TSL.Spec -> IO Monitor
-initializeTSL cfg spec = do
-  cfg <- pure $ setName "Monitor TSL" cfg
-  preds <- MP.generatePredicatesTSL cfg (TSL.variables spec) (TSL.preds spec) (TSL.updates spec)
-  initialize
-    cfg
-    True
-    (MR.globalStateTSL (TSL.variables spec) (TSL.updates spec))
-    (TSL.variables spec)
-    (MF.fromTSL <$> TSL.assumptions spec)
-    (MF.fromTSL <$> TSL.guarantees spec)
-    preds
-
+---------------------------------------------------------------------------------------------------
+-- | 'initializeRPLTL' creates as 'Monitor' for RPLTL formula specifications. In order to used the
+-- monitor its transitions and verdict have to be computed.
 initializeRPLTL :: Config -> RPLTL.Spec -> IO Monitor
 initializeRPLTL cfg spec = do
   cfg <- pure $ setName "Monitor" cfg
@@ -61,6 +70,26 @@ initializeRPLTL cfg spec = do
     (MF.fromRPLTL <$> RPLTL.guarantees spec)
     preds
 
+---------------------------------------------------------------------------------------------------
+-- | 'initializeTSL' creates as 'Monitor' for TSLMT formula specifications. In order to used the
+-- monitor its transitions and verdict have to be computed.
+initializeTSL :: Config -> TSL.Spec -> IO Monitor
+initializeTSL cfg spec = do
+  cfg <- pure $ setName "Monitor TSL" cfg
+  preds <- MP.generatePredicatesTSL cfg (TSL.variables spec) (TSL.preds spec) (TSL.updates spec)
+  initialize
+    cfg
+    True
+    (MR.globalStateTSL (TSL.variables spec) (TSL.updates spec))
+    (TSL.variables spec)
+    (MF.fromTSL <$> TSL.assumptions spec)
+    (MF.fromTSL <$> TSL.guarantees spec)
+    preds
+
+---------------------------------------------------------------------------------------------------
+-- | 'initalize' is a generic initilaisation for both RPLTL and TSLMT. The main difference in the 
+-- monitor is that RPLTL has now updates and therefore everything related to them should be 
+-- disabled or have no effect.
 initialize ::
      Config -> Bool -> MR.GlobalS -> Variables -> [Formula] -> [Formula] -> Set Term -> IO Monitor
 initialize cfg upd gls vars assumptions guarantees preds = do
@@ -86,3 +115,4 @@ initialize cfg upd gls vars assumptions guarantees preds = do
         , expansionCache = Map.empty
         , hasUpdates = upd
         }
+---------------------------------------------------------------------------------------------------

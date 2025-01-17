@@ -1,3 +1,11 @@
+---------------------------------------------------------------------------------------------------
+-- | 
+-- Module      : Issy.Statistics
+-- Description : Data structure to accumulate statics over the run of Issy 
+-- Copyright   : (c) Philippe Heim, 2025
+-- License     : The Unlicense
+--
+---------------------------------------------------------------------------------------------------
 module Issy.Statistics
   ( Stats
   , printStats
@@ -6,9 +14,11 @@ module Issy.Statistics
   , accelSucc
   ) where
 
+---------------------------------------------------------------------------------------------------
 import Issy.Config (Config, setName, statToStdout)
 import Issy.Utils.Logging
 
+---------------------------------------------------------------------------------------------------
 data Stats = Stats
   { accelAttempt :: Int
   , accelSuccess :: Int
@@ -17,12 +27,14 @@ data Stats = Stats
 emptyStats :: Stats
 emptyStats = Stats {accelAttempt = 0, accelSuccess = 0}
 
+---------------------------------------------------------------------------------------------------
 accel :: Stats -> Stats
 accel stats = stats {accelAttempt = 1 + accelAttempt stats}
 
 accelSucc :: Stats -> Stats
 accelSucc stats = stats {accelSuccess = 1 + accelSuccess stats}
 
+---------------------------------------------------------------------------------------------------
 printStats :: Config -> Stats -> IO ()
 printStats conf stats
   | statToStdout conf = putStrLn $ unlines $ statString stats
@@ -42,3 +54,4 @@ prsh stats name field = "- " ++ pad name ++ ": " ++ show (field stats)
 
 pad :: String -> String
 pad str = str ++ replicate (30 - length str) ' '
+---------------------------------------------------------------------------------------------------

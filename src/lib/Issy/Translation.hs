@@ -1,7 +1,18 @@
+---------------------------------------------------------------------------------------------------
+-- | 
+-- Module      : Issy.Translation
+-- Description : Procedures to translate specifications to their respective one-game representation
+-- Copyright   : (c) Philippe Heim, 2025
+-- License     : The Unlicense
+--
+---------------------------------------------------------------------------------------------------
 module Issy.Translation
   ( tslToRPG
   , specToSG
   ) where
+
+---------------------------------------------------------------------------------------------------
+import System.Exit (die)
 
 import Issy.Base.Objectives (Objective)
 import Issy.Config (Config, pruneGame)
@@ -17,14 +28,16 @@ import qualified Issy.SymbolicArena as SG
 import qualified Issy.Translation.RPLTL2SG as RPLTL2SG
 import qualified Issy.Translation.TSL2RPG as TSL2RPG
 
-tslToRPG :: Config -> TSLMT.Spec -> IO (RPG.Game, Objective)
-tslToRPG cfg spec = do
-  (game, obj) <- TSL2RPG.tsl2rpg cfg spec
-  if pruneGame cfg
-    then do
-      monitor <- Monitor.initializeTSL cfg spec
-      RPGMonitor.onTheFlyProduct cfg game obj monitor
-    else return (game, obj)
+---------------------------------------------------------------------------------------------------
+-- | DOCUMENT
+specToSG :: Config -> Spec.Specification -> IO (SG.Arena, Objective)
+specToSG cfg spec = do
+  translatedGames <- mapM (rpltlToSG cfg) (Spec.formulas spec)
+  game <- SG.simplifySG cfg $ SGProd.intersection $ Spec.games spec ++ translatedGames
+  check <- SG.check cfg $ fst game
+  case check of
+    Nothing -> pure game
+    Just err -> die err
 
 rpltlToSG :: Config -> RPLTL.Spec -> IO (SG.Arena, Objective)
 rpltlToSG cfg spec = do
@@ -35,11 +48,14 @@ rpltlToSG cfg spec = do
       SGMonitor.onTheFlyProduct cfg arena obj monitor
     else return (arena, obj)
 
-specToSG :: Config -> Spec.Specification -> IO (SG.Arena, Objective)
-specToSG cfg spec = do
-  translatedGames <- mapM (rpltlToSG cfg) (Spec.formulas spec)
-  game <- SG.simplifySG cfg $ SGProd.intersection $ Spec.games spec ++ translatedGames
-  check <- SG.check cfg $ fst game
-  case check of
-    Nothing -> pure game
-    Just err -> error $ "assert: " ++ err
+---------------------------------------------------------------------------------------------------
+-- | DOCUMENT
+tslToRPG :: Config -> TSLMT.Spec -> IO (RPG.Game, Objective)
+tslToRPG cfg spec = do
+  (game, obj) <- TSL2RPG.tsl2rpg cfg spec
+  if pruneGame cfg
+    then do
+      monitor <- Monitor.initializeTSL cfg spec
+      RPGMonitor.onTheFlyProduct cfg game obj monitor
+    else return (game, obj)
+---------------------------------------------------------------------------------------------------

@@ -1,48 +1,57 @@
----------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
+-- | 
+-- Module      : Issy.RPG 
+-- Description : Data structure and methods for reactive program games
+-- Copyright   : (c) Philippe Heim, 2025
+-- License     : The Unlicense
+--
+---------------------------------------------------------------------------------------------------
 {-# LANGUAGE LambdaCase #-}
 
--------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
 module Issy.RPG
-  ( Loc
-  , Game
-  , variables
-  , locationSet
-  , Transition(..)
+  ( Game
+  , Loc
+  , -- Transition
+    Transition(..)
+  , succT
+  , mapTerms
+  , selfLoop
   , -- Access
-    locations
-  , trans
+    variables
+  , locations
+  , locationSet
+  , locName
   , inv
+  , trans
   , preds
   , predSet
-  , locName
+  , succs
+  , usedSymbols
   , -- Construction
     empty
   , addLocation
   , addTransition
   , setInv
-  , selfLoop
   , addSink
   , createLocsFor
-  , -- Other
-    succT
-  , succs
-  , mapTerms
-  , cyclicIn
-  , usedSymbols
-  , --
+  , -- Analysis
+    cyclicIn
+  , -- Simplification
     simplifyRPG
-  , -- Solving
+  , -- Predecessors
     pre
   , cpreEnv
   , cpreSys
-  , loopGame
+  , -- Loop- and Subarena
+    loopGame
   , independentProgVars
   , inducedSubGame
   , -- Synthesis
     syntCPre
   ) where
 
--------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
 import Control.Monad (liftM2)
 import Data.Bifunctor (first, second)
 import Data.List (nub)
@@ -67,7 +76,9 @@ import Issy.Logic.SMT as SMT
 import Issy.Utils.Extra (ifM, predecessorRelation)
 import qualified Issy.Utils.OpenList as OL
 
--------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
+-- RPG Transitions
+---------------------------------------------------------------------------------------------------
 data Transition
   = TIf Term Transition Transition
   -- ^ guarded branch on some quanitifer-free formula
@@ -90,6 +101,9 @@ mapTerms m =
 selfLoop :: Loc -> Transition
 selfLoop l = TSys [(Map.empty, l)]
 
+---------------------------------------------------------------------------------------------------
+-- Arena
+---------------------------------------------------------------------------------------------------
 data Game = Game
   { locationSet :: Locs.Store
   , variables :: Variables
@@ -98,18 +112,44 @@ data Game = Game
   , invariant :: Map Loc Term
   } deriving (Show)
 
+---------------------------------------------------------------------------------------------------
+-- Accessors
+---------------------------------------------------------------------------------------------------
+locations :: Game -> Set Loc
+locations = Locs.toSet . locationSet
+
+inv :: Game -> Loc -> Term
+inv g l = fromMaybe FOL.true $ invariant g !? l
+
 locName :: Game -> Loc -> String
 locName = Locs.name . locationSet
 
 trans :: Game -> Loc -> Transition
 trans g l = fromMaybe (selfLoop l) $ transRel g !? l
 
-inv :: Game -> Loc -> Term
-inv g l = fromMaybe FOL.true $ invariant g !? l
+preds :: Game -> Loc -> Set Loc
+preds g l = Map.findWithDefault Set.empty l (predecessors g)
 
-setInv :: Game -> Loc -> Term -> Game
-setInv g l i = g {invariant = Map.insert l i (invariant g)}
+succs :: Game -> Loc -> Set Loc
+succs g l = maybe Set.empty succT (transRel g !? l)
 
+predSet :: Game -> Set Loc -> Set Loc
+predSet g ls = Set.unions (Set.map (preds g) ls)
+
+usedSymbols :: Game -> Set Symbol
+usedSymbols g =
+  Set.union (Vars.allSymbols (variables g))
+    $ Set.unions
+    $ Map.elems (symTrans <$> transRel g) ++ map (FOL.symbols . snd) (Map.toList (invariant g))
+  where
+    symTrans =
+      \case
+        TIf p t1 t2 -> Set.unions [FOL.symbols p, symTrans t1, symTrans t2]
+        TSys choices -> Set.unions (concatMap (map (FOL.symbols . snd) . Map.toList . fst) choices)
+
+---------------------------------------------------------------------------------------------------
+-- Construction and basic moddification
+---------------------------------------------------------------------------------------------------
 empty :: Variables -> Game
 empty vars =
   Game
@@ -120,13 +160,21 @@ empty vars =
     , invariant = Map.empty
     }
 
-locations :: Game -> Set Loc
-locations = Locs.toSet . locationSet
+setInv :: Game -> Loc -> Term -> Game
+setInv g l i = g {invariant = Map.insert l i (invariant g)}
 
 addLocation :: Game -> String -> (Game, Loc)
 addLocation g name =
   let (newLoc, locSet) = Locs.add (locationSet g) name
    in (g {locationSet = locSet}, newLoc)
+
+addTransition :: Game -> Loc -> Transition -> Maybe Game
+addTransition g l t
+  | l `Map.member` transRel g = Nothing
+  | otherwise = Just $ foldl (addPred l) (g {transRel = Map.insert l t (transRel g)}) (succT t)
+  where
+    addPred pre g suc =
+      g {predecessors = Map.insertWith Set.union suc (Set.singleton pre) (predecessors g)}
 
 createLocsFor ::
      (Foldable t, Ord a) => Game -> (a -> String) -> (a -> Term) -> t a -> (Game, a -> Loc)
@@ -147,23 +195,9 @@ addSink g name =
           }
       , sink)
 
-addTransition :: Game -> Loc -> Transition -> Maybe Game
-addTransition g l t
-  | l `Map.member` transRel g = Nothing
-  | otherwise = Just $ foldl (addPred l) (g {transRel = Map.insert l t (transRel g)}) (succT t)
-  where
-    addPred pre g suc =
-      g {predecessors = Map.insertWith Set.union suc (Set.singleton pre) (predecessors g)}
-
-preds :: Game -> Loc -> Set Loc
-preds g l = Map.findWithDefault Set.empty l (predecessors g)
-
-predSet :: Game -> Set Loc -> Set Loc
-predSet g ls = Set.unions (Set.map (preds g) ls)
-
-succs :: Game -> Loc -> Set Loc
-succs g l = maybe Set.empty succT (transRel g !? l)
-
+---------------------------------------------------------------------------------------------------
+-- Anaysis
+---------------------------------------------------------------------------------------------------
 cyclicIn :: Game -> Loc -> Bool
 cyclicIn g start = any (elem start . reachables g) (succs g start)
 
@@ -179,29 +213,19 @@ reachables g l = bfs Set.empty (l `OL.pushOne` OL.empty)
             let seen' = o `Set.insert` seen
              in bfs seen' ((succs g o `Set.difference` seen) `OL.push` ol')
 
-pruneUnreachables :: Loc -> Game -> Game
-pruneUnreachables init g = foldl disableLoc g $ locations g `Set.difference` reachables g init
-  where
-    disableLoc :: Game -> Loc -> Game
-    disableLoc g l =
-      g
-        { invariant = Map.insert l FOL.false (invariant g)
-        , transRel = Map.insert l (selfLoop l) (transRel g)
-        , predecessors = Map.insert l (Set.singleton l) $ Set.filter (/= l) <$> predecessors g
-        }
+---------------------------------------------------------------------------------------------------
+-- Simplification
+---------------------------------------------------------------------------------------------------
+simplifyRPG :: Config -> (Game, Objective) -> IO (Game, Objective)
+simplifyRPG cfg (game, wc) = do
+  newTrans <- mapM (simplifyTransition cfg) (transRel game)
+  let next l = fromMaybe (error ("assert: location not mapped " ++ show l)) $ newTrans !? l
+  game <-
+    pure
+      $ game
+          {transRel = newTrans, predecessors = predecessorRelation (succT . next) (locations game)}
+  pure (pruneUnreachables (Obj.initialLoc wc) game, wc)
 
-usedSymbols :: Game -> Set Symbol
-usedSymbols g =
-  Set.union (Vars.allSymbols (variables g))
-    $ Set.unions
-    $ Map.elems (symTrans <$> transRel g) ++ map (FOL.symbols . snd) (Map.toList (invariant g))
-  where
-    symTrans =
-      \case
-        TIf p t1 t2 -> Set.unions [FOL.symbols p, symTrans t1, symTrans t2]
-        TSys choices -> Set.unions (concatMap (map (FOL.symbols . snd) . Map.toList . fst) choices)
-
--------------------------------------------------------------------------------
 simplifyTransition :: Config -> Transition -> IO Transition
 simplifyTransition cfg = go [FOL.true]
   where
@@ -222,16 +246,20 @@ simplifyUpdates =
       FOL.Var v _ -> v /= var
       _ -> True
 
-simplifyRPG :: Config -> (Game, Objective) -> IO (Game, Objective)
-simplifyRPG cfg (game, wc) = do
-  newTrans <- mapM (simplifyTransition cfg) (transRel game)
-  let next l = fromMaybe (error ("assert: location not mapped " ++ show l)) $ newTrans !? l
-  game <-
-    pure
-      $ game
-          {transRel = newTrans, predecessors = predecessorRelation (succT . next) (locations game)}
-  pure (pruneUnreachables (Obj.initialLoc wc) game, wc)
+pruneUnreachables :: Loc -> Game -> Game
+pruneUnreachables init g = foldl disableLoc g $ locations g `Set.difference` reachables g init
+  where
+    disableLoc :: Game -> Loc -> Game
+    disableLoc g l =
+      g
+        { invariant = Map.insert l FOL.false (invariant g)
+        , transRel = Map.insert l (selfLoop l) (transRel g)
+        , predecessors = Map.insert l (Set.singleton l) $ Set.filter (/= l) <$> predecessors g
+        }
 
+---------------------------------------------------------------------------------------------------
+-- (Enforcable) Predecessors
+---------------------------------------------------------------------------------------------------
 pre :: Game -> SymSt -> Loc -> Term
 pre g st l =
   FOL.andf [g `inv` l, Vars.existsI (variables g) (FOL.andf [validInput g l, cpreST (trans g l)])]
@@ -270,9 +298,9 @@ validInput g l = go (trans g l)
         TIf p tt te -> FOL.ite p (go tt) (go te)
         TSys upds -> FOL.orf [FOL.mapTermM u (g `inv` l) | (u, l) <- upds]
 
--------------------------------------------------------------------------------
--- Loop Game
--------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
+-- Loop- and Subarena
+---------------------------------------------------------------------------------------------------
 loopGame :: Game -> Loc -> (Game, Loc)
 loopGame arena l =
   let (arena0, l') = addLocation arena $ locName arena l ++ "'"
@@ -358,9 +386,9 @@ isSelfUpd =
     (v, FOL.Var v' _) -> v == v'
     _ -> False
 
----
+---------------------------------------------------------------------------------------------------
 -- Synthesis
----
+---------------------------------------------------------------------------------------------------
 syntCPre :: Config -> Game -> Symbol -> (Loc -> Term) -> Loc -> Term -> SymSt -> IO [(Symbol, Term)]
 syntCPre conf arena locVar toLoc loc cond target = do
   preCond <- SMT.simplify conf $ FOL.andf [cond, inv arena loc, validInput arena loc]
@@ -403,3 +431,4 @@ syntCPre conf arena locVar toLoc loc cond target = do
       Map.insert locVar (toLoc loc)
         $ Map.fromSet (\var -> Map.findWithDefault (Vars.mk (variables arena) var) var upd)
         $ Vars.stateVars (variables arena)
+---------------------------------------------------------------------------------------------------

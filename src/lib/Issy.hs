@@ -1,3 +1,11 @@
+---------------------------------------------------------------------------------------------------
+-- | 
+-- Module      : Issy
+-- Description : Top-level module of the issy's tool library
+-- Copyright   : (c) Philippe Heim, 2025
+-- License     : The Unlicense
+--
+---------------------------------------------------------------------------------------------------
 module Issy
   ( Config(..)
   , AccelLevel(..)
@@ -28,6 +36,7 @@ module Issy
   , rpgToTSLT
   ) where
 
+---------------------------------------------------------------------------------------------------
 -- Config and Statistics
 import Issy.Config (AccelLevel(..), Config(..), defaultConfig)
 import Issy.Statistics (Stats, emptyStats, printStats)
@@ -55,3 +64,4 @@ import Issy.Translation (specToSG, tslToRPG)
 
 -- Checking
 import Issy.Specification (checkSpecification)
+---------------------------------------------------------------------------------------------------

@@ -1,5 +1,14 @@
+---------------------------------------------------------------------------------------------------
+-- | 
+-- Module      : Issy.SymbolicArena
+-- Description : Data structure and methods for arenas of symbolic games
+-- Copyright   : (c) Philippe Heim, 2025
+-- License     : The Unlicense
+--
+---------------------------------------------------------------------------------------------------
 {-# LANGUAGE LambdaCase #-}
 
+---------------------------------------------------------------------------------------------------
 module Issy.SymbolicArena
   ( Arena
   , domain
@@ -34,6 +43,7 @@ module Issy.SymbolicArena
     syntCPre
   ) where
 
+---------------------------------------------------------------------------------------------------
 import Control.Monad (foldM)
 import Data.Bifunctor (second)
 import Data.Map.Strict (Map)
@@ -59,6 +69,9 @@ import Issy.Utils.Extra (justOn)
 import Issy.Utils.Logging
 import qualified Issy.Utils.OpenList as OL
 
+---------------------------------------------------------------------------------------------------
+-- Arena
+---------------------------------------------------------------------------------------------------
 data Arena = Arena
   { variables :: Variables
   , locations :: Locs.Store
@@ -67,16 +80,9 @@ data Arena = Arena
   , predRel :: Map Loc (Set Loc)
   } deriving (Eq, Ord, Show)
 
-empty :: Variables -> Arena
-empty vars =
-  Arena
-    { variables = vars
-    , locations = Locs.empty
-    , aDomain = Map.empty
-    , transRel = Map.empty
-    , predRel = Map.empty
-    }
-
+---------------------------------------------------------------------------------------------------
+-- Accessors
+---------------------------------------------------------------------------------------------------
 domain :: Arena -> Loc -> Term
 domain arena l = Map.findWithDefault FOL.false l (aDomain arena)
 
@@ -114,25 +120,23 @@ locSet = Locs.toSet . locations
 locName :: Arena -> Loc -> String
 locName = Locs.name . locations
 
-cyclicIn :: Arena -> Loc -> Bool
-cyclicIn arena l = any (elem l . reachables arena) (succs arena l)
-
-reachables :: Arena -> Loc -> Set Loc
-reachables g l = bfs Set.empty (l `OL.pushOne` OL.empty)
-  where
-    bfs seen ol =
-      case OL.pop ol of
-        Nothing -> seen
-        Just (o, ol')
-          | o `elem` seen -> bfs seen ol'
-          | otherwise ->
-            let seen' = o `Set.insert` seen
-             in bfs seen' ((succs g o `Set.difference` seen) `OL.push` ol')
-
 usedSymbols :: Arena -> Set Symbol
 usedSymbols arena =
   Vars.allSymbols (variables arena)
     `Set.union` Set.unions (map FOL.symbols (concatMap Map.elems (Map.elems (transRel arena))))
+
+---------------------------------------------------------------------------------------------------
+-- Construction and basic moddification
+---------------------------------------------------------------------------------------------------
+empty :: Variables -> Arena
+empty vars =
+  Arena
+    { variables = vars
+    , locations = Locs.empty
+    , aDomain = Map.empty
+    , transRel = Map.empty
+    , predRel = Map.empty
+    }
 
 addLoc :: Arena -> String -> (Arena, Loc)
 addLoc arena name =
@@ -156,21 +160,6 @@ setTrans arena src trg trans
         newPredRel = Map.insertWith Set.union trg (Set.singleton src) (predRel arena)
      in arena {transRel = newTransRel, predRel = newPredRel}
 
-redirectTransTo :: Arena -> Loc -> Loc -> Arena
-redirectTransTo arena src trg =
-  arena
-    { transRel = Map.insert src (Map.singleton trg FOL.true) $ transRel arena
-    , predRel =
-        Map.insertWith Set.union trg (Set.singleton src) $ Set.filter (/= src) <$> predRel arena
-    }
-
-addSink :: Arena -> (Arena, Loc)
-addSink arena =
-  let sinkName = FOL.uniqueName "sink" $ Set.map (locName arena) $ locSet arena
-      (arena0, sink) = addLoc arena sinkName
-      arena1 = setDomain arena0 sink FOL.true
-   in (setTrans arena1 sink sink FOL.true, sink)
-
 createLocsFor ::
      (Foldable t, Ord a) => Arena -> (a -> String) -> (a -> Term) -> t a -> (Arena, a -> Loc)
 createLocsFor arena name dom =
@@ -181,16 +170,92 @@ createLocsFor arena name dom =
             in (setDomain a' l (dom e), Map.insert e l mp))
         (arena, Map.empty)
 
---
--- Solving
---
-validInput :: Arena -> Loc -> Term
-validInput a l =
-  let v = variables a
-   in Vars.existsX' v
-        $ FOL.orfL (succL a l)
-        $ \l' -> FOL.andf [trans a l l', Vars.primeT v (domain a l')]
+addSink :: Arena -> (Arena, Loc)
+addSink arena =
+  let sinkName = FOL.uniqueName "sink" $ Set.map (locName arena) $ locSet arena
+      (arena0, sink) = addLoc arena sinkName
+      arena1 = setDomain arena0 sink FOL.true
+   in (setTrans arena1 sink sink FOL.true, sink)
 
+redirectTransTo :: Arena -> Loc -> Loc -> Arena
+redirectTransTo arena src trg =
+  arena
+    { transRel = Map.insert src (Map.singleton trg FOL.true) $ transRel arena
+    , predRel =
+        Map.insertWith Set.union trg (Set.singleton src) $ Set.filter (/= src) <$> predRel arena
+    }
+
+---------------------------------------------------------------------------------------------------
+-- Analysis
+---------------------------------------------------------------------------------------------------
+cyclicIn :: Arena -> Loc -> Bool
+cyclicIn arena l = any (elem l . reachables arena) (succs arena l)
+
+reachables :: Arena -> Loc -> Set Loc
+reachables g l = bfs Set.empty (l `OL.pushOne` OL.empty)
+  where
+    bfs seen ol =
+      case OL.pop ol of
+        Nothing -> seen
+        Just (o, ol')
+          | o `elem` seen -> bfs seen ol'
+          | otherwise ->
+            let seen' = o `Set.insert` seen
+             in bfs seen' ((succs g o `Set.difference` seen) `OL.push` ol')
+
+---------------------------------------------------------------------------------------------------
+-- Sanitize
+---------------------------------------------------------------------------------------------------
+check :: Config -> Arena -> IO (Maybe String)
+check cfg a = go $ Set.toList $ locSet a
+  where
+    v = variables a
+    go =
+      \case
+        [] -> pure Nothing
+        l:lr -> do
+                -- Check non-blocking condition from symbolic game structure definition
+                -- The other one is uneccesary restrictive!
+          c <-
+            SMT.valid cfg
+              $ Vars.forallX v
+              $ FOL.impl (domain a l)
+              $ Vars.existsI v
+              $ Vars.existsX' v
+              $ FOL.orfL (Set.toList (locSet a))
+              $ \l' -> FOL.andf [Vars.primeT v (domain a l'), trans a l l']
+          if c
+            then go lr
+            else pure $ Just $ locName a l ++ " might be blocking!"
+
+---------------------------------------------------------------------------------------------------
+-- Simplification
+---------------------------------------------------------------------------------------------------
+simplifyArena :: Config -> Arena -> IO Arena
+simplifyArena cfg arena = do
+  let filt mp = Map.filter (/= FOL.false) <$> mapM (SMT.simplify cfg) mp
+  newDom <- filt (aDomain arena)
+  newTransRel <- mapM filt $ transRel arena
+  arena <- pure $ arena {aDomain = newDom, transRel = newTransRel}
+  let newPredRel =
+        Map.mapWithKey (\l' -> Set.filter (\l -> trans arena l l' /= FOL.false)) (predRel arena)
+  pure $ arena {predRel = newPredRel}
+
+simplifySG :: Config -> (Arena, Objective) -> IO (Arena, Objective)
+simplifySG cfg (arena, obj) = do
+  arena <- simplifyArena cfg arena
+  let notReachable = locSet arena `Set.difference` reachables arena (initialLoc obj)
+  arena <- pure $ foldl (\a l -> setDomain a l FOL.false) arena notReachable
+  let wc =
+        Obj.mapWC
+          (`Set.difference` notReachable)
+          (\rank -> foldl (\r l -> Map.insert l 0 r) rank notReachable)
+          (winningCond obj)
+  pure (arena, obj {winningCond = wc})
+
+---------------------------------------------------------------------------------------------------
+-- (Enforcable) Predecessors
+---------------------------------------------------------------------------------------------------
 pre :: Arena -> SymSt -> Loc -> Term
 pre a d l =
   let v = variables a
@@ -234,6 +299,16 @@ cpreSys a d l =
               FOL.andf [trans a l l', Vars.primeT v (domain a l'), Vars.primeT v (SymSt.get d l')]
    in FOL.andf [f, domain a l]
 
+validInput :: Arena -> Loc -> Term
+validInput a l =
+  let v = variables a
+   in Vars.existsX' v
+        $ FOL.orfL (succL a l)
+        $ \l' -> FOL.andf [trans a l l', Vars.primeT v (domain a l')]
+
+---------------------------------------------------------------------------------------------------
+-- Loop- and Subarena
+---------------------------------------------------------------------------------------------------
 loopArena :: Arena -> Loc -> (Arena, Loc)
 loopArena arena l =
   let (arena0, l') = addLoc arena $ locName arena l ++ "'"
@@ -302,59 +377,9 @@ independentProgVars cfg arena = do
               then depends
               else Set.insert v depends
 
---
--- Sanitize
---
-check :: Config -> Arena -> IO (Maybe String)
-check cfg a = go $ Set.toList $ locSet a
-  where
-    v = variables a
-    go =
-      \case
-        [] -> pure Nothing
-        l:lr -> do
-                -- Check non-blocking condition from symbolic game structure definition
-                -- The other one is uneccesary restrictive!
-          c <-
-            SMT.valid cfg
-              $ Vars.forallX v
-              $ FOL.impl (domain a l)
-              $ Vars.existsI v
-              $ Vars.existsX' v
-              $ FOL.orfL (Set.toList (locSet a))
-              $ \l' -> FOL.andf [Vars.primeT v (domain a l'), trans a l l']
-          if c
-            then go lr
-            else pure $ Just $ locName a l ++ " might be blocking!"
-
---
--- Simplification
---
-simplifyArena :: Config -> Arena -> IO Arena
-simplifyArena cfg arena = do
-  let filt mp = Map.filter (/= FOL.false) <$> mapM (SMT.simplify cfg) mp
-  newDom <- filt (aDomain arena)
-  newTransRel <- mapM filt $ transRel arena
-  arena <- pure $ arena {aDomain = newDom, transRel = newTransRel}
-  let newPredRel =
-        Map.mapWithKey (\l' -> Set.filter (\l -> trans arena l l' /= FOL.false)) (predRel arena)
-  pure $ arena {predRel = newPredRel}
-
-simplifySG :: Config -> (Arena, Objective) -> IO (Arena, Objective)
-simplifySG cfg (arena, obj) = do
-  arena <- simplifyArena cfg arena
-  let notReachable = locSet arena `Set.difference` reachables arena (initialLoc obj)
-  arena <- pure $ foldl (\a l -> setDomain a l FOL.false) arena notReachable
-  let wc =
-        Obj.mapWC
-          (`Set.difference` notReachable)
-          (\rank -> foldl (\r l -> Map.insert l 0 r) rank notReachable)
-          (winningCond obj)
-  pure (arena, obj {winningCond = wc})
-
---
+---------------------------------------------------------------------------------------------------
 -- Synthesis
---
+---------------------------------------------------------------------------------------------------
 syntCPre ::
      Config -> Arena -> Symbol -> (Loc -> Term) -> Loc -> Term -> SymSt -> IO [(Symbol, Term)]
 syntCPre conf arena locVar toLoc loc cond targ = do

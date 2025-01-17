@@ -1,4 +1,29 @@
-module Compiler.Base where
+module Compiler.Base
+  ( PRes
+  , perr
+  , perrGen
+  , isKeyword
+  , Pos
+  , initPos
+  , nextSymbol
+  , nextLine
+  , posStr
+  , Token(..)
+  , token
+  , AstSpec
+  , AstDef(..)
+  , AstIO(..)
+  , AstSort(..)
+  , AstWC(..)
+  , AstLogicStm(..)
+  , AstTF(..)
+  , AstGameStm(..)
+  , AstTerm(..)
+  , AstAtom(..)
+  , AstGround(..)
+  , BOP(..)
+  , UOP(..)
+  ) where
 
 --
 -- Constants
@@ -35,20 +60,20 @@ isKeyword =
     , "havoc"
     ]
 
---
+---------------------------------------------------------------------------------------------------
 -- Error Handeling
---
+---------------------------------------------------------------------------------------------------
 type PRes a = Either String a
 
 perr :: Pos -> String -> Either String a
-perr p msg = Left $ "Compiler error [" ++ show (lineNum p) ++ ":" ++ show (pos p) ++ "] : " ++ msg
+perr p msg = Left $ "Compiler error " ++ posStr p ++ msg
 
 perrGen :: String -> Either String a
 perrGen = Left . ("Compiler error : " ++)
 
---
--- Position Handeling
---
+---------------------------------------------------------------------------------------------------
+-- Position handeling
+---------------------------------------------------------------------------------------------------
 data Pos = Pos
   { lineNum :: Int
   , pos :: Int
@@ -63,9 +88,12 @@ nextSymbol p = p {pos = pos p + 1}
 nextLine :: Pos -> Pos
 nextLine p = Pos {lineNum = lineNum p + 1, pos = 1}
 
---
--- Token
---
+posStr :: Pos -> String
+posStr p = "[" ++ show (lineNum p) ++ ":" ++ show (pos p) ++ "]"
+
+---------------------------------------------------------------------------------------------------
+-- Tokens
+---------------------------------------------------------------------------------------------------
 data Token = Token
   { tpos :: Pos
   , tval :: String
@@ -74,9 +102,9 @@ data Token = Token
 token :: Pos -> String -> Token
 token p s = Token {tpos = p, tval = s}
 
---
--- AST
---
+---------------------------------------------------------------------------------------------------
+-- Abstract Syntax Tree
+---------------------------------------------------------------------------------------------------
 type AstSpec = [AstDef]
 
 data AstDef
@@ -146,3 +174,4 @@ newtype BOP =
 newtype UOP =
   UOP String
   deriving (Eq, Ord, Show)
+---------------------------------------------------------------------------------------------------

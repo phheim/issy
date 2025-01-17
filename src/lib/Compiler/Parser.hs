@@ -178,7 +178,7 @@ parseRPLTL =
        , (["||"], 8, 9)
        , (["&&"], 10, 11)
        ])
-    tokenPos
+    (posStr . tpos)
 
 parseTerm :: [Token] -> PRes (AstTerm, [Token])
 parseTerm =
@@ -187,7 +187,7 @@ parseTerm =
     (\t -> apply1 ATAtom . parseAtom t)
     (unPred (ATUexp . UOP) [(["!"], 8)])
     (binPred (ATBexp . BOP) [(["<->"], 1, 0), (["<->"], 3, 2), (["||"], 4, 5), (["&&"], 6, 7)])
-    tokenPos
+    (posStr . tpos)
 
 parseAtom :: Token -> [Token] -> PRes (AstAtom, [Token])
 parseAtom t ts =
@@ -241,13 +241,10 @@ parseGroundTerm =
     (binPred
        (AGBexp . BOP)
        [(["=", "<", ">", ">=", "<="], 0, 1), (["+", "-"], 2, 3), (["mod", "/", "*"], 4, 5)])
-    tokenPos
+    (posStr . tpos)
 
 pars :: (Token -> Bool, Token -> Bool)
 pars = ((== "(") . tval, (== ")") . tval)
-
-tokenPos :: Token -> (Int, Int)
-tokenPos t = (lineNum (tpos t), pos (tpos t))
 
 unPred :: (String -> e -> e) -> [([String], Word)] -> Token -> Maybe (e -> e, Word)
 unPred op preds t =
@@ -269,18 +266,13 @@ parseOps ::
   -> (t -> [t] -> PRes (e, [t]))
   -> (t -> Maybe (e -> e, Word))
   -> (t -> Maybe (e -> e -> e, Word, Word))
-  -> (t -> (Int, Int))
+  -> (t -> String)
   -> [t]
   -> PRes (e, [t])
 parseOps (lpar, rpar) parseAtom unOp binOp posToken = go
   where
     errEOF = "Compiler Error : Found EOF while parsing primary operators"
-    errToken t =
-      "Compiler error ["
-        ++ show (fst (posToken t))
-        ++ ":"
-        ++ show (snd (posToken t))
-        ++ "] : Found bad token while parsing operators"
+    errToken t = "Compiler error " ++ posToken t ++ ": Found bad token while parsing operators"
        --
     go = parseOp 0
        -- 
