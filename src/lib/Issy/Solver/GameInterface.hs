@@ -118,7 +118,7 @@ independentProgVars cfg (Sym a) = Sym.independentProgVars cfg a
 
 syntCPre ::
      Config -> Arena -> Symbol -> (Loc -> Term) -> Loc -> Term -> SymSt -> IO [(Symbol, Term)]
-syntCPre conf = liftG (error "TODO IMPLEMENT") (Sym.syntCPre conf)
+syntCPre conf = liftG (RPG.syntCPre conf) (Sym.syntCPre conf)
 
 setInv :: Arena -> Loc -> Term -> Arena
 setInv (RPG g) l t = RPG $ RPG.setInv g l t

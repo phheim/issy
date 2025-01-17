@@ -80,7 +80,7 @@ accelReach conf limit player arena loc reach = do
                   prime
                   player
                   arena
-                  (step, conc)
+                  (base, step, conc)
                   (loc, loc')
                   fixInv
                   reach
@@ -147,14 +147,14 @@ exactInv ::
   -> Symbol
   -> Player
   -> Arena
-  -> (Term, Term)
+  -> (Term, Term, Term)
   -> (Loc, Loc)
   -> Term
   -> SymSt
   -> Term
   -> SyBo
   -> IO (Either String (Term, SyBo))
-exactInv conf prime player arena (step, conc) (loc, loc') fixInv reach invApprox prog = do
+exactInv conf prime player arena (base, step, conc) (loc, loc') fixInv reach invApprox prog = do
     -- TODO: Add logging
   let invName = FOL.uniquePrefix "chc_invar" $ Set.insert prime $ usedSymbols arena
     -- TODO: enhance by only useing usefull stuff! Needs change in CHC stuff
@@ -165,10 +165,11 @@ exactInv conf prime player arena (step, conc) (loc, loc') fixInv reach invApprox
   (stAcc, prog) <- pure $ iterA player arena reach' loc' prog
   let res = FOL.removePref prime $ stAcc `get` loc
   res <- SMT.simplifyUF conf res --TODO: Maybe add timeout here?
-  let query = Vars.forallX (vars arena) $ FOL.andf [dom arena loc, conc, invar] `FOL.impl` res
-  let minQuery = Vars.forallX (vars arena) $ invar `FOL.impl` invApprox
-  unless (null (FOL.frees query)) $ error "assert: found free variables in query"
-  chcRes <- CHC.computeMax conf (vars arena) invName [query, minQuery]
+  (resPrems, resConc) <- pure $ CHC.fromTerm res
+  let query = (invar : dom arena loc : conc : resPrems, resConc)
+  let maxQuery = ([invar], invApprox)
+  let minQuery = ([base], invar)
+  chcRes <- CHC.computeMax conf (vars arena) invName [query, maxQuery, minQuery]
   case chcRes of
     Left err -> pure $ Left err
     Right invar ->

@@ -33,19 +33,17 @@ import Issy.Utils.Logging
 -- Conversion
 ---------------------------------------------------------------------------------------------------
 -- Translation from normal FOL formula to CHC from, is not complete!
-fromTerm :: Term -> [([Term], Term)]
-fromTerm term = go [] $ FOL.toNNF term
+fromTerm :: Term -> ([Term], Term)
+fromTerm = go . FOL.toNNF
   where
-    go preds conc =
-      case preds of
-        [] ->
-          case conc of
-            FOL.Func (FOL.PredefF "and") args -> concatMap (go []) args
-            FOL.Func (FOL.PredefF "or") args -> go (map (FOL.toNNF . FOL.neg) args) FOL.false
-            conc -> [([], conc)]
-        FOL.Func (FOL.PredefF "and") args:pr -> go (args ++ pr) conc
-        FOL.Func (FOL.PredefF "or") args:pr -> concatMap (\arg -> go (arg : pr) conc) args
-        p:pr -> map (first (p :)) (go pr conc)
+    go =
+      \case
+        FOL.Func (FOL.PredefF "or") [arg] -> go arg
+        FOL.Func (FOL.PredefF "or") (a:args) ->
+          case FOL.toNNF (FOL.neg a) of
+            FOL.Func (FOL.PredefF "and") andArgs -> first (andArgs ++) $ go $ FOL.orf args
+            a -> first (a :) $ go $ FOL.orf args
+        conc -> ([], conc)
 
 ---------------------------------------------------------------------------------------------------
 -- CHC solving
@@ -89,16 +87,19 @@ callCHCSolver conf query = do
 ---------------------------------------------------------------------------------------------------
 -- MaxCHC
 ---------------------------------------------------------------------------------------------------
-computeMax :: Config -> Variables -> Symbol -> [Term] -> IO (Either String Term)
+computeMax :: Config -> Variables -> Symbol -> [([Term], Term)] -> IO (Either String Term)
 computeMax config vars invName constraints
-  | any (any ((/= SInt) . Vars.sortOf vars) . FOL.frees) constraints =
-    pure $ Left "found non-integers"
-  | otherwise = fmap (parseFP vars invName) $ callCHCMax config $ encodeFP vars invName constraints
+  | invalidSorts constraints = pure $ Left "found non-integers"
+  | otherwise =
+    fmap (parseFP vars invName)
+      $ callCHCMax config
+      $ encodeFP vars invName
+      $ map encodeConstr constraints
 
---TODO: this is somewhat ugly and should be removed!
+--TODO: this is somewhat ugly and should be removed
 computeFP :: Config -> Variables -> Symbol -> Term -> Term -> IO (Maybe Term)
 computeFP cfg vars fpPred init trans
-  | any ((/= SInt) . Vars.sortOf vars) (FOL.frees init `Set.union` FOL.frees trans) = do
+  | invalidSorts [([init], trans)] = do
     lg cfg ["CHCMax", "found non ints!"]
     pure Nothing
   | otherwise = do
@@ -113,11 +114,21 @@ computeFP cfg vars fpPred init trans
         lg cfg ["CHCMax returned result:", SMTLib.toString term]
         pure (Just term)
 
+invalidSorts :: [([Term], Term)] -> Bool
+invalidSorts terms =
+  let sorts = Set.unions $ map FOL.sorts $ concatMap (\(preds, conc) -> conc : preds) terms
+   in FOL.SReal `elem` sorts
+
 callCHCMax :: Config -> String -> IO String
 callCHCMax cfg query = do
   lgd cfg ["CHCMax-query", query]
   (_, stdout, _) <- readProcessWithExitCode (chcMaxScript cfg) [show (chcMaxTimeOut cfg)] query
   pure stdout
+
+encodeConstr :: ([Term], Term) -> Term
+encodeConstr (prems, conc) =
+  let horn = FOL.func "=>" [FOL.andf prems, conc]
+   in FOL.forAll (Set.toList (FOL.frees horn)) horn
 
 encodeFP :: Variables -> Symbol -> [Term] -> String
 encodeFP vars invName constraints =

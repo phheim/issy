@@ -299,10 +299,12 @@ orfL :: [a] -> (a -> Term) -> Term
 orfL xs f = orf $ map f xs
 
 neg :: Term -> Term
-neg f
-  | f == true = false
-  | f == false = true
-  | otherwise = Func (PredefF "not") [f]
+neg =
+  \case
+    Const (CBool True) -> false
+    Const (CBool False) -> true
+    Func (PredefF "not") [f] -> f
+    f -> Func (PredefF "not") [f]
 
 ite :: Term -> Term -> Term -> Term
 ite c t e
@@ -531,6 +533,7 @@ toNNF =
     Func (PredefF "not") [Func (PredefF "not") [t]] -> toNNF t
     Func (PredefF "not") [Func (PredefF "or") args] -> andf $ map (toNNF . neg) args
     Func (PredefF "not") [Func (PredefF "and") args] -> orf $ map (toNNF . neg) args
+    Func f args -> Func f $ map toNNF args
     atom -> atom
 
 --

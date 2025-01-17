@@ -102,7 +102,7 @@ z3Simplify =
   ]
 
 z3SimplifyUF :: [String]
-z3SimplifyUF = ["simplify", "propagate-ineqs", "qe", "simplify"]
+z3SimplifyUF = ["simplify", "blast-term-ite", "nnf", "propagate-ineqs", "qe", "simplify"]
 
 simplify :: Config -> Term -> IO Term
 simplify conf = noTimeout . trySimplify conf Nothing

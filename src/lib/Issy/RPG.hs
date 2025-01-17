@@ -38,6 +38,8 @@ module Issy.RPG
   , loopGame
   , independentProgVars
   , inducedSubGame
+  , -- Synthesis
+    syntCPre
   ) where
 
 -------------------------------------------------------------------------------
@@ -355,3 +357,49 @@ isSelfUpd =
   \case
     (v, FOL.Var v' _) -> v == v'
     _ -> False
+
+---
+-- Synthesis
+---
+syntCPre :: Config -> Game -> Symbol -> (Loc -> Term) -> Loc -> Term -> SymSt -> IO [(Symbol, Term)]
+syntCPre conf arena locVar toLoc loc cond target = do
+  preCond <- SMT.simplify conf $ FOL.andf [cond, inv arena loc, validInput arena loc]
+  Map.toList <$> syntTrans preCond (trans arena loc)
+  where
+    syntTrans preCond =
+      \case
+        TIf cond tt tf -> do
+          let recT = syntTrans (FOL.andf [preCond, cond]) tt
+          let recF = syntTrans (FOL.andf [preCond, FOL.neg cond]) tf
+          satT <- SMT.sat conf $ FOL.andf [preCond, cond]
+          satF <- SMT.sat conf $ FOL.andf [preCond, FOL.neg cond]
+          case (satT, satF) of
+            (False, _) -> recF
+            (_, False) -> recT
+            _ -> do
+              mt <- recT
+              Map.unionWith (FOL.ite cond) mt <$> recF
+        TSys upds -> do
+          preCond <- SMT.simplify conf preCond
+          selectUpds preCond upds
+    --
+    selectUpds preCond =
+      \case
+        [] -> error "assert: unreachable code"
+        (upd, loc):ur -> do
+          let uassign = updateAssign upd loc
+          let preSt = FOL.mapTermM upd $ FOL.andf [target `SymSt.get` loc, inv arena loc]
+          preSt <- SMT.simplify conf preSt
+          satPre <- SMT.sat conf preSt
+          preCond' <- SMT.simplify conf $ FOL.andf [preCond, FOL.neg preSt]
+          satOther <- SMT.sat conf preCond'
+          if satPre
+            then if satOther
+                   then Map.unionWith (FOL.ite preSt) uassign <$> selectUpds preCond' ur
+                   else pure uassign
+            else selectUpds preCond ur
+    -- 
+    updateAssign upd loc =
+      Map.insert locVar (toLoc loc)
+        $ Map.fromSet (\var -> Map.findWithDefault (Vars.mk (variables arena) var) var upd)
+        $ Vars.stateVars (variables arena)
