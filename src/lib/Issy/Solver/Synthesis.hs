@@ -175,7 +175,7 @@ extractProg conf init sybo = do
   conf <- pure $ setName "Synth" conf
   let locVar = FOL.uniquePrefix "prog_counter" $ symbols sybo
   prog <- extractPG conf locVar sybo
-  prog <- pure $ Sequence [Assign locVar (toLoc init), prog]
+  prog <- pure $ Sequence [Declare locVar FOL.SInt, Assign locVar (toLoc init), prog]
   pure $ printProg (getVars sybo) prog
 
 ---------------------------------------------------------------------------------------------------
@@ -246,7 +246,10 @@ makeHead :: Variables -> [String]
 makeHead vars =
   let inputDecl = map (\v -> Declare v (Vars.sortOf vars v)) $ Vars.inputL vars
       stateDecl = map (\v -> Declare v (Vars.sortOf vars v)) $ Vars.stateVarL vars
-   in concatMap printStmt (inputDecl ++ stateDecl) ++ ["void read_inputs() { /* INSERT HERE */ }"]
+   in ["#include <stdlib.h>"]
+        ++ concatMap printStmt inputDecl
+        ++ ["void read_inputs() { /* INSERT HERE */ }"]
+        ++ concatMap printStmt stateDecl
 
 printStmt :: Prog -> [String]
 printStmt =

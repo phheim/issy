@@ -456,14 +456,12 @@ equalitiesFor var = go
 
 -------------------------------------------------------------------------------
 uniqueName :: Symbol -> Set Symbol -> Symbol
-uniqueName prefix names = h (0 :: Integer)
-  where
-    h n
-      | (prefix ++ show n) `elem` names = h (n + 1)
-      | otherwise = prefix ++ show n
+uniqueName = uniquePrefix
 
 uniquePrefix :: Symbol -> Set Symbol -> Symbol
-uniquePrefix prefix names = h (0 :: Integer)
+uniquePrefix prefix names
+  | any (prefix `isPrefixOf`) names = h (0 :: Integer)
+  | otherwise = prefix
   where
     h n
       | any ((prefix ++ show n) `isPrefixOf`) names = h (n + 1)
