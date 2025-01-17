@@ -16,7 +16,7 @@ import Data.List (genericReplicate)
 import Data.Ratio ((%))
 import qualified Data.Set as Set
 
-import Issy.Config (AccelLevel(..), Config, accelerationLevel)
+import Issy.Config (Config, accelerationLevel)
 import Issy.Solver.GameInterface
 
 data Heur = Heur
@@ -38,9 +38,9 @@ forVisits conf arena visits =
 loopArenaSize :: Heur -> Maybe Int
 loopArenaSize heur =
   case accelerationLevel (config heur) of
-    AccelEasy -> Just 1
-    AccelNorm -> Just 1 -- TODO got to more at some point
-    AccelHard -> Just 2 -- TODO got to locCnt at some point
+    0 -> Just 1
+    1 -> Just 1 -- TODO got to more at some point
+    _ -> Just 2 -- TODO got to locCnt at some point
 
 iterAMaxCPres :: Heur -> Int
 iterAMaxCPres _ = 1

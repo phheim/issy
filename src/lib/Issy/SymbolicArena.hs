@@ -421,7 +421,7 @@ syntCPre conf arena locVar toLoc loc cond targ = do
 
 syntElim :: Config -> Variables -> Symbol -> Term -> Term -> IO (Maybe Term)
 syntElim conf vars var preCond postCond = do
-  let equals = FOL.equalitiesFor var postCond
+  let equals = Set.filter (all (not . Vars.isPrimed) . FOL.frees) $ FOL.equalitiesFor var postCond
   lgd conf ["For", var, "use equalties", strS SMTLib.toString equals]
   res <- go preCond $ Set.toList equals
   case res of

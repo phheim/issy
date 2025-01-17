@@ -8,20 +8,9 @@
 ---------------------------------------------------------------------------------------------------
 module Issy.Config
   ( Config(..)
-  , AccelLevel(..)
   , defaultConfig
   , setName
   ) where
-
----------------------------------------------------------------------------------------------------
--- DOCUMENT
-data AccelLevel
-  = AccelEasy
-  -- ^ DOCUMENT
-  | AccelNorm
-  -- ^ DOCUMENT
-  | AccelHard
-  -- ^ DOCUMENT
 
 ---------------------------------------------------------------------------------------------------
 -- | 'Config' is the data type for the different configuration options of Issy
@@ -62,7 +51,7 @@ data Config = Config
   -- ^ DOCUMENT
   , extendAcceleration :: Bool
   -- ^ DOCUMENT
-  , accelerationLevel :: AccelLevel
+  , accelerationLevel :: Word
   -- ^ if this is set, depending if is set ufAcceleration, we nest or use chc 
     --
     -- Synthesis
@@ -113,7 +102,7 @@ defaultConfig =
     , accelerateObjective = False
     , ufAcceleration = False
     , extendAcceleration = False
-    , accelerationLevel = AccelNorm
+    , accelerationLevel = 1
     -- Synthesis
     , generateProgram = False
     -- External tools

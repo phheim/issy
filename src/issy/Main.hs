@@ -229,9 +229,9 @@ configParser = go defaultConfig
             _ -> Left $ "found invalid attractor acceleration mode: " ++ arg
         "--accel-difficulty":arg:ar ->
           case arg of
-            "easy" -> go (cfg {accelerationLevel = AccelEasy}) ar
-            "medium" -> go (cfg {accelerationLevel = AccelNorm}) ar
-            "hard" -> go (cfg {accelerationLevel = AccelHard}) ar
+            "easy" -> go (cfg {accelerationLevel = 0}) ar
+            "medium" -> go (cfg {accelerationLevel = 1}) ar
+            "hard" -> go (cfg {accelerationLevel = 2}) ar
             _ -> Left $ "found invalid attractor acceleration difficulty: " ++ arg
         -- Synthesis
         "--synt":sr -> go (cfg {generateProgram = True}) sr

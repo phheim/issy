@@ -8,7 +8,6 @@
 ---------------------------------------------------------------------------------------------------
 module Issy
   ( Config(..)
-  , AccelLevel(..)
   , defaultConfig
   , -- Statistics
     Stats
@@ -38,7 +37,7 @@ module Issy
 
 ---------------------------------------------------------------------------------------------------
 -- Config and Statistics
-import Issy.Config (AccelLevel(..), Config(..), defaultConfig)
+import Issy.Config (Config(..), defaultConfig)
 import Issy.Statistics (Stats, emptyStats, printStats)
 
 -- Extractors
