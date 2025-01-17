@@ -10,20 +10,22 @@ import Data.Ratio ((%))
 import Data.Set (Set)
 import qualified Data.Set as Set
 
+import Issy.Base.Locations (Loc)
 import qualified Issy.Base.Locations as Locs
 import Issy.Base.Objectives (Objective(..), WinningCondition(..))
 import qualified Issy.Base.Variables as Vars
-import Issy.Logic.FOL
-import Issy.RPG
+import Issy.Logic.FOL (Constant(..), Function(..), Sort(..), Symbol, Term(..))
+import Issy.RPG (Game, Transition(..))
+import qualified Issy.RPG as RPG
 
 outputs :: Game -> [Symbol]
-outputs = Vars.stateVarL . variables
+outputs = Vars.stateVarL . RPG.variables
 
 inputs :: Game -> [Symbol]
-inputs = Vars.inputL . variables
+inputs = Vars.inputL . RPG.variables
 
 sortOf :: Game -> Symbol -> Sort
-sortOf = Vars.sortOf . variables
+sortOf = Vars.sortOf . RPG.variables
 
 encSort :: Sort -> String
 encSort =
@@ -115,7 +117,7 @@ encTrans pname g =
         (\(u, l) ->
            encPred g pname (\s -> maybe s (encTerm True) (u !? s)) (outputs g) l
              ++ " /\\ "
-             ++ encTerm False (inv g l))
+             ++ encTerm False (RPG.inv g l))
         "\\/"
         "false"
         upds
@@ -123,14 +125,14 @@ encTrans pname g =
 encFullTrans :: String -> Game -> Loc -> String
 encFullTrans pname g l =
   "(("
-    ++ encTerm False (g `inv` l)
+    ++ encTerm False (RPG.inv g l)
     ++ ") /\\ ("
     ++ (if not (null (inputs g))
           then "forall"
                  ++ concatMap (\s -> " (" ++ s ++ ": " ++ encSort (sortOf g s) ++ ")") (inputs g)
                  ++ "."
           else "")
-    ++ encTrans pname g (trans g l)
+    ++ encTrans pname g (RPG.trans g l)
     ++ "));"
 
 encReach :: Game -> Set Loc -> Loc -> String
@@ -168,21 +170,21 @@ encAll pname g init =
   "forall "
     ++ concatMap (\s -> "(" ++ s ++ ": " ++ encSort (sortOf g s) ++ ")") (outputs g)
     ++ ". (not "
-    ++ encTerm False (g `inv` init)
+    ++ encTerm False (RPG.inv g init)
     ++ ") \\/ "
     ++ encPred g pname id (outputs g) init
 
 encReachable :: Game -> Loc -> Set Loc -> String
 encReachable g init reach =
-  unlines (encAll "APred" g init : "s.t." : map (encReach g reach) (Set.toList (locations g)))
+  unlines (encAll "APred" g init : "s.t." : map (encReach g reach) (Set.toList (RPG.locations g)))
 
 encSafety :: Game -> Loc -> Set Loc -> String
 encSafety g init safe =
-  unlines (encAll "APred" g init : "s.t." : map (encSafe g safe) (Set.toList (locations g)))
+  unlines (encAll "APred" g init : "s.t." : map (encSafe g safe) (Set.toList (RPG.locations g)))
 
 encBuechi :: Game -> Loc -> Set Loc -> String
 encBuechi g init fset =
-  let (gs, ls) = unzip (encBuech g fset <$> Set.toList (locations g))
+  let (gs, ls) = unzip (encBuech g fset <$> Set.toList (RPG.locations g))
    in unlines $ encAll "LPred" g init : "s.t." : gs ++ ls
 
 rpgToMuCLP :: Game -> Objective -> String

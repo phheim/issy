@@ -22,7 +22,8 @@ import Data.Set (Set)
 
 import Issy.Base.Variables (Variables)
 import qualified Issy.Base.Variables as Vars (inputs)
-import Issy.Logic.FOL (Symbol, Term, false, true)
+import Issy.Logic.FOL (Symbol, Term)
+import qualified Issy.Logic.FOL as FOL
 import Issy.Monitor.Rules (GlobalS)
 import Issy.Monitor.State (ExpansionState)
 import qualified Issy.Monitor.State as M (State)
@@ -45,8 +46,8 @@ data Trans a
 
 trIf :: Term -> Trans a -> Trans a -> Trans a
 trIf p tt tf
-  | p == true = tt
-  | p == false = tf
+  | p == FOL.true = tt
+  | p == FOL.false = tf
   | otherwise = TrIf p tt tf
 
 instance Functor Trans where

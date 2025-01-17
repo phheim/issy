@@ -9,15 +9,16 @@ import qualified Data.Map.Strict as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
 
+import Issy.Base.Locations (Loc)
 import qualified Issy.Base.Locations as Locs
 import Issy.Base.Objectives (Objective(..), WinningCondition(..))
 import qualified Issy.Base.Variables as Vars
-import Issy.Logic.FOL
-import Issy.RPG
+import Issy.Logic.FOL (Constant(..), Function(..), Sort(..), Symbol, Term(..))
+import Issy.RPG (Game, Transition(..))
 import qualified Issy.RPG as RPG
 
 sortOf :: Game -> Symbol -> Sort
-sortOf = Vars.sortOf . variables
+sortOf = Vars.sortOf . RPG.variables
 
 encConst :: Bool -> Constant -> String
 encConst upd =
@@ -114,12 +115,12 @@ encTrans g =
 encState :: Game -> String
 encState g =
   "//-- State: "
-    ++ concatMap (\v -> encVar False v (sortOf g v) ++ ", ") (Vars.stateVarL (variables g))
+    ++ concatMap (\v -> encVar False v (sortOf g v) ++ ", ") (Vars.stateVarL (RPG.variables g))
     ++ "loc"
 
 encInputs :: Game -> String
 encInputs g =
-  case Vars.inputL (variables g) of
+  case Vars.inputL (RPG.variables g) of
     [] -> ""
     i:ir -> "//-- Inputs: " ++ encV i ++ concatMap ((", " ++) . encV) ir
   where
@@ -142,9 +143,9 @@ encGame init g =
                   ++ " -> "
                   ++ encTerm False (RPG.inv g l)
                   ++ " && ("
-                  ++ encTrans g (trans g l)
+                  ++ encTrans g (RPG.trans g l)
                   ++ "));")
-             (Set.toList (locations g))
+             (Set.toList (RPG.locations g))
         ++ ["}"]
 
 encCond :: Game -> String -> Set Loc -> String

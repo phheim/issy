@@ -3,7 +3,7 @@
 module Issy.Monitor.Formula
   ( Formula(FTrue, FOr, FAnd, FWeak, FNext, FFalse, FGlobally,
         FEventually)
-  , formulaToString
+  , toString
   , ftrue
   , ffalse
   , fpred
@@ -49,7 +49,6 @@ import Issy.Logic.FOL
 import qualified Issy.Logic.RPLTL as RPLTL
 import qualified Issy.Logic.TSLMT as TSL
 import qualified Issy.Logic.Temporal as TL
-
 import qualified Issy.Printers.SMTLib as SMTLib (toString)
 
 -------------------------------------------------------------------------------
@@ -71,8 +70,8 @@ data Formula
 -------------------------------------------------------------------------------
 -- Pretty Printer
 -------------------------------------------------------------------------------
-formulaToString :: Formula -> String
-formulaToString = go
+toString :: Formula -> String
+toString = go
   where
     go =
       \case

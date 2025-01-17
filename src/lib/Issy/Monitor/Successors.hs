@@ -10,8 +10,9 @@ import qualified Data.Map.Strict as Map
 import Data.Set (Set)
 
 import Issy.Config (Config, setName)
-import Issy.Logic.FOL
-import Issy.Logic.SMT (simplify, unsat)
+import Issy.Logic.FOL (Symbol, Term)
+import qualified Issy.Logic.FOL as FOL
+import qualified Issy.Logic.SMT as SMT
 import Issy.Monitor.Monitor
 import Issy.Monitor.Propagation
 import Issy.Monitor.Rules
@@ -113,10 +114,10 @@ computeBranching cfg hasUpd preds = go
                 recN <- go (query False) stFalse
                 pure $ trIf p recP recN
         Nothing
-          | hasUpd -> TrSucc <$> computeUpdates cfg preds (andf constr) st
+          | hasUpd -> TrSucc <$> computeUpdates cfg preds (FOL.andf constr) st
           | otherwise -> do
-            prop <- andf <$> propagatedPredicatesRPLTL cfg (andf constr) preds
-            prop <- simplify cfg prop
+            prop <- FOL.andf <$> propagatedPredicatesRPLTL cfg (FOL.andf constr) preds
+            prop <- SMT.simplify cfg prop
             pure $ TrSucc [(prop, [], normESt (shiftSt st))]
 
 computeUpdates ::
@@ -137,16 +138,16 @@ computeUpdates cfg preds constr = go []
           pure (this ++ none)
         Nothing -> do
           let upds = (\(_, v, u) -> (v, u)) <$> filter (\(pol, _, _) -> pol) choices
-          prop <- andf <$> propagatedPredicatesTSL cfg constr upds preds
-          prop <- simplify cfg prop
+          prop <- FOL.andf <$> propagatedPredicatesTSL cfg constr upds preds
+          prop <- SMT.simplify cfg prop
           pure [(prop, choices, normESt (shiftSt st))]
 
 unsatC :: Config -> [Term] -> IO Bool
-unsatC cfg = unsat cfg . andf
+unsatC cfg = SMT.unsat cfg . FOL.andf
 
 polTerm :: (Term, Bool) -> Term
 polTerm (p, True) = p
-polTerm (p, False) = neg p
+polTerm (p, False) = FOL.neg p
 
 recLeafs :: Monad m => (c -> a -> m (b, c)) -> c -> Trans a -> m (Trans b, c)
 recLeafs func c =

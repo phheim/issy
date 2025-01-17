@@ -11,19 +11,13 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 
 import Issy.Config (Config)
-import Issy.Monitor.Formula
-  ( Formula(FAnd, FEventually, FGlobally, FOr)
-  , feventually
-  , fglobally
-  , formulaToString
-  , ftrue
-  , substNotNested
-  )
+import Issy.Monitor.Formula (Formula(FAnd, FEventually, FGlobally, FOr))
+import qualified Issy.Monitor.Formula as MF
 import Issy.Monitor.Monitor
 import Issy.Monitor.Rules (derivedEventually)
 import Issy.Monitor.State (Domain(..), fset, isSafeSt, mapFs, normSt, stateToString)
 import qualified Issy.Monitor.State as M (State)
-import Issy.Utils.Extra
+import Issy.Utils.Extra (predecessorRelation, reachables)
 import Issy.Utils.Logging
 
 -------------------------------------------------------------------------------
@@ -71,7 +65,7 @@ dischargeGFs cfg mon = do
       $ Set.toList
       $ states mon
   eventMap <- pure $ Map.fromList eventMap
-  lg cfg ["Discharge Map:", strM (stateName mon) (strL formulaToString) eventMap]
+  lg cfg ["Discharge Map:", strM (stateName mon) (strL MF.toString) eventMap]
   let checkEvents st =
         case eventMap !? st of
           Just fs -> fs
@@ -80,13 +74,16 @@ dischargeGFs cfg mon = do
 
 dischargeGF :: (State -> [Formula]) -> Monitor -> Formula -> Monitor
 dischargeGF eventuallies mon inner =
-  let gf = fglobally (feventually inner)
+  let gf = MF.fglobally (MF.feventually inner)
       fNotDischarged = Set.filter ((inner `notElem`) . eventuallies) (states mon)
       notDischarged = fNotDischarged `Set.difference` Set.fromList [goodState mon, badState mon]
       succRel = stateSucc mon
       succ st = Map.findWithDefault Set.empty st succRel
       dischargable = states mon `Set.difference` reachables succ notDischarged
-   in foldl (mapLabel (\stl -> mapFs Guarantees stl (substNotNested gf ftrue))) mon dischargable
+   in foldl
+        (mapLabel (\stl -> mapFs Guarantees stl (MF.substNotNested gf MF.ftrue)))
+        mon
+        dischargable
 
 mapLabel :: (M.State -> M.State) -> Monitor -> State -> Monitor
 mapLabel labelMap mon st =

@@ -14,7 +14,8 @@ import System.Process (readProcessWithExitCode)
 import Issy.Base.Variables (Variables)
 import qualified Issy.Base.Variables as Vars
 import Issy.Config (Config, muvalScript, muvalTimeOut)
-import Issy.Logic.FOL
+import Issy.Logic.FOL (Constant(..), Function(..), Quantifier(..), Sort(..), Symbol, Term(..))
+import qualified Issy.Logic.FOL as FOL
 import Issy.Utils.Extra (firstLine)
 import Issy.Utils.Logging
 
@@ -115,7 +116,8 @@ encTerm fpPred (qpref, qdepth, bvars) funarg =
 encFPInclusion :: Variables -> Term -> Symbol -> Term -> String
 encFPInclusion vars query fpPred fp =
   let qPref =
-        uniquePrefix "qvar" (symbols query `Set.union` symbols fp `Set.union` Vars.allSymbols vars)
+        FOL.uniquePrefix "qvar"
+          $ Set.unions [FOL.symbols query, FOL.symbols fp, Vars.allSymbols vars]
    in unlines
         [ encTerm fpPred (qPref, 0, Set.empty) False query
         , "s.t."
