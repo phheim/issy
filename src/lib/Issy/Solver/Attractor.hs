@@ -21,6 +21,8 @@ import Issy.Solver.Acceleration (accelReach, canAccel)
 import Issy.Solver.GameInterface
 import Issy.Solver.Synthesis (SyBo)
 import qualified Issy.Solver.Synthesis as Synt
+import Issy.Statistics (Stats)
+import qualified Issy.Statistics as Stats
 import Issy.Utils.Logging
 import Issy.Utils.OpenList (OpenList)
 import qualified Issy.Utils.OpenList as OL
@@ -34,48 +36,50 @@ noCheck = Nothing
 -------------------------------------------------------------------------------
 -- | 'attractor' compute the attractor for a given player, game, and symbolic
 -- state
-attractor :: Config -> Player -> Arena -> StopCheck -> SymSt -> IO SymSt
-attractor cfg player arena stopCheck target = do
+attractor :: Config -> Stats -> Player -> Arena -> StopCheck -> SymSt -> IO (SymSt, Stats)
+attractor cfg stats player arena stopCheck target = do
   cfg <- pure $ setName "Attr" $ cfg {generateProgram = False}
-  fst <$> attractorFull cfg player arena stopCheck target
+  (res, stats, _) <- attractorFull cfg stats player arena stopCheck target
+  pure (res, stats)
 
 -------------------------------------------------------------------------------
 -- | 'attractorEx' compute the attractor for a given player, game, and symbolic
 -- state and does program extraction if indicated in the 'Config'.
-attractorEx :: Config -> Player -> Arena -> StopCheck -> SymSt -> IO (SymSt, SyBo)
-attractorEx cfg player arena stopCheck target = do
+attractorEx :: Config -> Stats -> Player -> Arena -> StopCheck -> SymSt -> IO (SymSt, Stats, SyBo)
+attractorEx cfg stats player arena stopCheck target = do
   cfg <-
     pure
       $ if generateProgram cfg
           then setName "AttrE" cfg
           else setName "Attr " cfg
-  attractorFull cfg player arena stopCheck target
+  attractorFull cfg stats player arena stopCheck target
 
 -------------------------------------------------------------------------------
 -- | 'attractorFull' does the complete attractor computation and is later used
 -- for the different type of attractor computations (with/without extraction)
 --
-attractorFull :: Config -> Player -> Arena -> StopCheck -> SymSt -> IO (SymSt, SyBo)
-attractorFull cfg player arena stopCheck target = do
+attractorFull :: Config -> Stats -> Player -> Arena -> StopCheck -> SymSt -> IO (SymSt, Stats, SyBo)
+attractorFull cfg stats player arena stopCheck target = do
   satLocs <- Set.fromList . map fst <$> filterM (SMT.sat cfg . snd) (SymSt.toList target)
   lg cfg ["Attractor for", show player, "from", strLocs satLocs, "to reach", strStA target]
   let prog = Synt.returnOn target $ Synt.normSyBo cfg arena
-  (res, prog) <- attr (noVisits arena) (OL.fromSet (predSet arena satLocs)) target prog
+  (res, stats, prog) <- attr stats (noVisits arena) (OL.fromSet (predSet arena satLocs)) target prog
   lg cfg ["Result", strStA res]
-  return (res, prog)
+  return (res, stats, prog)
   where
-    attr :: VisitCounter -> OpenList Loc -> SymSt -> SyBo -> IO (SymSt, SyBo)
-    attr vcnt open reach prog =
+    attr :: Stats -> VisitCounter -> OpenList Loc -> SymSt -> SyBo -> IO (SymSt, Stats, SyBo)
+    attr stats vcnt open reach prog =
       case OL.pop open of
-        Nothing -> pure (reach, prog)
+        Nothing -> pure (reach, stats, prog)
         Just (l, open) -> do
           stop <- fromMaybe (\_ _ -> pure False) stopCheck l reach
           if stop
-            then pure (reach, prog)
-            else attrStep vcnt open reach prog l
+            then pure (reach, stats, prog)
+            else attrStep stats vcnt open reach prog l
     --
-    attrStep :: VisitCounter -> OpenList Loc -> SymSt -> SyBo -> Loc -> IO (SymSt, SyBo)
-    attrStep vcnt open reach prog l = do
+    attrStep ::
+         Stats -> VisitCounter -> OpenList Loc -> SymSt -> SyBo -> Loc -> IO (SymSt, Stats, SyBo)
+    attrStep stats vcnt open reach prog l = do
       vcnt <- pure $ visit l vcnt
       let old = reach `get` l
       lgd cfg ["Step in", locName arena l, "with", SMTLib.toString old]
@@ -86,7 +90,7 @@ attractorFull cfg player arena stopCheck target = do
       unchanged <- SMT.valid cfg $ new `FOL.impl` old
       lgd cfg ["which has changed?", show (not unchanged)]
       if unchanged
-        then attr vcnt open reach prog
+        then attr stats vcnt open reach prog
         else do
           prog <- pure $ Synt.enforceTo l new reach prog
           reach <- pure $ set reach l new
@@ -97,6 +101,7 @@ attractorFull cfg player arena stopCheck target = do
             then do
               lg cfg ["Attempt reachability acceleration"]
               (acc, progSub) <- accelReach cfg (visits l vcnt) player arena l reach
+              stats <- pure $ Stats.accel stats
               lg cfg ["Accleration formula", SMTLib.toString acc]
               res <- SMT.simplify cfg $ FOL.orf [new, acc]
               succ <- not <$> SMT.valid cfg (res `FOL.impl` new)
@@ -104,10 +109,11 @@ attractorFull cfg player arena stopCheck target = do
               if succ
                       -- Acceleration succeed
                 then do
+                  stats <- pure $ Stats.accelSucc stats
                   prog <- pure $ Synt.callOn l acc progSub prog
-                  attr vcnt open (set reach l res) prog
-                else attr vcnt open reach prog
-            else attr vcnt open reach prog
+                  attr stats vcnt open (set reach l res) prog
+                else attr stats vcnt open reach prog
+            else attr stats vcnt open reach prog
     -- Logging helper
     strLocs = strS (locName arena)
     strStA = strSt arena

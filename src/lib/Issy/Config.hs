@@ -14,6 +14,7 @@ data AccelLevel
 data Config = Config
   { logName :: String
   , logLevel :: Word
+  , statToStdout :: Bool
     -- Formula to game translation
   , pruneGame :: Bool
   , rulesDeduction :: Bool
@@ -47,6 +48,7 @@ defaultConfig =
   Config
     { logName = "[Issy]"
     , logLevel = 1
+    , statToStdout = False
     -- Formula to game translation
     , pruneGame = False
     , rulesSaturation = True

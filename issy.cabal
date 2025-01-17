@@ -73,6 +73,7 @@ library
     , Issy.Solver.ObjectiveSolver
     , Issy.Solver.Synthesis
     , Issy.Specification
+    , Issy.Statistics
     , Issy.SymbolicArena
     , Issy.Translation
     , Issy.Translation.DOA

@@ -2,6 +2,10 @@ module Issy
   ( Config(..)
   , AccelLevel(..)
   , defaultConfig
+  , -- Statistics
+    Stats
+  , emptyStats
+  , printStats
   , -- Solving
     solve
   , fromRPG
@@ -24,8 +28,9 @@ module Issy
   , rpgToTSLT
   ) where
 
--- Config
+-- Config and Statistics
 import Issy.Config (AccelLevel(..), Config(..), defaultConfig)
+import Issy.Statistics (Stats, emptyStats, printStats)
 
 -- Extractors
 import Issy.Extractors.MuCLP (rpgToMuCLP)

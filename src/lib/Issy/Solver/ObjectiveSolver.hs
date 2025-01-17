@@ -10,7 +10,6 @@ module Issy.Solver.ObjectiveSolver
   ) where
 
 ---------------------------------------------------------------------------------------------------
-import Control.Monad (when)
 import Data.Map.Strict (Map, (!))
 import qualified Data.Map.Strict as Map
 import Data.Set (Set)
@@ -27,40 +26,40 @@ import Issy.Solver.Attractor (attractor, attractorEx, noCheck)
 import Issy.Solver.GameInterface
 import Issy.Solver.Synthesis (SyBo)
 import qualified Issy.Solver.Synthesis as Synt
+import Issy.Statistics (Stats)
 import Issy.Utils.Logging
 
 ---------------------------------------------------------------------------------------------------
 -- Overall Solving
 ---------------------------------------------------------------------------------------------------
-solve :: Config -> (Arena, Objective) -> IO ()
-solve conf (arena, obj) = do
+solve :: Config -> Stats -> (Arena, Objective) -> IO (Bool, Stats, Maybe (IO String))
+solve conf stats (arena, obj) = do
   conf <- pure $ setName "Solve" conf
   let init = initialLoc obj
-  (res, prog) <-
+  (res, stats, prog) <-
     case winningCond obj of
-      Reachability ls -> solveReach conf arena ls init
-      Safety ls -> solveSafety conf arena ls init
-      Buechi ls -> solveBuechi conf arena ls init
-      CoBuechi ls -> solveCoBuechi conf arena ls init
-      Parity rank -> solveParity conf arena rank init
-  if res
-    then do
-      putStrLn "Realizable"
-      when (generateProgram conf) $ Synt.extractProg conf init prog >>= putStrLn
-    else putStrLn "Unrealizable"
+      Reachability ls -> solveReach conf stats arena ls init
+      Safety ls -> solveSafety conf stats arena ls init
+      Buechi ls -> solveBuechi conf stats arena ls init
+      CoBuechi ls -> solveCoBuechi conf stats arena ls init
+      Parity rank -> solveParity conf stats arena rank init
+  let progStr
+        | res && generateProgram conf = Just $ Synt.extractProg conf init prog
+        | otherwise = Nothing
+  pure (res, stats, progStr)
 
 ---------------------------------------------------------------------------------------------------
 -- Safety and reachability solving
 ---------------------------------------------------------------------------------------------------
-solveReach :: Config -> Arena -> Set Loc -> Loc -> IO (Bool, SyBo)
-solveReach conf arena reach init = do
+solveReach :: Config -> Stats -> Arena -> Set Loc -> Loc -> IO (Bool, Stats, SyBo)
+solveReach conf stats arena reach init = do
   lg conf ["Reachability game with target", strS (locName arena) reach]
   let fullSt = selectInv arena (locations arena)
   let reachSt = selectInv arena reach
   let stopCheck l st
         | l == init = SMT.valid conf $ dom arena init `FOL.impl` (st `get` init)
         | otherwise = pure False
-  (wsys, attrProg) <- attractorEx conf Sys arena (Just stopCheck) reachSt
+  (wsys, stats, attrProg) <- attractorEx conf stats Sys arena (Just stopCheck) reachSt
   lg conf ["Sys. winning region", strSt arena wsys]
   res <- SMT.valid conf $ dom arena init `FOL.impl` (wsys `get` init)
   lg conf ["Game realizable =>", show res]
@@ -68,52 +67,53 @@ solveReach conf arena reach init = do
         Synt.enforceFromTo fullSt fullSt
           $ Synt.callOnSt wsys attrProg
           $ Synt.fromStayIn conf arena reachSt fullSt
-  pure (res, prog)
+  pure (res, stats, prog)
 
-solveSafety :: Config -> Arena -> Set Loc -> Loc -> IO (Bool, SyBo)
-solveSafety conf arena safes init = do
+solveSafety :: Config -> Stats -> Arena -> Set Loc -> Loc -> IO (Bool, Stats, SyBo)
+solveSafety conf stats arena safes init = do
   lg conf ["Safety game with safe locations", strS (locName arena) safes]
   let envGoal = selectInv arena $ locations arena `Set.difference` safes
   let stopCheck l st
         | l == init = SMT.sat conf (FOL.andf [dom arena init, st `get` init])
         | otherwise = pure False
-  wenv <- attractor conf Env arena (Just stopCheck) envGoal
+  (wenv, stats) <- attractor conf stats Env arena (Just stopCheck) envGoal
   lg conf ["Env. winning region", strSt arena wenv]
   res <- SMT.unsat conf $ FOL.andf [dom arena init, wenv `get` init]
   lg conf ["Game realizable =>", show res]
   let wsys = SymSt.map FOL.neg wenv
   let prog = Synt.fromStayIn conf arena wsys wsys
-  return (res, prog)
+  return (res, stats, prog)
 
 ---------------------------------------------------------------------------------------------------
 -- Buechi and coBuechi solving
 ---------------------------------------------------------------------------------------------------
-solveBuechi :: Config -> Arena -> Set Loc -> Loc -> IO (Bool, SyBo)
-solveBuechi conf arena accepts init = do
+solveBuechi :: Config -> Stats -> Arena -> Set Loc -> Loc -> IO (Bool, Stats, SyBo)
+solveBuechi conf stats arena accepts init = do
   lg conf ["Game type Buechi with GF", strS (locName arena) accepts]
-  (wenv, progSys, _) <- iterBuechi conf Sys arena accepts init
+  (wenv, stats, progSys, _) <- iterBuechi conf stats Sys arena accepts init
   lg conf ["Winning region Env in initial location", SMTLib.toString (wenv `get` init)]
   res <- SMT.unsat conf $ FOL.andf [dom arena init, wenv `get` init]
   lg conf ["Game realizable =>", show res]
-  return (res, progSys)
+  return (res, stats, progSys)
 
-solveCoBuechi :: Config -> Arena -> Set Loc -> Loc -> IO (Bool, SyBo)
-solveCoBuechi conf arena stays init = do
+solveCoBuechi :: Config -> Stats -> Arena -> Set Loc -> Loc -> IO (Bool, Stats, SyBo)
+solveCoBuechi conf stats arena stays init = do
   let rejects = locations arena `Set.difference` stays
   lg conf ["Game type coBuechi with not GF", strS (locName arena) rejects]
-  (wsys, _, progSys) <- iterBuechi conf Env arena rejects init
+  (wsys, stats, _, progSys) <- iterBuechi conf stats Env arena rejects init
   lg conf ["Winning region Sys in initial location", SMTLib.toString (wsys `get` init)]
   res <- SMT.valid conf $ dom arena init `FOL.impl` (wsys `get` init)
   lg conf ["Game realizable =>", show res]
-  return (res, progSys)
+  return (res, stats, progSys)
 
-iterBuechi :: Config -> Player -> Arena -> Set Loc -> Loc -> IO (SymSt, SyBo, SyBo)
-iterBuechi conf player arena accept init = iter (selectInv arena accept) (0 :: Word) Synt.empty
+iterBuechi :: Config -> Stats -> Player -> Arena -> Set Loc -> Loc -> IO (SymSt, Stats, SyBo, SyBo)
+iterBuechi conf stats player arena accept init =
+  iter stats (selectInv arena accept) (0 :: Word) Synt.empty
   where
-    iter fset i progOp = do
+    iter stats fset i progOp = do
       lg conf ["Iteration", show i]
       lg conf ["F_i =", strSt arena fset]
-      (bset, progReachF) <- attractorEx conf player arena noCheck fset
+      (bset, stats, progReachF) <- attractorEx conf stats player arena noCheck fset
       -- Extraction
       let progPlayer = Synt.callOnSt bset progReachF $ Synt.fromStayIn conf arena fset bset
       progOp <-
@@ -125,7 +125,8 @@ iterBuechi conf player arena accept init = iter (selectInv arena accept) (0 :: W
       lg conf ["B_i =", strSt arena bset]
       cset <- cpreS conf player arena bset
       lg conf ["C_i =", strSt arena cset]
-      (wset, subProg) <- attractorEx conf (opponent player) arena noCheck $ SymSt.map FOL.neg cset
+      (wset, stats, subProg) <-
+        attractorEx conf stats (opponent player) arena noCheck $ SymSt.map FOL.neg cset
       lg conf ["W_i+1 =", strSt arena wset]
       -- Extraction 
       progOp <-
@@ -139,7 +140,7 @@ iterBuechi conf player arena accept init = iter (selectInv arena accept) (0 :: W
       if fp
         then do
           lg conf ["Fixed point reached", strSt arena fset']
-          return (wset, progPlayer, progOp)
+          return (wset, stats, progPlayer, progOp)
         else do
           earlyStop <-
             case player of
@@ -148,21 +149,21 @@ iterBuechi conf player arena accept init = iter (selectInv arena accept) (0 :: W
           if earlyStop
             then do
               lg conf ["Early stop reached"]
-              return (wset, progPlayer, progOp)
+              return (wset, stats, progPlayer, progOp)
             else do
               lg conf ["Recursion with", strSt arena fset']
-              iter fset' (i + 1) progOp
+              iter stats fset' (i + 1) progOp
 
 ---------------------------------------------------------------------------------------------------
 -- Parity solving
 ---------------------------------------------------------------------------------------------------
-solveParity :: Config -> Arena -> Map Loc Word -> Loc -> IO (Bool, SyBo)
-solveParity conf arena colors init = do
+solveParity :: Config -> Stats -> Arena -> Map Loc Word -> Loc -> IO (Bool, Stats, SyBo)
+solveParity conf stats arena colors init = do
   lg conf ["Game type Parity with colors", strM (locName arena) show colors]
-  (_, (wsys, prog)) <- zielonka arena
+  (_, (wsys, prog), stats) <- zielonka stats arena
   res <- SMT.valid conf $ dom arena init `FOL.impl` (wsys `get` init)
   lg conf ["Game realizable =>", show res]
-  pure (res, prog)
+  pure (res, stats, prog)
   where
     colorList = Map.toList colors
     --
@@ -174,18 +175,18 @@ solveParity conf arena colors init = do
       | even col = Env
       | otherwise = Sys
     --
-    playerSet Env (env, sys) = (env, sys)
-    playerSet Sys (env, sys) = (sys, env)
-    mkPlSet Env (wply, wopp) = (wply, wopp)
-    mkPlSet Sys (wply, wopp) = (wopp, wply)
+    playerSet Env (env, sys, stats) = (env, sys, stats)
+    playerSet Sys (env, sys, stats) = (sys, env, stats)
+    mkPlSet Env (wply, wopp, stats) = (wply, wopp, stats)
+    mkPlSet Sys (wply, wopp, stats) = (wopp, wply, stats)
     removeFromGame symst arena = do
       newInv <- SymSt.simplify conf (domSymSt arena `SymSt.difference` symst)
       pure $ foldl (\arena l -> setInv arena l (newInv `get` l)) arena (locations arena)
     --
-    zielonka :: Arena -> IO ((SymSt, SyBo), (SymSt, SyBo))
-    zielonka arena
+    zielonka :: Stats -> Arena -> IO ((SymSt, SyBo), (SymSt, SyBo), Stats)
+    zielonka stats arena
       | SymSt.null (domSymSt arena) =
-        pure ((emptySt arena, Synt.empty), (emptySt arena, Synt.empty))
+        pure ((emptySt arena, Synt.empty), (emptySt arena, Synt.empty), stats)
       | otherwise = do
         let color = maxColor arena
         let player = colorPlayer color
@@ -201,7 +202,7 @@ solveParity conf arena colors init = do
         lg conf ["Parity for", show player, "with color", show color]
         lg conf ["Parity arena", strSt arena full]
         lg conf ["Parity target", strSt arena targ]
-        (aset, progA) <- attractorEx conf player arena noCheck targ
+        (aset, stats, progA) <- attractorEx conf stats player arena noCheck targ
         eqiv <- SymSt.implies conf full aset
         if eqiv
           then do
@@ -209,11 +210,11 @@ solveParity conf arena colors init = do
             -- for which it always win from every, therefore it wins everyhwere.
             lg conf ["Parity return:", show player, "wins everywhere"]
             let prog = Synt.callOnSt full progA $ Synt.fromStayIn conf arena targ full
-            pure $ mkPlSet player ((full, prog), (emptySt arena, Synt.empty))
+            pure $ mkPlSet player ((full, prog), (emptySt arena, Synt.empty), stats)
           else do
             arena' <- removeFromGame aset arena
             lg conf ["Zielonka first recursion"]
-            ((winSys, progP1), (winOp, progO1)) <- playerSet player <$> zielonka arena'
+            ((winSys, progP1), (winOp, progO1), stats) <- playerSet player <$> zielonka stats arena'
             winOp <- SymSt.simplify conf winOp
             if SymSt.null winOp
               then do
@@ -225,19 +226,23 @@ solveParity conf arena colors init = do
                       Synt.callOnSt winSys progP1
                         $ Synt.callOnSt aset progA
                         $ Synt.fromStayIn conf arena targ full
-                pure $ mkPlSet player ((full, prog), (emptySt arena, Synt.empty))
+                pure $ mkPlSet player ((full, prog), (emptySt arena, Synt.empty), stats)
               else do
-                (remove, progOR) <- attractorEx conf opp arena noCheck winOp
+                (remove, stats, progOR) <- attractorEx conf stats opp arena noCheck winOp
                 arena'' <- removeFromGame remove arena
                 lg conf ["Zielonka second recursion"]
-                ((winPl'', progP2), (winOp'', progO2)) <- playerSet player <$> zielonka arena''
+                ((winPl'', progP2), (winOp'', progO2), stats) <-
+                  playerSet player <$> zielonka stats arena''
                 lg conf ["Parity return final"]
                 -- Now we construct both strategies, for the player and the opponen as both
                 -- win on some part of the game
                 -- - Opponent, wins if either it goes into the first subgame and wins there or win in the remaining game
                 -- - Player, winf if it wins in the remaining game
                 let progO = Synt.callOnSt winOp'' progO2 $ Synt.callOnSt remove progOR progO1
-                pure $ mkPlSet player ((winPl'', progP2), (full `SymSt.difference` winPl'', progO))
+                pure
+                  $ mkPlSet
+                      player
+                      ((winPl'', progP2), (full `SymSt.difference` winPl'', progO), stats)
 
 ---------------------------------------------------------------------------------------------------
 -- Helper methods

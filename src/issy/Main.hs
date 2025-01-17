@@ -66,20 +66,24 @@ main = do
       spec <- liftErr $ parseLLIssyFormat input
       checkSpecification cfg spec >>= liftErr
       game <- specToSG cfg spec
-      solve cfg (fromSG game)
+      res <- solve cfg emptyStats (fromSG game)
+      printRes cfg res
     (Solve, HighLevel) -> do
       input <- liftErr $ compile input
       spec <- liftErr $ parseLLIssyFormat input
       checkSpecification cfg spec >>= liftErr
       game <- specToSG cfg spec
-      solve cfg (fromSG game)
+      res <- solve cfg emptyStats (fromSG game)
+      printRes cfg res
     (Solve, RPG) -> do
       game <- liftErr $ parseRPG input
-      solve cfg (fromRPG game)
+      res <- solve cfg emptyStats (fromRPG game)
+      printRes cfg res
     (Solve, TSLMT) -> do
       spec <- parseTSL input
       game <- tslToRPG cfg spec
-      solve cfg (fromRPG game)
+      res <- solve cfg emptyStats (fromRPG game)
+      printRes cfg res
     -- Encode
     (EncodeTSLMT, RPG) -> do
       game <- liftErr $ parseRPG input
@@ -89,6 +93,16 @@ main = do
       game <- liftErr $ parseRPG input
       putStrLn $ uncurry rpgToMuCLP game
     (EncodeMuCLP, _) -> die "invalid arguments: can only encode RPGs to MuCLP at the moment"
+
+printRes :: Config -> (Bool, Stats, Maybe (IO String)) -> IO ()
+printRes conf (res, stats, printProg) = do
+  printStats conf stats
+  if res
+    then putStrLn "Realizable"
+    else putStrLn "Unrealizable"
+  case printProg of
+    Nothing -> pure ()
+    Just printProg -> printProg >>= putStrLn
 
 liftErr :: Either String b -> IO b
 liftErr res =
@@ -166,6 +180,7 @@ configParser = go defaultConfig
         "--info":ar -> go (cfg {logLevel = 1}) ar
         "--detailed":ar -> go (cfg {logLevel = 2}) ar
         "--verbose":ar -> go (cfg {logLevel = 3}) ar
+        "--stats-to-stdout":ar -> go (cfg {statToStdout = True}) ar
         -- Formula translation
         "--pruning":arg:ar ->
           case arg of
@@ -267,11 +282,14 @@ help =
   , "   --encode-tslmt : encode a RPG spec to TSLMT"
   , "   --encode-muclp : encode a RPG spec to MuCLP used by 'muval'"
   , ""
-  , " Log level:"
+  , " Logging:"
   , "   --quiet    : no logging at all"
   , "   --info     : enable standard log messages (default)"
   , "   --detailed : enable detailed log messages including sub-steps"
   , "   --verbose  : log almost everything, including SMT queries"
+  , ""
+  , "  --stats-to-stdout : write statistics to STDOUT (default: as log message)"
+  , ""
   , ""
   , " Formula translation:"
   , "   --pruning LEVEL"
