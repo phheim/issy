@@ -17,13 +17,14 @@ import Issy.Base.SymbolicState (SymSt, get, set)
 import qualified Issy.Base.SymbolicState as SymSt
 import Issy.Base.Variables (Variables)
 import qualified Issy.Base.Variables as Vars
-import Issy.Config (Config, extendAcceleration, invariantIterations, manhattenTermCount, setName)
+import Issy.Config (Config, extendAcceleration, setName)
 import qualified Issy.Logic.CHC as CHC
 import Issy.Logic.FOL (Sort, Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.SMT as SMT
 import qualified Issy.Printers.SMTLib as SMTLib (toString)
-import Issy.Solver.Acceleration.Heuristics
+import Issy.Solver.Acceleration.Heuristics (Heur)
+import qualified Issy.Solver.Acceleration.Heuristics as H
 import Issy.Solver.Acceleration.LoopScenario (loopScenario)
 import Issy.Solver.GameInterface
 import Issy.Solver.Synthesis (SyBo)
@@ -33,18 +34,17 @@ import qualified Issy.Utils.OpenList as OL (fromSet, pop, push)
 
 -------------------------------------------------------------------------------
 -- It assume that the arena is cycic in the location it accelerates.
-accelReach :: Config -> Int -> Player -> Arena -> Loc -> SymSt -> IO (Term, SyBo)
-accelReach conf limit player arena loc reach = do
+accelReach :: Config -> Heur -> Player -> Arena -> Loc -> SymSt -> IO (Term, SyBo)
+accelReach conf heur player arena loc reach = do
   conf <- pure $ setName "GeoAc" conf
   lg conf ["Accelerate in", locName arena loc, "on", strSt arena reach]
-  lg conf ["Size bound", show (limit2size limit)]
   let prime = FOL.uniquePrefix "init_" $ usedSymbols arena
   -- 0. Compute loop sceneario
   (arena, loc, loc', reach, fixInv, prog) <-
-    loopScenario conf (Just (limit2size limit)) arena loc reach prime
+    loopScenario conf (H.loopArenaSize heur) arena loc reach prime
   lg conf ["Fixed invariant", SMTLib.toString fixInv]
   -- 1. Guess lemma
-  lemma <- lemmaGuess conf prime player arena (reach `get` loc)
+  lemma <- lemmaGuess conf heur prime player arena (reach `get` loc)
   case lemma of
     Nothing -> do
       lg conf ["Lemma guessing failed"]
@@ -64,7 +64,7 @@ accelReach conf limit player arena loc reach = do
           $ FOL.andf [dom arena loc, base] `FOL.impl` (reach `get` loc)
       unless baseCond $ error "assert: the base should be computed that this holds"
         -- 2. try a few explicit iterations to find invariant
-      invRes <- tryFindInv conf prime player arena (step, conc) (loc, loc') fixInv reach prog
+      invRes <- tryFindInv conf heur prime player arena (step, conc) (loc, loc') fixInv reach prog
       case invRes of
         Right (conc, prog) -> do
           lg conf ["Invariant iteration resulted in", SMTLib.toString conc]
@@ -77,6 +77,7 @@ accelReach conf limit player arena loc reach = do
               invRes <-
                 exactInv
                   conf
+                  heur
                   prime
                   player
                   arena
@@ -100,6 +101,7 @@ accelReach conf limit player arena loc reach = do
 -------------------------------------------------------------------------------
 tryFindInv ::
      Config
+  -> Heur
   -> Symbol
   -> Player
   -> Arena
@@ -109,14 +111,14 @@ tryFindInv ::
   -> SymSt
   -> SyBo
   -> IO (Either Term (Term, SyBo))
-tryFindInv conf prime player arena (step, conc) (loc, loc') fixInv reach prog = iter 0 FOL.true
+tryFindInv conf heur prime player arena (step, conc) (loc, loc') fixInv reach prog = iter 0 FOL.true
   where
     iter cnt invar
-      | cnt >= invariantIterations conf = pure $ Left invar
+      | cnt >= H.invariantIterations heur = pure $ Left invar
       | otherwise = do
         lg conf ["Try invariant", SMTLib.toString invar]
         let reach' = set reach loc' $ FOL.orf [reach `get` loc, FOL.andf [step, invar]]
-        (stAcc, prog) <- pure $ iterA player arena reach' loc' prog
+        (stAcc, prog) <- pure $ iterA heur player arena reach' loc' prog
         let res = FOL.removePref prime $ stAcc `get` loc
         res <- SMT.simplify conf res
         let query = Vars.forallX (vars arena) $ FOL.andf [dom arena loc, conc, invar] `FOL.impl` res
@@ -126,14 +128,14 @@ tryFindInv conf prime player arena (step, conc) (loc, loc') fixInv reach prog = 
           then pure $ Right (FOL.andf [dom arena loc, conc, invar, fixInv], prog)
           else iter (cnt + 1) res
 
-iterA :: Player -> Arena -> SymSt -> Loc -> SyBo -> (SymSt, SyBo)
-iterA player arena attr shadow = go (noVisits arena) (OL.fromSet (preds arena shadow)) attr
+iterA :: Heur -> Player -> Arena -> SymSt -> Loc -> SyBo -> (SymSt, SyBo)
+iterA heur player arena attr shadow = go (noVisits arena) (OL.fromSet (preds arena shadow)) attr
   where
     go vcnt open attr prog =
       case OL.pop open of
         Nothing -> (attr, prog)
         Just (l, open)
-          | visits l vcnt < visitingThreshold ->
+          | visits l vcnt < H.iterAMaxCPres heur ->
             let new = cpre player arena attr l
              in go
                   (visit l vcnt)
@@ -144,6 +146,7 @@ iterA player arena attr shadow = go (noVisits arena) (OL.fromSet (preds arena sh
 
 exactInv ::
      Config
+  -> Heur
   -> Symbol
   -> Player
   -> Arena
@@ -154,7 +157,7 @@ exactInv ::
   -> Term
   -> SyBo
   -> IO (Either String (Term, SyBo))
-exactInv conf prime player arena (base, step, conc) (loc, loc') fixInv reach invApprox prog = do
+exactInv conf heur prime player arena (base, step, conc) (loc, loc') fixInv reach invApprox prog = do
     -- TODO: Add logging
   let invName = FOL.uniquePrefix "chc_invar" $ Set.insert prime $ usedSymbols arena
     -- TODO: enhance by only useing usefull stuff! Needs change in CHC stuff
@@ -162,9 +165,9 @@ exactInv conf prime player arena (base, step, conc) (loc, loc') fixInv reach inv
   let sorts = map (Vars.sortOf (vars arena)) invArgs
   let invar = FOL.Func (FOL.CustomF invName sorts FOL.SBool) $ map (Vars.mk (vars arena)) invArgs
   let reach' = set reach loc' $ FOL.orf [reach `get` loc, FOL.andf [step, invar]]
-  (stAcc, prog) <- pure $ iterA player arena reach' loc' prog
+  (stAcc, prog) <- pure $ iterA heur player arena reach' loc' prog
   let res = FOL.removePref prime $ stAcc `get` loc
-  res <- SMT.simplifyUF conf res --TODO: Maybe add timeout here?
+  res <- SMT.simplifyUF conf res
   (resPrems, resConc) <- pure $ CHC.fromTerm res
   let query = (invar : dom arena loc : conc : resPrems, resConc)
   let maxQuery = ([invar], invApprox)
@@ -181,23 +184,22 @@ exactInv conf prime player arena (base, step, conc) (loc, loc') fixInv reach inv
 -------------------------------------------------------------------------------
 -- Manhatten distance lemma generation
 -------------------------------------------------------------------------------
-lemmaGuess :: Config -> Symbol -> Player -> Arena -> Term -> IO (Maybe (Term, Term, Term))
-lemmaGuess conf prime player arena reach = do
+lemmaGuess :: Config -> Heur -> Symbol -> Player -> Arena -> Term -> IO (Maybe (Term, Term, Term))
+lemmaGuess conf heur prime player arena reach = do
   lg conf ["Guess lemma on", SMTLib.toString reach]
   boxVars <- boxVars conf player arena reach
   lg conf ["Use variables", strL id boxVars]
-  box <- mkBox conf (vars arena) boxVars reach
-  pure
-    $ if null box
-        then Nothing
-        else let dist = manhatten box
-                 base = boxTerm id box
-                 epsilon
-                   | FOL.SReal `elem` FOL.sorts dist = FOL.Const $ FOL.CReal minimalEpsilon
-                   | otherwise = FOL.oneT
-                 step = FOL.mapSymbol (prime ++) dist `FOL.geqT` FOL.addT [dist, epsilon]
-                 conc = FOL.true
-              in Just (base, step, conc)
+  box <- mkBox conf heur (vars arena) boxVars reach
+  if null box
+    then pure Nothing
+    else let dist = manhatten box
+             base = boxTerm id box
+             epsilon
+               | FOL.SReal `elem` FOL.sorts dist = FOL.Const $ FOL.CReal $ H.minEpsilon heur
+               | otherwise = FOL.oneT
+             step = FOL.mapSymbol (prime ++) dist `FOL.geqT` FOL.addT [dist, epsilon]
+             conc = FOL.true
+          in pure $ Just (base, step, conc)
 
 type Box a = [(Term, (Bool, a))]
 
@@ -215,19 +217,19 @@ manhatten = FOL.addT . map go
       | upper = FOL.ite (term `FOL.leqT` bound) FOL.zeroT $ FOL.func "-" [term, bound]
       | otherwise = FOL.ite (term `FOL.geqT` bound) FOL.zeroT $ FOL.func "-" [bound, term]
 
-mkBox :: Config -> Variables -> [Symbol] -> Term -> IO (Box Term)
-mkBox conf vars boxVars reach = do
+mkBox :: Config -> Heur -> Variables -> [Symbol] -> Term -> IO (Box Term)
+mkBox conf heur vars boxVars reach = do
   reach <- SMT.simplify conf reach
-  box <- mkOptBox conf vars boxVars reach
+  box <- mkOptBox conf heur vars boxVars reach
   if null box
     then do
       lg conf ["Switch to point-base"]
       fromMaybe [] <$> completeBox conf boxVars reach
     else pure box
 
-mkOptBox :: Config -> Variables -> [Symbol] -> Term -> IO (Box Term)
-mkOptBox conf vars boxVars reach = do
-  let boxTerms = generateTerms (manhattenTermCount conf) vars boxVars
+mkOptBox :: Config -> Heur -> Variables -> [Symbol] -> Term -> IO (Box Term)
+mkOptBox conf heur vars boxVars reach = do
+  let boxTerms = generateTerms (H.manhattenTermCount heur) vars boxVars
   (boxScheme, maxTerms) <- prepareBox conf reach boxTerms
   if null boxScheme
     then pure []
@@ -235,12 +237,12 @@ mkOptBox conf vars boxVars reach = do
       let impCond = Vars.forallX vars $ boxTerm (uncurry FOL.Var) boxScheme `FOL.impl` reach
       let exCond = Vars.existsX vars $ boxTerm (uncurry FOL.Var) boxScheme
       cond <- SMT.simplify conf $ FOL.andf [impCond, exCond]
-      model <- SMT.optPareto conf cond maxTerms --TODO: amybe add timeout here!!
+      model <- SMT.tryOptPareto conf (H.boxOptSmtTO heur) cond maxTerms
       case model of
-        Nothing -> pure []
-        Just model ->
+        Just (Just model) ->
           let toInteger = fmap $ assertConst . FOL.setModel model . uncurry FOL.Var
            in pure $ map (second toInteger) boxScheme
+        _ -> pure []
   where
     assertConst term
       | null (FOL.frees term) = term
@@ -364,7 +366,3 @@ varPlayerControlled conf player arena var = do
         FOL.orfL (Set.toList (locations arena)) $ \l ->
           FOL.andf [pre arena st l, FOL.neg (cpre player arena st l)]
   SMT.unsat conf query
--------------------------------------------------------------------------------
--- Heurisitics
--------------------------------------------------------------------------------
--------------------------------------------------------------------------------

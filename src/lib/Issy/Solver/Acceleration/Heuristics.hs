@@ -1,36 +1,84 @@
-module Issy.Solver.Acceleration.Heuristics where
+module Issy.Solver.Acceleration.Heuristics
+  ( Heur
+  , forVisits
+  , loopArenaSize
+  , iterAMaxCPres
+  , minEpsilon
+  , invariantIterations
+  , manhattenTermCount
+  , boxOptSmtTO
+  , lemmaResolveTO
+  , templatePattern
+  , nestingDepth
+  ) where
 
 import Data.List (genericReplicate)
 import Data.Ratio ((%))
+import qualified Data.Set as Set
 
-minimalEpsilon :: Rational
-minimalEpsilon = 1 % (10 ^ 3)
+import Issy.Config (AccelLevel(..), Config, accelerationLevel)
+import Issy.Solver.GameInterface
 
-visitingThreshold :: Int
-visitingThreshold = 1
+data Heur = Heur
+  { visitCnt :: Int
+  , config :: Config
+  , locCnt :: Int
+  }
 
-accelerationDist :: Int
-accelerationDist = 4
+forVisits :: Config -> Arena -> Int -> Heur
+forVisits conf arena visits =
+  Heur {visitCnt = visits, config = conf, locCnt = Set.size (locations arena)}
 
-limit2skolemNum :: Int -> Bool
-limit2skolemNum k = k `mod` 8 == 0
+---
+-- General Attractor
+--- 
+---
+-- General Acceleration
+--- 
+loopArenaSize :: Heur -> Maybe Int
+loopArenaSize heur =
+  case accelerationLevel (config heur) of
+    AccelEasy -> Just 1
+    AccelNorm -> Just 1 -- TODO got to more at some point
+    AccelHard -> Just 2 -- TODO got to locCnt at some point
 
-limit2depth :: Int -> Int
-limit2depth k
-  | k <= 10 * accelerationDist = 0 -- Try once without nesting
-  | otherwise = (k `div` (100 * accelerationDist)) + 1
+iterAMaxCPres :: Heur -> Int
+iterAMaxCPres _ = 1
 
-limit2size :: Int -> Int
-limit2size k = 1 --(k `div` accelerationDist) + 1
+---
+-- Geometric Acceleration
+---
+minEpsilon :: Heur -> Rational
+minEpsilon _ = 1 % (10 ^ (3 :: Int))
 
-limit2to :: Int -> Int
-limit2to k = k * k
+boxOptSmtTO :: Heur -> Maybe Int
+boxOptSmtTO _ = Nothing
 
-limit2toextract :: Int -> Int
-limit2toextract k = 4 * limit2to k
+invariantIterations :: Heur -> Int
+invariantIterations _ = 3
+
+manhattenTermCount :: Heur -> Int
+manhattenTermCount _ = 2
+
+---
+-- UF Acceleration
+---
+accelerationDist :: Heur -> Int
+accelerationDist _ = 4
+
+nestingDepth :: Heur -> Int
+nestingDepth heur
+  | visitCnt heur <= 10 * accelerationDist heur = 0 -- Try once without nesting
+  | otherwise = (visitCnt heur `div` (100 * accelerationDist heur)) + 1
+
+---
+-- UF Lemma Search
+---
+lemmaResolveTO :: Heur -> Maybe Int
+lemmaResolveTO heur = Just $ visitCnt heur ^ (2 :: Int)
 
 --TODO: Add bound by number of cells!
-templateConfig :: Int -> (Integer, [Integer])
-templateConfig limit =
-  let dis = accelerationDist * accelerationDist
-   in (3 + toInteger (limit `div` dis), genericReplicate (limit `div` dis) 2)
+templatePattern :: Heur -> (Integer, [Integer])
+templatePattern heur =
+  let dis = accelerationDist heur * accelerationDist heur
+   in (3 + toInteger (visitCnt heur `div` dis), genericReplicate (visitCnt heur `div` dis) 2)

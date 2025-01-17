@@ -29,8 +29,6 @@ data Config = Config
   , extendAcceleration :: Bool
   , accelerationLevel :: AccelLevel
   -- ^ if this is set, depending if is set ufAcceleration, we nest or use chc 
-  , invariantIterations :: Int
-  , manhattenTermCount :: Int
     -- Synthesis
   , generateProgram :: Bool
     -- External tools
@@ -62,8 +60,6 @@ defaultConfig =
     , accelerateObjective = False
     , ufAcceleration = False
     , extendAcceleration = False
-    , invariantIterations = 3
-    , manhattenTermCount = 2
     , accelerationLevel = AccelNorm
     -- Synthesis
     , generateProgram = False

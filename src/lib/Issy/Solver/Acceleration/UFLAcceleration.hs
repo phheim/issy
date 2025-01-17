@@ -16,7 +16,8 @@ import Issy.Config (Config, extendAcceleration, setName)
 import Issy.Logic.FOL (Function, Symbol, Term(Func, Lambda, Quant, Var))
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Printers.SMTLib as SMTLib (toString)
-import Issy.Solver.Acceleration.Heuristics
+import Issy.Solver.Acceleration.Heuristics (Heur)
+import qualified Issy.Solver.Acceleration.Heuristics as H
 import Issy.Solver.Acceleration.LemmaFinding (Constraint, LemSyms(..), Lemma(..), resolve)
 import Issy.Solver.Acceleration.LoopScenario (loopScenario)
 import Issy.Solver.GameInterface
@@ -26,19 +27,19 @@ import Issy.Utils.Logging
 import qualified Issy.Utils.OpenList as OL (fromSet, pop, push)
 
 -------------------------------------------------------------------------------
-accelReach :: Config -> Int -> Player -> Arena -> Loc -> SymSt -> IO (Term, SyBo)
-accelReach conf limit player arena loc reach = do
+accelReach :: Config -> Heur -> Player -> Arena -> Loc -> SymSt -> IO (Term, SyBo)
+accelReach conf heur player arena loc reach = do
   conf <- pure $ setName "UinAc" conf
   lg conf ["Accelerate in", locName arena loc, "on", strSt arena reach]
-  lg conf ["Depth bound", show (limit2depth limit)]
-  lg conf ["Size bound", show (limit2size limit)]
-  let acst = accState conf limit player arena
+  lg conf ["Depth bound", show (H.nestingDepth heur)]
+  lg conf ["Size bound", show (H.loopArenaSize heur)]
+  let acst = accState conf heur player arena
   (cons, f, prog, acst) <- accReach acst arena loc reach
   cons <- pure $ cons ++ [Vars.existsX (vars arena) (FOL.andf [f, FOL.neg (reach `get` loc)])]
   unless (all (null . FOL.frees) cons)
     $ error
     $ "assert: constraint with free variables " ++ strL (strS show . FOL.frees) cons
-  (res, lemmaAssign) <- resolve conf limit (vars arena) cons f (lemmaSyms acst)
+  (res, lemmaAssign) <- resolve conf heur (vars arena) cons f (lemmaSyms acst)
   prog <- pure $ foldl (replaceLemma (vars arena)) prog lemmaAssign
   lg conf ["Acceleration resulted in", SMTLib.toString res]
   return (res, prog)
@@ -48,28 +49,25 @@ accelReach conf limit player arena loc reach = do
 -------------------------------------------------------------------------------
 data AccState = AccState
   { player :: Player
-  , limit :: Int
   , depth :: Int
   , config :: Config
+  , heur :: Heur
   , usedSyms :: Set Symbol
   , lemmaSyms :: [LemSyms]
   , visitCounters :: [VisitCounter]
   }
 
-accState :: Config -> Int -> Player -> Arena -> AccState
-accState cfg limit ply arena =
+accState :: Config -> Heur -> Player -> Arena -> AccState
+accState cfg heur ply arena =
   AccState
     { config = cfg
     , player = ply
-    , limit = limit
+    , heur = heur
     , depth = 0
     , usedSyms = usedSymbols arena
     , lemmaSyms = []
     , visitCounters = []
     }
-
-sizeLimit :: AccState -> Maybe Int
-sizeLimit = Just . limit2size . limit
 
 unnest :: AccState -> Loc -> AccState
 unnest acst = doVisit $ acst {visitCounters = tail (visitCounters acst), depth = depth acst - 1}
@@ -77,11 +75,11 @@ unnest acst = doVisit $ acst {visitCounters = tail (visitCounters acst), depth =
 nest :: Loc -> AccState -> Bool
 nest l acst =
   extendAcceleration (config acst)
-    && (depth acst - 1 > limit2depth (limit acst))
-    && (visitingThreshold == visits l (head (visitCounters acst)))
+    && (depth acst - 1 > H.nestingDepth (heur acst))
+    && (H.iterAMaxCPres (heur acst) == visits l (head (visitCounters acst)))
 
 visiting :: Loc -> AccState -> Bool
-visiting l = (< visitingThreshold) . visits l . head . visitCounters
+visiting l acst = H.iterAMaxCPres (heur acst) > visits l (head (visitCounters acst))
 
 doVisit :: AccState -> Loc -> AccState
 doVisit acst l =
@@ -97,7 +95,8 @@ accReach acst g loc st = do
   -- Compute new lemma symbols
   (base, step, conc, stepSym, prime, acst) <- pure $ lemmaSymbols (vars g) acst
   -- Compute loop scenario
-  (gl, loc, loc', st, fixedInv, prog) <- loopScenario (config acst) (sizeLimit acst) g loc st prime
+  (gl, loc, loc', st, fixedInv, prog) <-
+    loopScenario (config acst) (H.loopArenaSize (heur acst)) g loc st prime
   -- Finialize loop game target with step relation and compute loop attractor
   let st' = set st loc' $ FOL.orf [st `get` loc, step]
   (cons, stAcc, prog, acst) <- iterA acst gl st' loc' prog

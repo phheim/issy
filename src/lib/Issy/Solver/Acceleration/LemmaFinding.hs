@@ -17,7 +17,8 @@ import Issy.Logic.FOL
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.SMT as SMT
 import qualified Issy.Printers.SMTLib as SMTLib (toString)
-import Issy.Solver.Acceleration.Heuristics
+import Issy.Solver.Acceleration.Heuristics (Heur)
+import qualified Issy.Solver.Acceleration.Heuristics as H
 import Issy.Utils.Logging
 
 -------------------------------------------------------------------------------
@@ -139,9 +140,9 @@ constCompInv rest vars prf =
           br n = ite (bvarT (varcl prf n c))
        in br "a" (br "b" true (func "=" [cc, var])) (br "b" (cc `leqT` var) (var `leqT` cc))
 
-genInstH :: Int -> Variables -> Symbol -> Symbol -> LemInst
-genInstH limit vars prime pref =
-  let (ccomp, cinvc) = templateConfig limit
+genInstH :: Heur -> Variables -> Symbol -> Symbol -> LemInst
+genInstH heur vars prime pref =
+  let (ccomp, cinvc) = H.templatePattern heur
       act = bvarT (pref ++ "_act")
       (Lemma bi si ci, cnr) = rankLemma vars prime (pref ++ "_r_")
       (invs, cnis) = unzip $ imap (\i l -> invc l vars (extInt pref i)) cinvc
@@ -151,9 +152,9 @@ genInstH limit vars prime pref =
         (cnr ++ cni0 ++ concat cnis)
         (Lemma (andf [act, bi, inv]) (andf [act, si, primeT vars prime inv]) (andf [act, ci, inv]))
 
-genInst :: Int -> Variables -> Symbol -> LemSyms -> Constraint -> Term -> (Constraint, Term, Lemma)
-genInst limit vars pref l cons f =
-  let LemInst consL li = genInstH limit vars (primeOf l) pref
+genInst :: Heur -> Variables -> Symbol -> LemSyms -> Constraint -> Term -> (Constraint, Term, Lemma)
+genInst heur vars pref l cons f =
+  let LemInst consL li = genInstH heur vars (primeOf l) pref
       rep = replaceLemma vars li l
    in (consL ++ map rep cons, rep f, li)
 
@@ -166,13 +167,13 @@ skolemize vars metas =
          else Nothing)
 
 instantiate ::
-     Int -> Variables -> Constraint -> Term -> [LemSyms] -> (Constraint, Term, [(LemSyms, Lemma)])
-instantiate limit vars cons f ls =
+     Heur -> Variables -> Constraint -> Term -> [LemSyms] -> (Constraint, Term, [(LemSyms, Lemma)])
+instantiate heur vars cons f ls =
   let syms = Set.unions $ Vars.stateVars vars : symbols f : map symbols cons ++ map symbolsOf ls
       pref = uniquePrefix "p" syms
    in foldl
         (\(c, f, col) (l, i) ->
-           let (c', f', li) = genInst limit vars (extInt pref i) l c f
+           let (c', f', li) = genInst heur vars (extInt pref i) l c f
             in (c', f', (l, li) : col))
         (cons, f, [])
         (zip ls [1 ..])
@@ -181,15 +182,15 @@ instantiate limit vars cons f ls =
 -- Search
 -------------------------------------------------------------------------------
 resolveQE ::
-     Config -> Int -> Variables -> Constraint -> Term -> [LemSyms] -> IO (Term, [(LemSyms, Lemma)])
-resolveQE cfg limit vars cons f ls =
-  let (cons', f', _) = instantiate limit vars cons f ls
+     Config -> Heur -> Variables -> Constraint -> Term -> [LemSyms] -> IO (Term, [(LemSyms, Lemma)])
+resolveQE cfg heur vars cons f ls =
+  let (cons', f', _) = instantiate heur vars cons f ls
       meta = Set.toList (frees (andf cons'))
       query = exists meta (andf (f' : cons'))
    in do
         cfg <- pure $ setName "ResQE" cfg
         lg cfg ["Try qelim on", SMTLib.toString query]
-        resQE <- SMT.trySimplify cfg (Just (limit2to limit)) query
+        resQE <- SMT.trySimplify cfg (H.lemmaResolveTO heur) query
         case resQE of
           Just res -> do
             lg cfg ["Qelim yielded", SMTLib.toString res]
@@ -199,9 +200,9 @@ resolveQE cfg limit vars cons f ls =
             return (false, [])
 
 resolveBoth ::
-     Config -> Int -> Variables -> Constraint -> Term -> [LemSyms] -> IO (Term, [(LemSyms, Lemma)])
-resolveBoth cfg limit vars cons f ls =
-  let (cons', f', col) = instantiate limit vars cons f ls
+     Config -> Heur -> Variables -> Constraint -> Term -> [LemSyms] -> IO (Term, [(LemSyms, Lemma)])
+resolveBoth cfg heur vars cons f ls =
+  let (cons', f', col) = instantiate heur vars cons f ls
       meta = frees (andf cons')
       theta = andf (f' : cons')
       sk = skolemize vars meta
@@ -209,14 +210,14 @@ resolveBoth cfg limit vars cons f ls =
    in do
         cfg <- pure $ setName "ResSK" cfg
         lg cfg ["Try Qelim on", SMTLib.toString query]
-        resQE <- SMT.trySimplify cfg (Just (limit2to limit)) query
+        resQE <- SMT.trySimplify cfg (H.lemmaResolveTO heur) query
         case resQE of
           Just res -> do
             lg cfg ["Qelim yielded", SMTLib.toString res]
             thetaSk <-
-              fromMaybe (sk theta) <$> SMT.trySimplifyUF cfg (Just (limit2to limit)) (sk theta)
+              fromMaybe (sk theta) <$> SMT.trySimplifyUF cfg (H.lemmaResolveTO heur) (sk theta)
             let querySk = Vars.forallX vars $ res `impl` thetaSk
-            resSAT <- SMT.trySatModel cfg (Just (limit2toextract limit)) querySk
+            resSAT <- SMT.trySatModel cfg (H.lemmaResolveTO heur) querySk
             case resSAT of
               Nothing -> do
                 lg cfg ["Finding Model", "TO"]
@@ -232,7 +233,7 @@ resolveBoth cfg limit vars cons f ls =
             return (false, [])
 
 resolve ::
-     Config -> Int -> Variables -> Constraint -> Term -> [LemSyms] -> IO (Term, [(LemSyms, Lemma)])
+     Config -> Heur -> Variables -> Constraint -> Term -> [LemSyms] -> IO (Term, [(LemSyms, Lemma)])
 resolve cfg
   | generateProgram cfg = resolveBoth cfg
   | otherwise = resolveQE cfg
