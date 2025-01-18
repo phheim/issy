@@ -33,12 +33,13 @@ import Issy.Config
   , setName
   )
 import qualified Issy.Logic.CHC as CHC
-import Issy.Logic.FOL
-import Issy.Logic.SMT
+import Issy.Logic.FOL (Symbol, Term)
+import qualified Issy.Logic.FOL as FOL
+import qualified Issy.Logic.SMT as SMT
 import Issy.Monitor.Fixpoints
 import Issy.Monitor.Formula
 import Issy.Monitor.State
-import Issy.Utils.Extra
+import Issy.Utils.Extra (ifQuery, intmapSet)
 import Issy.Utils.Logging
 
 -------------------------------------------------------------------------------
@@ -92,7 +93,7 @@ data GlobalS = GlobalS
 
 globalState :: Variables -> GlobalS
 globalState vars =
-  let fpn = uniqueName "fixpointpred" (Vars.allSymbols vars)
+  let fpn = FOL.uniqueName "fixpointpred" $ Vars.allSymbols vars
    in GlobalS
         { vars = vars
         , fixpointPred = fpn
@@ -101,8 +102,8 @@ globalState vars =
             --
         , aux = []
         , updateEncodes = Map.empty
-        , exactlyOneUpd = true
-        , updateEffect = true
+        , exactlyOneUpd = FOL.true
+        , updateEffect = FOL.true
             --
         , genReaches = Map.empty
         , unsatCache = Map.empty
@@ -114,25 +115,22 @@ globalState vars =
 
 globalStateTSL :: Variables -> Set (Symbol, Term) -> GlobalS
 globalStateTSL vars updates =
-  let complUpd =
-        updates `Set.union` Set.map (\v -> (v, Var v (Vars.sortOf vars v))) (Vars.stateVars vars)
-      prefUpd = uniquePrefix "update" (Vars.allSymbols vars)
+  let complUpd = Set.union updates $ Set.map (\v -> (v, Vars.mk vars v)) $ Vars.stateVars vars
+      prefUpd = FOL.uniquePrefix "update" $ Vars.allSymbols vars
       updAux = intmapSet (\n upd -> (upd, prefUpd ++ show n)) complUpd
    in (globalState vars)
         { updateEncodes = Map.fromList updAux
         , aux = map snd updAux
         , exactlyOneUpd =
-            andf
-              $ map
-                  (\var -> exactlyOne (map (bvarT . snd) (filter ((== var) . fst . fst) updAux)))
-                  (Vars.stateVarL vars)
+            FOL.andf
+              $ flip map (Vars.stateVarL vars)
+              $ \var ->
+                  FOL.exactlyOne $ map (FOL.bvarT . snd) $ filter ((== var) . fst . fst) updAux
         , updateEffect =
-            andf
-              $ map
-                  (\((var, term), aux) ->
-                     bvarT aux
-                       `impl` (Vars.primeT vars (Var var (Vars.sortOf vars var)) `equal` term))
-                  updAux
+            FOL.andf
+              $ flip map updAux
+              $ \((var, term), aux) ->
+                  FOL.impl (FOL.bvarT aux) $ FOL.equal term $ Vars.primeT vars $ Vars.mk vars var
         }
 
 -------------------------------------------------------------------------------
@@ -196,7 +194,7 @@ ruleG g
 -------------------------------------------------------------------------------
 deducedInvariant :: Config -> GlobalS -> Domain -> State -> IO Term
 deducedInvariant cfg gls dom st =
-  simplify cfg $ encode gls $ fand $ filter (staticFormula (vars gls)) $ dedInv dom st
+  SMT.simplify cfg $ encode gls $ fand $ filter (staticFormula (vars gls)) $ dedInv dom st
 
 derivedEventually :: Config -> GlobalS -> Domain -> State -> IO ([Formula], GlobalS)
 derivedEventually cfg gls dom st = first nub <$> foldM go ([], gls) (impD dom st)
@@ -227,7 +225,7 @@ checkImpl cfg gls a b
     case implCache gls !? (a, b) of
       Just res -> pure (res, gls)
       Nothing -> do
-        res <- valid cfg $ andf [encode gls a, exactlyOneUpd gls] `impl` encode gls b
+        res <- SMT.valid cfg $ FOL.impl (FOL.andf [encode gls a, exactlyOneUpd gls]) $ encode gls b
         pure (res, gls {implCache = Map.insert (a, b) res (implCache gls)})
 
 checkUnsat :: Config -> GlobalS -> [Formula] -> IO (Bool, GlobalS)
@@ -238,7 +236,7 @@ checkUnsat cfg gls =
       case unsatCache gls !? fs of
         Just res -> pure (res, gls)
         Nothing -> do
-          res <- unsat cfg $ andf $ exactlyOneUpd gls : map (encode gls) fs
+          res <- SMT.unsat cfg $ FOL.andf $ exactlyOneUpd gls : map (encode gls) fs
           pure (res, gls {unsatCache = Map.insert fs res (unsatCache gls)})
 
 callCHC :: Config -> GlobalS -> [([Term], Term)] -> IO (Maybe Bool, GlobalS)
@@ -294,7 +292,7 @@ groupImps cfg gls new dom st = do
       (\(p, c) ->
          if staticFormula (vars gls) p
            then do
-             p <- simplify cfg $ staticFormulaToTerm p
+             p <- SMT.simplify cfg $ staticFormulaToTerm p
              pure (fpred True p, c)
            else pure (p, c))
       merges
@@ -470,7 +468,7 @@ genInv cfg dom (st, gls) alpha
         alphaE = encode gls alpha
         init = ([gammaE], fp)
         trans = ([fp, exactlyOneUpd gls, updateEffect gls] ++ map (encode gls) (dedInv dom st), fp')
-        exclude = ([neg alphaE, fp], false)
+        exclude = ([FOL.neg alphaE, fp], FOL.false)
         query = [init, trans, exclude]
      in do
           (res, gls) <- callCHC cfg gls query
@@ -511,15 +509,17 @@ genReach cfg dom (st, gls) (gamma, beta)
   | (gamma, feventually beta) `elem` impD dom st = pure (st, gls)
   | (dedInv dom st, gamma, feventually beta) `elem` muvalUnsat gls = pure (st, gls)
   | stateOnly (Vars.isStateVar (vars gls)) beta && stateOnly (Vars.isStateVar (vars gls)) gamma = do
-    let query = Vars.forallX (vars gls) $ encode gls gamma `impl` fpPred gls
+    let query = Vars.forallX (vars gls) $ FOL.impl (encode gls gamma) $ fpPred gls
         fp =
-          orf
+          FOL.orf
             [ encode gls beta
             , Vars.forallI (vars gls)
-                $ forAll (aux gls)
+                $ FOL.forAll (aux gls)
                 $ Vars.forallX' (vars gls)
-                $ andf (map (encode gls) (dedInv dom st) ++ [exactlyOneUpd gls, updateEffect gls])
-                    `impl` fpPred' gls
+                $ FOL.impl
+                    (FOL.andf
+                       (map (encode gls) (dedInv dom st) ++ [exactlyOneUpd gls, updateEffect gls]))
+                $ fpPred' gls
             ]
     res <- checkFPInclusion cfg (vars gls) query (fixpointPred gls) fp
     if res
@@ -582,23 +582,23 @@ genInvPrec cfg gls dom st
   | otherwise = do
     let gamma = fand $ current dom st
     let base = encode gls $ fand $ gamma : dedInv dom st
-    base <- simplify cfg $ Vars.existsI (vars gls) $ exists (aux gls) base
-    if base == true || base == false
+    base <- SMT.simplify cfg $ Vars.existsI (vars gls) $ FOL.exists (aux gls) base
+    if base == FOL.true || base == FOL.false
       then pure (st, gls)
       else do
-        let init = Vars.forallX (vars gls) $ func "=>" [andf [base, fpPred gls], false]
+        let init = Vars.forallX (vars gls) $ FOL.func "=>" [FOL.andf [base, fpPred gls], FOL.false]
             -- Transtion condition in CHC
-        let tr = andf $ exactlyOneUpd gls : updateEffect gls : (encode gls <$> dedInv dom st)
+        let tr = FOL.andf $ exactlyOneUpd gls : updateEffect gls : (encode gls <$> dedInv dom st)
         let trans =
               Vars.forallX (vars gls)
                 $ Vars.forallI (vars gls)
-                $ forAll (aux gls)
+                $ FOL.forAll (aux gls)
                 $ Vars.forallX' (vars gls)
-                $ func "=>" [andf [fpPred' gls, tr], fpPred gls]
+                $ FOL.func "=>" [FOL.andf [fpPred' gls, tr], fpPred gls]
         res <- CHC.computeFP cfg (vars gls) (fixpointPred gls) init trans
         case res of
           Just alpha -> do
-            alpha <- simplify cfg alpha
+            alpha <- SMT.simplify cfg alpha
             alpha <- pure $ fglobally (fpred False alpha)
             st <- addImp cfg "Gen-Inv-P" dom st (gamma, alpha)
             gls <-

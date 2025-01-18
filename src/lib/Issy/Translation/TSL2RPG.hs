@@ -14,19 +14,20 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Tuple (swap)
 
+import Issy.Base.Locations (Loc)
 import Issy.Base.Objectives (Objective(..))
 import qualified Issy.Base.Objectives as Obj
 import Issy.Base.Variables (Variables)
 import qualified Issy.Base.Variables as Vars
 import Issy.Config (Config, setName)
-import Issy.Logic.FOL
+import Issy.Logic.FOL (Symbol, Term)
 import qualified Issy.Logic.TSLMT as TSL
 import qualified Issy.Logic.Temporal as TL
-import Issy.RPG
+import Issy.RPG (Game, Transition(..))
 import qualified Issy.RPG as RPG
 import qualified Issy.Translation.DOA as DOA
 import qualified Issy.Translation.LTL2DOA as LTL2DOA
-import Issy.Utils.Extra
+import Issy.Utils.Extra (intmapSet)
 import Issy.Utils.Logging
 
 updates :: Set TSL.Atom -> Map Symbol (Set Term)
@@ -39,7 +40,7 @@ updates =
     Map.empty
 
 selfUpdates :: Variables -> Set TSL.Atom
-selfUpdates vars = Set.map (\v -> TSL.Update v (Var v (Vars.sortOf vars v))) $ Vars.stateVars vars
+selfUpdates vars = Set.map (\v -> TSL.Update v (Vars.mk vars v)) $ Vars.stateVars vars
 
 exactlyOneUpd :: Symbol -> Set Term -> [TSL.Formula]
 exactlyOneUpd var updateTerms = map (TL.UExp TL.Globally) (atLeastOne : atMostOne)
@@ -83,8 +84,8 @@ doa2game vars atomOf doa =
     --
     addTrans mapState game state =
       let doaTrans = DOA.trans doa state
-          trans = doatran2tran (Vars.stateVarL (variables game)) mapState atomOf doaTrans
-       in case addTransition game (mapState state) trans of
+          trans = doatran2tran (Vars.stateVarL (RPG.variables game)) mapState atomOf doaTrans
+       in case RPG.addTransition game (mapState state) trans of
             Just game -> game
             Nothing -> error "assert: Transition should not already exist"
 
@@ -142,4 +143,4 @@ tsl2rpg cfg spec = do
   (tsl, ap2str, str2ap) <- pure $ tsl2ltlMap vars tsl
   doa <- LTL2DOA.translate cfg ap2str tsl
   lg cfg ["DOA:", show doa]
-  simplifyRPG cfg $ doa2game vars str2ap doa
+  RPG.simplifyRPG cfg $ doa2game vars str2ap doa

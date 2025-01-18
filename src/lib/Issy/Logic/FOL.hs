@@ -47,6 +47,11 @@ module Issy.Logic.FOL
   , distinct
   , exactlyOne
   , atMostOne
+  , var
+  , constT
+  , boolConst
+  , intConst
+  , realConst
   , bvarT
   , ivarT
   , rvarT
@@ -483,6 +488,21 @@ removePref pref =
       else v
 
 -------------------------------------------------------------------------------
+var :: Symbol -> Sort -> Term
+var = Var
+
+constT :: Constant -> Term
+constT = Const
+
+boolConst :: Bool -> Term
+boolConst = constT . CBool
+
+intConst :: Integer -> Term
+intConst = constT . CInt
+
+realConst :: Rational -> Term
+realConst = constT . CReal
+
 -- More constructors
 bvarT :: String -> Term
 bvarT name = Var name SBool

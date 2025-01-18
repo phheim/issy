@@ -15,8 +15,8 @@ import qualified Data.List as List (sortOn)
 import Data.Map.Strict (Map, (!), (!?))
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe)
-import Data.Set (Set, cartesianProduct, unions)
-import qualified Data.Set as Set (empty, fromList, map, singleton, toList, union)
+import Data.Set (Set)
+import qualified Data.Set as Set
 import System.Process (readProcessWithExitCode)
 
 import Finite
@@ -110,7 +110,7 @@ hoastruct2doa hoa =
           (hoaStates hoa)
    in (doa2, statesMap)
   where
-    genTrans fromState = unions . Set.map (genEdges fromState) . edges hoa
+    genTrans fromState = Set.unions . Set.map (genEdges fromState) . edges hoa
     --
     genEdges fromState =
       \case
@@ -211,12 +211,12 @@ toDNF =
     FTrue -> Set.singleton Set.empty
     FFalse -> Set.empty
     FVar a -> Set.singleton $ Set.singleton (a, True)
-    FOr fs -> unions (map toDNF fs)
+    FOr fs -> Set.unions (map toDNF fs)
     FAnd [] -> toDNF FTrue
     FAnd (f:fr) ->
       let dnf = toDNF f
           dnfs = toDNF (FAnd fr)
-       in Set.map (uncurry Set.union) (cartesianProduct dnf dnfs)
+       in Set.map (uncurry Set.union) $ Set.cartesianProduct dnf dnfs
         -- Negation pushing
     FNot FTrue -> toDNF FFalse
     FNot FFalse -> toDNF FTrue

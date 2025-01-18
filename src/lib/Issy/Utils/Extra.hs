@@ -22,10 +22,10 @@ ifM b t f = do
     else f
 
 ifMP :: Monad m => m Bool -> a -> a -> m a
-ifMP b t f = ifM b (return t) (return f)
+ifMP b t f = ifM b (pure t) (pure f)
 
 ifMC :: Monad m => m Bool -> a -> m a -> m a
-ifMC b t = ifM b (return t)
+ifMC b t = ifM b $ pure t
 
 ifQuery :: Monad m => m (Bool, a) -> b -> b -> m (b, a)
 ifQuery c t f = do

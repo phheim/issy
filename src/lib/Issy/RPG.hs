@@ -37,6 +37,7 @@ module Issy.RPG
   , createLocsFor
   , -- Analysis
     cyclicIn
+  , isSelfUpdate
   , -- Simplification
     simplifyRPG
   , -- Predecessors
@@ -72,7 +73,7 @@ import qualified Issy.Base.Variables as Vars
 import Issy.Config (Config)
 import Issy.Logic.FOL (Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
-import Issy.Logic.SMT as SMT
+import qualified Issy.Logic.SMT as SMT
 import Issy.Utils.Extra (ifM, predecessorRelation)
 import qualified Issy.Utils.OpenList as OL
 
@@ -212,6 +213,12 @@ reachables g l = bfs Set.empty (l `OL.pushOne` OL.empty)
           | otherwise ->
             let seen' = o `Set.insert` seen
              in bfs seen' ((succs g o `Set.difference` seen) `OL.push` ol')
+
+isSelfUpdate :: (Symbol, Term) -> Bool
+isSelfUpdate =
+  \case
+    (v, FOL.Var v' _) -> v == v'
+    _ -> False
 
 ---------------------------------------------------------------------------------------------------
 -- Simplification
@@ -378,13 +385,7 @@ independentProgVars _ arena =
       \case
         TIf _ tt tf -> go tt `Set.union` go tf
         TSys upds ->
-          Set.fromList $ concatMap (map fst . filter (not . isSelfUpd) . Map.toList . fst) upds
-
-isSelfUpd :: (Symbol, Term) -> Bool
-isSelfUpd =
-  \case
-    (v, FOL.Var v' _) -> v == v'
-    _ -> False
+          Set.fromList $ concatMap (map fst . filter (not . isSelfUpdate) . Map.toList . fst) upds
 
 ---------------------------------------------------------------------------------------------------
 -- Synthesis

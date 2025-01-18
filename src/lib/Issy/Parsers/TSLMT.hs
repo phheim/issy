@@ -17,9 +17,10 @@ import TSL
   )
 import qualified TSL (Specification(assumptions, guarantees))
 
-import Issy.Base.Variables hiding (empty)
-import qualified Issy.Base.Variables as Vars (empty)
-import Issy.Logic.FOL
+import Issy.Base.Variables (Type(..), Variables)
+import qualified Issy.Base.Variables as Vars
+import Issy.Logic.FOL (Constant(..), Function(..), Sort(..), Symbol, Term(..))
+import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.TSLMT as TSLMT (Atom(..), Formula, Spec(..))
 import qualified Issy.Logic.Temporal as TL
 import Issy.Parsers.SMTLib (tryParseInt, tryParseRat)
@@ -59,9 +60,9 @@ parseDecls = go Vars.empty . lines
         s:sr -> do
           (typ, s) <- parseType s
           id <- parseID s
-          if id `elem` allSymbols vars
+          if id `elem` Vars.allSymbols vars
             then Left $ "double variable declaration: " ++ id
-            else go (addVariable vars id typ) sr
+            else go (Vars.addVariable vars id typ) sr
 
 translateSignalTerm :: (a -> Sort) -> (a -> Symbol) -> SignalTerm a -> Term
 translateSignalTerm typ toStr =
@@ -125,8 +126,8 @@ translateFuncTerm typ toStr ft =
 translatePredTerm :: (a -> Sort) -> (a -> Symbol) -> PredicateTerm a -> Term
 translatePredTerm typ toStr =
   \case
-    BooleanTrue -> true
-    BooleanFalse -> false
+    BooleanTrue -> FOL.true
+    BooleanFalse -> FOL.false
     BooleanInput a
       | typ a == SBool -> Var (toStr a) SBool
       | otherwise -> error "found boolean input with non-boolean sort"
@@ -166,7 +167,7 @@ translateFormula typ toStr = go
 translateSpec :: Variables -> Specification -> TSLMT.Spec
 translateSpec vars spec =
   let toStr = stName (symboltable spec)
-      transform = translateFormula (sortOf vars . toStr) toStr
+      transform = translateFormula (Vars.sortOf vars . toStr) toStr
    in TSLMT.Spec
         { TSLMT.variables = vars
         , TSLMT.assumptions = transform <$> TSL.assumptions spec

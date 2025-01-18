@@ -45,11 +45,12 @@ import qualified Data.Set as Set
 
 import Issy.Base.Variables (Variables)
 import qualified Issy.Base.Variables as Vars
-import Issy.Logic.FOL
+import Issy.Logic.FOL (Constant(..), Function(..), Symbol, Term(..))
+import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.RPLTL as RPLTL
 import qualified Issy.Logic.TSLMT as TSL
 import qualified Issy.Logic.Temporal as TL
-import qualified Issy.Printers.SMTLib as SMTLib (toString)
+import qualified Issy.Printers.SMTLib as SMTLib
 
 -------------------------------------------------------------------------------
 -- Data Structures
@@ -284,7 +285,7 @@ staticFormula vars = go
         FTrue -> True
         FFalse -> True
         FPred _ pred ->
-          symbols pred `Set.isSubsetOf` (Vars.inputs vars `Set.union` Vars.stateVars vars)
+          FOL.symbols pred `Set.isSubsetOf` (Vars.inputs vars `Set.union` Vars.stateVars vars)
         FAnd fs -> all go fs
         FOr fs -> all go fs
         _ -> False
@@ -294,7 +295,7 @@ stateOnly stateVar =
   \case
     FTrue -> True
     FFalse -> True
-    FPred _ terms -> all stateVar (frees terms)
+    FPred _ terms -> all stateVar $ FOL.frees terms
     FAnd fs -> all (stateOnly stateVar) fs
     FOr fs -> all (stateOnly stateVar) fs
     _ -> False
@@ -461,12 +462,12 @@ staticFormulaToTerm = go
   where
     go =
       \case
-        FTrue -> true
-        FFalse -> false
+        FTrue -> FOL.true
+        FFalse -> FOL.false
         FPred True p -> p
-        FPred False p -> neg p
-        FAnd fs -> andf $ map go fs
-        FOr fs -> orf $ map go fs
+        FPred False p -> FOL.neg p
+        FAnd fs -> FOL.andf $ map go fs
+        FOr fs -> FOL.orf $ map go fs
         _ -> error "Formula not update free"
 
 -------------------------------------------------------------------------------
@@ -497,14 +498,14 @@ distr comb =
 encodeFormula :: ((Symbol, Term) -> Symbol) -> Formula -> Term
 encodeFormula updateEncode =
   \case
-    FTrue -> true
-    FFalse -> false
+    FTrue -> FOL.true
+    FFalse -> FOL.false
     FPred True term -> term
-    FPred False term -> neg term
-    FUpdate True var term -> bvarT $ updateEncode (var, term)
-    FUpdate False var term -> neg $ encodeFormula updateEncode (FUpdate True var term)
-    FAnd fs -> andf $ map (encodeFormula updateEncode) fs
-    FOr fs -> orf $ map (encodeFormula updateEncode) fs
+    FPred False term -> FOL.neg term
+    FUpdate True var term -> FOL.bvarT $ updateEncode (var, term)
+    FUpdate False var term -> FOL.neg $ encodeFormula updateEncode (FUpdate True var term)
+    FAnd fs -> FOL.andf $ map (encodeFormula updateEncode) fs
+    FOr fs -> FOL.orf $ map (encodeFormula updateEncode) fs
     _ -> error "assert: temporal formula not allowed"
 
 -------------------------------------------------------------------------------

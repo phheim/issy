@@ -9,7 +9,7 @@ import qualified Data.Set as Set
 import Issy.Base.Locations (Loc)
 import qualified Issy.Base.Locations as Locs
 import Issy.Base.Objectives (Objective(..), WinningCondition(..))
-import qualified Issy.Base.Objectives as Obj (mapWC)
+import qualified Issy.Base.Objectives as Obj
 import qualified Issy.Logic.FOL as FOL
 import Issy.SymbolicArena (Arena)
 import qualified Issy.SymbolicArena as SG

@@ -13,39 +13,30 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import qualified Issy.Utils.OpenList as OL
 
+import Issy.Base.Locations (Loc)
 import Issy.Base.Objectives (Objective(..), WinningCondition(..))
 import Issy.Config (Config, setName)
-import Issy.Logic.FOL
-import Issy.Monitor
-  ( Monitor
-  , State
-  , Trans(..)
-  , Verdict(..)
-  , finish
-  , generateSuccessor
-  , leafs
-  , stateName
-  , verdict
-  )
-import qualified Issy.Monitor as Monitor (initial, variables)
-import Issy.RPG
+import Issy.Logic.FOL (Symbol, Term)
+import Issy.Monitor (Monitor, State, Trans(..), Verdict(..))
+import qualified Issy.Monitor as Mon
+import Issy.RPG (Game, Transition(..))
 import qualified Issy.RPG as RPG
 import Issy.Utils.Logging
 
 onTheFlyProduct :: Config -> Game -> Objective -> Monitor -> IO (Game, Objective)
 onTheFlyProduct cfg game obj monitor = do
   cfg <- pure $ setName "RPG x Monitor" cfg
-  unless (Monitor.variables monitor == RPG.variables game)
+  unless (Mon.variables monitor == RPG.variables game)
     $ error "assert: found variables in monitor not present in game"
   (monitor, product) <- explore cfg game (initialLoc obj) monitor
   lg cfg [show product]
-  monitor <- finish cfg monitor
+  monitor <- Mon.finish cfg monitor
   let (prodGame, winEnv, winSys, toNew) = productToGame game monitor product
   let wc = winningCond obj
-  let prodWC = newWC (winEnv, winSys) (explored product) (verdict monitor) toNew wc
+  let prodWC = newWC (winEnv, winSys) (explored product) (Mon.verdict monitor) toNew wc
   let prodInit = toNew $ initLocState (initialLoc obj) monitor
   let prodObj = Objective {initialLoc = prodInit, winningCond = prodWC}
-  simplifyRPG cfg (prodGame, prodObj)
+  RPG.simplifyRPG cfg (prodGame, prodObj)
 
 -- Intermediate product data-structure
 data Product = Product
@@ -57,7 +48,7 @@ emptyProd :: Product
 emptyProd = Product {explored = Set.empty, interTrans = []}
 
 initLocState :: Loc -> Monitor -> (Loc, State)
-initLocState init monitor = (init, Monitor.initial monitor)
+initLocState init monitor = (init, Mon.initial monitor)
 
 explore :: Config -> Game -> Loc -> Monitor -> IO (Monitor, Product)
 explore cfg game init mon = go (OL.fromList [initLocState init mon]) mon emptyProd
@@ -68,14 +59,14 @@ explore cfg game init mon = go (OL.fromList [initLocState init mon]) mon emptyPr
         Just ((l, q), openList)
           | (l, q) `elem` explored prod -> go openList mon prod
           | otherwise -> do
-            (transition, mon) <- traversTransition cfg mon q (trans game l)
+            (transition, mon) <- traversTransition cfg mon q $ RPG.trans game l
             let openList' =
                   OL.pushList
-                    (filter ((`notElem` [VALID, UNSAFE]) . verdict mon . snd)
+                    (filter ((`notElem` [VALID, UNSAFE]) . Mon.verdict mon . snd)
                        $ filter (`notElem` explored prod)
                        $ map (\(_, l', q') -> (l', q'))
                        $ concat
-                       $ leafs transition)
+                       $ Mon.leafs transition)
                     openList
             go openList' mon
               $ prod
@@ -94,7 +85,7 @@ traversTransition cfg mon state = go [] mon
           (tf', mon) <- go ((p, False) : conditions) mon tf
           return (TrIf p tt' tf', mon)
         TSys upds -> do
-          (mon, trans) <- generateSuccessor cfg mon state conditions
+          (mon, trans) <- Mon.generateSuccessor cfg mon state conditions
           return (fmap (combs upds) trans, mon)
     --
     combs ::
@@ -111,18 +102,13 @@ traversTransition cfg mon state = go [] mon
         (True, v, tm):ur ->
           case upd !? v of
             Just t -> t == tm && validComb upd ur
-            Nothing -> isSelfUpdate (v, tm) && validComb upd ur
+            Nothing -> RPG.isSelfUpdate (v, tm) && validComb upd ur
         -- Update in monitor not active
         (False, v, tm):ur ->
           case upd !? v of
             Just t -> t /= tm && validComb upd ur
-            Nothing -> not (isSelfUpdate (v, tm)) && validComb upd ur
+            Nothing -> not (RPG.isSelfUpdate (v, tm)) && validComb upd ur
     --
-    isSelfUpdate :: (Symbol, Term) -> Bool
-    isSelfUpdate =
-      \case
-        (v, Var s _) -> s == v
-        _ -> False
 
 productToGame :: Game -> Monitor -> Product -> (Game, Loc, Loc, (Loc, State) -> Loc)
 productToGame game mon prod =
@@ -131,13 +117,13 @@ productToGame game mon prod =
       (g2, oldToNew) =
         RPG.createLocsFor
           g1
-          (\(l, q) -> locName game l ++ stateName mon q)
-          (\(l, _) -> game `inv` l)
+          (\(l, q) -> RPG.locName game l ++ Mon.stateName mon q)
+          (\(l, _) -> game `RPG.inv` l)
           (explored prod)
-      mkTrans = transToTransition winEnv winSys oldToNew (verdict mon)
+      mkTrans = transToTransition winEnv winSys oldToNew $ Mon.verdict mon
       g3 =
         foldl
-          (\g (l, q, tr) -> fromJust $ addTransition g (oldToNew (l, q)) (mkTrans tr))
+          (\g (l, q, tr) -> fromJust $ RPG.addTransition g (oldToNew (l, q)) (mkTrans tr))
           g2
           (interTrans prod)
    in (g3, winEnv, winSys, oldToNew)

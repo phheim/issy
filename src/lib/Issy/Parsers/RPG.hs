@@ -29,12 +29,14 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import Text.Read (readMaybe)
 
+import Issy.Base.Locations (Loc)
 import Issy.Base.Objectives (Objective(..), WinningCondition(..))
 import qualified Issy.Base.Variables as Vars
-import Issy.Logic.FOL (Sort(..), Symbol, Term, quantifierFree)
-import Issy.Parsers.SMTLib (parseTerm, sortValue)
+import Issy.Logic.FOL (Sort(..), Symbol, Term)
+import qualified Issy.Logic.FOL as FOL
+import qualified Issy.Parsers.SMTLib as SMTLib (parseTerm, sortValue)
 import Issy.Parsers.SMTLibLexer (Token(..), tokenize)
-import Issy.RPG
+import Issy.RPG (Game(variables), Transition(..))
 import qualified Issy.RPG as RPG
 
 type PRes a = Either String a
@@ -88,7 +90,7 @@ pUpd g =
     TLPar:TId n:ts -> do
       unless (Vars.isStateVar (variables g) n)
         $ perr "pUpd" ("Updating '" ++ n ++ "' which is not an output")
-      (t, tr) <- parseTerm (trySortOf g) ts
+      (t, tr) <- SMTLib.parseTerm (trySortOf g) ts
       case tr of
         TRPar:tr' -> pure ((n, t), tr')
         _ -> perr "pUpd" "Expected closing ')'"
@@ -110,12 +112,12 @@ pTrans :: (Game, PState) -> [Token] -> PRes (Transition, [Token])
 pTrans (g, pst) =
   \case
     TId "if":ts -> do
-      (cond, ts') <- parseTerm (trySortOf g) ts
+      (cond, ts') <- SMTLib.parseTerm (trySortOf g) ts
       ts1 <- pExpect "pTrans" "then" ts'
       (thn, ts1') <- pTrans (g, pst) ts1
       ts2 <- pExpect "pTrans" "else" ts1'
       (els, tsf) <- pTrans (g, pst) ts2
-      if quantifierFree cond
+      if FOL.quantifierFree cond
         then Right (TIf cond thn els, tsf)
         else perr "pTrans" "Only quantifier-free formulas are allowed"
     --
@@ -176,7 +178,7 @@ pGame (g, pst) =
            in Right (g, obj)
     --
     TId "input":TId n:TId s:tr -> do
-      sv <- sortValue s
+      sv <- SMTLib.sortValue s
       when (n `elem` Vars.allSymbols (variables g))
         $ perr "pGame" ("Input '" ++ n ++ "' already found")
       let vars = Vars.addInput (variables g) n sv
@@ -211,7 +213,7 @@ pGame (g, pst) =
         (Just _, _) -> perr "pGame" ("Location '" ++ n ++ "' already defined")
         (_, Nothing) -> perr "pGame" "Could not parse location rank"
         (_, Just rn) ->
-          let (g', l) = addLocation g n
+          let (g', l) = RPG.addLocation g n
            in pGame
                 ( g'
                 , pst {rankP = Map.insert l rn (rankP pst), namesL = Map.insert n l (namesL pst)})
@@ -222,7 +224,7 @@ pGame (g, pst) =
         Nothing -> perr "pGame" ("Location '" ++ n ++ "' not found")
         Just l -> do
           (t, tr') <- pTrans (g, pst) tr
-          case addTransition g l t of
+          case RPG.addTransition g l t of
             Nothing -> perr "pGame" ("Transition for location '" ++ n ++ "' already defined")
             Just g' -> pGame (g', pst) tr'
     --

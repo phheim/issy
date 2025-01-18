@@ -6,14 +6,14 @@ module Issy.Parsers.SMTLib where
 
 -------------------------------------------------------------------------------
 import Data.Char (digitToInt, isDigit)
-import qualified Data.Map as Map (fromList)
-import Data.Map ((!?))
-import Data.Map.Strict (fromListWith, keysSet)
+import qualified Data.Map.Strict as Map
+import Data.Map.Strict ((!?))
 import Data.Ratio ((%))
 import Data.Set (Set)
 
-import Issy.Logic.FOL
-import Issy.Parsers.SMTLibLexer
+import Issy.Logic.FOL (Model, Sort(..), Symbol, Term)
+import qualified Issy.Logic.FOL as FOL
+import Issy.Parsers.SMTLibLexer (Token(..), tokenize)
 
 -------------------------------------------------------------------------------
 type PRes a = Either String a
@@ -48,15 +48,15 @@ parseLet ty =
   \case
     [EList asgn, t] -> do
       asgnT <- mapM pLt asgn
-      let m = fromListWith (error "No duplicates!") asgnT
+      let m = Map.fromListWith (error "No duplicates!") asgnT
       e <-
         exprToTerm
           (\s ->
-             if s `elem` keysSet m
+             if s `elem` Map.keysSet m
                then Just SBool
                else ty s)
           t
-      Right (mapTermM m e)
+      Right $ FOL.mapTermM m e
     _ -> perr "parseLet" "Invaild pattern"
   where
     pLt =
@@ -70,16 +70,16 @@ exprToTerm :: (String -> Maybe Sort) -> TermExpr -> PRes Term
 exprToTerm ty =
   \case
     EVar n -> parseConstTerm ty n
-    EList (EVar "forall":r) -> exprToQuant (\s -> forAll [s]) ty r
-    EList (EVar "exists":r) -> exprToQuant (\s -> exists [s]) ty r
+    EList (EVar "forall":r) -> exprToQuant (\s -> FOL.forAll [s]) ty r
+    EList (EVar "exists":r) -> exprToQuant (\s -> FOL.exists [s]) ty r
     EList (EVar "let":r) -> parseLet ty r
-    EList [EVar "not", r] -> neg <$> exprToTerm ty r
+    EList [EVar "not", r] -> FOL.neg <$> exprToTerm ty r
     EList (EVar n:r) -> do
       args <- mapM (exprToTerm ty) r
-      if n `elem` predefined
-        then Right $ Func (PredefF n) args
+      if n `elem` FOL.predefined
+        then Right $ FOL.func n args
         else case ty n of
-               Just (SFunc argT retT) -> Right $ Func (CustomF n argT retT) args
+               Just (SFunc argT retT) -> Right $ FOL.Func (FOL.CustomF n argT retT) args
                Just _ -> perr "exprToTerm" "Expected function sort"
                Nothing -> perr "exprToTerm" ("Undefined function: " ++ n)
     EList [t] -> exprToTerm ty t
@@ -88,18 +88,18 @@ exprToTerm ty =
 parseConstTerm :: (String -> Maybe Sort) -> String -> PRes Term
 parseConstTerm types =
   \case
-    "true" -> (Right . Const . CBool) True
-    "false" -> (Right . Const . CBool) False
-    "0" -> (Right . Const . CInt) 0
+    "true" -> Right $ FOL.boolConst True
+    "false" -> Right $ FOL.boolConst False
+    "0" -> Right $ FOL.intConst 0
     s ->
       case tryParseInt 0 s of
-        Just n -> (Right . Const . CInt) n
+        Just n -> Right $ FOL.intConst n
         Nothing ->
           case tryParseRat 1 0 s of
-            Just r -> (Right . Const . CReal) r
+            Just r -> Right $ FOL.realConst r
             Nothing ->
               case types s of
-                Just t -> Right (Var s t)
+                Just t -> Right $ FOL.var s t
                 Nothing ->
                   perr "parseConstTerm" ("'" ++ s ++ "' is no constant term or declared constant")
 
@@ -187,11 +187,11 @@ psexpr sub acc ts = pread TLPar ts "psexpr" >>= rec acc
 extractModel :: Set Symbol -> String -> Model
 extractModel frees str =
   case parseModel frees (tokenize str) of
-    Right m -> sanitizeModel frees m
+    Right m -> FOL.sanitizeModel frees m
     Left err -> error $ err ++ " in \"" ++ str ++ "\""
 
 parseModel :: Set Symbol -> [Token] -> PRes Model
-parseModel frees ts = fst . fst <$> psexpr pFunDef (emptyModel, []) ts
+parseModel frees ts = fst . fst <$> psexpr pFunDef (FOL.emptyModel, []) ts
   where
     pFunDef :: (Model, [(Symbol, Sort)]) -> [Token] -> PRes ((Model, [(Symbol, Sort)]), [Token])
     pFunDef (m, auxF) ts = do
@@ -202,13 +202,13 @@ parseModel frees ts = fst . fst <$> psexpr pFunDef (emptyModel, []) ts
       (ret, ts) <- psort ts
       (body, ts) <- parseTerm (Map.fromList (auxF ++ svars) !?) ts
       ts <- pread TRPar ts "parseModel"
-      let func = foldr (uncurry lambda) body svars
+      let func = foldr (uncurry FOL.lambda) body svars
       let ftype = SFunc (map snd svars) ret
       let auxF' =
             if name `notElem` frees
               then auxF ++ [(name, ftype)]
               else auxF
-      Right ((modelAddT name func m, auxF'), ts)
+      Right ((FOL.modelAddT name func m, auxF'), ts)
     pSortedVar :: [(Symbol, Sort)] -> [Token] -> PRes ([(Symbol, Sort)], [Token])
     pSortedVar acc ts = do
       ts <- pread TLPar ts "pSortedVar"

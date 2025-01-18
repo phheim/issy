@@ -8,12 +8,14 @@ import Data.Map.Strict ((!))
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 
+import Issy.Base.Locations (Loc)
 import qualified Issy.Base.Locations as Locs
 import Issy.Base.Objectives (Objective(..), WinningCondition(..))
 import qualified Issy.Base.Variables as Vars
 import Issy.Logic.FOL
-import qualified Issy.Printers.SMTLib as SMTLib (toString)
-import Issy.RPG
+import qualified Issy.Printers.SMTLib as SMTLib
+import Issy.RPG (Game, Transition(..))
+import qualified Issy.RPG as RPG
 
 printSort :: Sort -> String
 printSort =
@@ -46,18 +48,18 @@ printRPG :: (Game, Objective) -> String
 printRPG (g, obj) =
   unlines
     $ ["type " ++ printWC (winningCond obj), ""]
-        ++ ["output " ++ o ++ " " ++ wty o | o <- Vars.stateVarL (variables g)]
-        ++ ["input " ++ i ++ " " ++ wty i | i <- Vars.inputL (variables g)]
+        ++ ["output " ++ o ++ " " ++ wty o | o <- Vars.stateVarL (RPG.variables g)]
+        ++ ["input " ++ i ++ " " ++ wty i | i <- Vars.inputL (RPG.variables g)]
         ++ [""]
         ++ ["loc " ++ ln l ++ " " ++ ac l ++ " ; " ++ show l | l <- locl]
         ++ [""]
         ++ ["init " ++ ln (initialLoc obj)]
         ++ [""]
-        ++ ["trans " ++ ln l ++ " " ++ printTrans ln (trans g l) | l <- locl]
+        ++ ["trans " ++ ln l ++ " " ++ printTrans ln (RPG.trans g l) | l <- locl]
   where
-    locl = Set.toList (locations g)
-    wty x = " " ++ printSort (Vars.sortOf (variables g) x)
-    ln = Locs.toString (locationSet g)
+    locl = Set.toList (RPG.locations g)
+    wty x = " " ++ printSort (Vars.sortOf (RPG.variables g) x)
+    ln = Locs.toString (RPG.locationSet g)
     em s l
       | l `elem` s = "1"
       | otherwise = "0"

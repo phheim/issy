@@ -20,7 +20,7 @@ import Issy.SymbolicArena (Arena)
 import qualified Issy.SymbolicArena as SG
 import qualified Issy.Translation.DOA as DOA
 import qualified Issy.Translation.LTL2DOA as LTL2DOA
-import Issy.Utils.Extra
+import Issy.Utils.Extra (intmapSet)
 import Issy.Utils.Logging
 
 translate :: Config -> RPLTL.Spec -> IO (Arena, Objective)

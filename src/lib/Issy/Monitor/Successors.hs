@@ -62,7 +62,7 @@ generateSuccessor cfg mon st assign = do
       mon <- pure $ foldl addLabel mon (map snd (concat (leafs trans)))
       trans <- pure $ fmap (map (second (revlabel mon))) trans
       mon <- pure $ mon {stateTrans = Map.insert (st, assign) trans (stateTrans mon)}
-      return (mon, trans)
+      pure (mon, trans)
 
 applySucessorRules ::
      Config

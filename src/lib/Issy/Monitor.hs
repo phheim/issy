@@ -51,7 +51,7 @@ import qualified Issy.Monitor.Propagation as MP
 import qualified Issy.Monitor.Rules as MR
 import Issy.Monitor.State (falseSt, initSt, stateToString, trueSt)
 import Issy.Monitor.Successors (generateSuccessor)
-import qualified Issy.Printers.SMTLib as SMTLib (toString)
+import qualified Issy.Printers.SMTLib as SMTLib
 import Issy.Utils.Logging
 
 ---------------------------------------------------------------------------------------------------
