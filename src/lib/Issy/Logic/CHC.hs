@@ -69,10 +69,8 @@ chcEncode invPred sorts constr =
     enc :: ([Term], Term) -> String
     enc (prem, conc) =
       let implication = FOL.func "=>" [FOL.andf prem, conc]
-          vars = Map.toList $ FOL.bindings implication
-          quantSig =
-            concatMap (\(var, sort) -> "(" ++ var ++ " " ++ SMTLib.sortToString sort ++ ")") vars
-       in "(assert (forall (" ++ quantSig ++ ") " ++ SMTLib.toString implication ++ "))"
+          qimplication = FOL.forAll (Set.toList (FOL.frees implication)) implication
+       in "(assert " ++ SMTLib.toString qimplication ++ "))"
 
 callCHCSolver :: Config -> String -> IO (Maybe Bool)
 callCHCSolver conf query = do
