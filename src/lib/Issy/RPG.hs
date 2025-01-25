@@ -54,7 +54,7 @@ module Issy.RPG
   ) where
 
 ---------------------------------------------------------------------------------------------------
-import Control.Monad (liftM2)
+import Control.Monad (liftM2, foldM)
 import Data.Bifunctor (first, second)
 import Data.List (nub)
 import Data.Map.Strict (Map, (!?))
@@ -307,10 +307,17 @@ validInput g l = go (trans g l)
         TSys upds -> FOL.orf [FOL.mapTermM u (g `inv` l) | (u, l) <- upds]
 
 removeAttrSys :: Config -> SymSt -> Game -> IO Game
-removeAttrSys = error "TODO IMPLEMENT"
+removeAttrSys conf st arena = do
+    arena <- removeAttrEnv conf st arena
+    -- error "TODO IMPLEMENT"
+    pure arena
 
 removeAttrEnv :: Config -> SymSt -> Game -> IO Game
-removeAttrEnv = error "TODO IMPLEMENT"
+removeAttrEnv conf st arena = do
+    foldM
+        (\arena l ->setInv arena l <$>  SMT.simplify conf (FOL.andf [inv arena l, FOL.neg (SymSt.get st l)]))
+        arena
+        (locations arena)
 
 ---------------------------------------------------------------------------------------------------
 -- Loop- and Subarena
