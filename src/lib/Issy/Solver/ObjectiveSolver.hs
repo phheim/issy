@@ -161,6 +161,7 @@ solveParity :: Config -> Stats -> Arena -> Map Loc Word -> Loc -> IO (Bool, Stat
 solveParity conf stats arena colors init = do
   lg conf ["Game type Parity with colors", strM (locName arena) show colors]
   (_, (wsys, prog), stats) <- zielonka stats arena
+  lg conf ["Winning region Sys", strSt arena wsys]
   res <- SMT.valid conf $ dom arena init `FOL.impl` (wsys `get` init)
   lg conf ["Game realizable =>", show res]
   pure (res, stats, prog)
@@ -179,9 +180,10 @@ solveParity conf stats arena colors init = do
     playerSet Sys (env, sys, stats) = (sys, env, stats)
     mkPlSet Env (wply, wopp, stats) = (wply, wopp, stats)
     mkPlSet Sys (wply, wopp, stats) = (wopp, wply, stats)
-    removeFromGame symst arena = do
-      newInv <- SymSt.simplify conf (domSymSt arena `SymSt.difference` symst)
-      pure $ foldl (\arena l -> setInv arena l (newInv `get` l)) arena (locations arena)
+    removeFromGame player =
+      case player of
+        Sys -> removeAttrSys conf
+        Env -> removeAttrEnv conf
     --
     zielonka :: Stats -> Arena -> IO ((SymSt, SyBo), (SymSt, SyBo), Stats)
     zielonka stats arena
@@ -212,24 +214,25 @@ solveParity conf stats arena colors init = do
             let prog = Synt.callOnSt full progA $ Synt.fromStayIn conf arena targ full
             pure $ mkPlSet player ((full, prog), (emptySt arena, Synt.empty), stats)
           else do
-            arena' <- removeFromGame aset arena
+            arena' <- removeFromGame player aset arena
             lg conf ["Zielonka first recursion"]
-            ((winSys, progP1), (winOp, progO1), stats) <- playerSet player <$> zielonka stats arena'
+            ((winPl, progP1), (winOp, progO1), stats) <- playerSet player <$> zielonka stats arena'
+            lg conf ["Again in", strSt arena full]
             winOp <- SymSt.simplify conf winOp
             if SymSt.null winOp
               then do
                 -- In this case either 'player' player can win from everywhere where it cannot 
                 -- reach the highest color. Hence it either reaches it or it wins and wins
                 -- therefore everywhere.
-                lg conf ["Parity return: ", show player, "ereaches maxcolor or wins in subgame"]
+                lg conf ["Parity return: ", show player, "reaches maxcolor or wins in subgame"]
                 let prog =
-                      Synt.callOnSt winSys progP1
+                      Synt.callOnSt winPl progP1
                         $ Synt.callOnSt aset progA
                         $ Synt.fromStayIn conf arena targ full
                 pure $ mkPlSet player ((full, prog), (emptySt arena, Synt.empty), stats)
               else do
                 (remove, stats, progOR) <- attractorEx conf stats opp arena noCheck winOp
-                arena'' <- removeFromGame remove arena
+                arena'' <- removeFromGame opp remove arena
                 lg conf ["Zielonka second recursion"]
                 ((winPl'', progP2), (winOp'', progO2), stats) <-
                   playerSet player <$> zielonka stats arena''

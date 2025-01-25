@@ -12,7 +12,6 @@ module Issy.Solver.GameInterface
   , usedSymbols
   , predSet
   , loopArena
-  , setInv
   , stateVars
   , inputL
   , boundedVar
@@ -31,6 +30,8 @@ module Issy.Solver.GameInterface
   , independentProgVars
   , inducedSubArena
   , syntCPre
+  , removeAttrSys
+  , removeAttrEnv
   , -- Visit counting
     VisitCounter
   , noVisits
@@ -120,10 +121,6 @@ syntCPre ::
      Config -> Arena -> Symbol -> (Loc -> Term) -> Loc -> Term -> SymSt -> IO [(Symbol, Term)]
 syntCPre conf = liftG (RPG.syntCPre conf) (Sym.syntCPre conf)
 
-setInv :: Arena -> Loc -> Term -> Arena
-setInv (RPG g) l t = RPG $ RPG.setInv g l t
-setInv (Sym a) l t = Sym $ Sym.setDomain a l t
-
 inputL :: Arena -> [Symbol]
 inputL = liftV Vars.inputL
 
@@ -176,6 +173,14 @@ cpre p =
 
 cpreS :: Config -> Player -> Arena -> SymSt -> IO SymSt
 cpreS conf p g st = SymSt.simplify conf (SymSt.symSt (locations g) (cpre p g st))
+
+removeAttrSys :: Config -> SymSt -> Arena -> IO Arena
+removeAttrSys conf st (RPG g) = RPG <$> RPG.removeAttrSys conf st g
+removeAttrSys conf st (Sym a) = Sym <$> Sym.removeAttrSys conf st a
+
+removeAttrEnv :: Config -> SymSt -> Arena -> IO Arena
+removeAttrEnv conf st (RPG g) = RPG <$> RPG.removeAttrEnv conf st g
+removeAttrEnv conf st (Sym a) = Sym <$> Sym.removeAttrEnv conf st a
 
 --
 -- Visit Counting

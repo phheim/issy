@@ -37,7 +37,9 @@ module Issy.SymbolicArena
   , succs
   , check
   , -- Solving
-    independentProgVars
+    removeAttrSys
+  , removeAttrEnv
+  , independentProgVars
   , inducedSubArena
   , -- Synthesis
     syntCPre
@@ -290,21 +292,41 @@ cpreEnv a d l =
 cpreSys :: Arena -> SymSt -> Loc -> Term
 cpreSys a d l =
   let v = variables a
-      f =
-        Vars.forallI v
-          $ FOL.impl (validInput a l)
-          $ Vars.existsX' v
-          $ FOL.orfL (succL a l)
-          $ \l' ->
-              FOL.andf [trans a l l', Vars.primeT v (domain a l'), Vars.primeT v (SymSt.get d l')]
+      f = Vars.forallI v $ FOL.impl (validInput a l) $ sysPre a l (SymSt.get d)
    in FOL.andf [f, domain a l]
 
 validInput :: Arena -> Loc -> Term
-validInput a l =
+validInput a l = sysPre a l (const FOL.true)
+
+sysPre :: Arena -> Loc -> (Loc -> Term) -> Term
+sysPre a l d =
   let v = variables a
    in Vars.existsX' v
         $ FOL.orfL (succL a l)
-        $ \l' -> FOL.andf [trans a l l', Vars.primeT v (domain a l')]
+        $ \l' -> FOL.andf [trans a l l', Vars.primeT v (domain a l'), Vars.primeT v (d l')]
+
+removeAttrSys :: Config -> SymSt -> Arena -> IO Arena
+removeAttrSys conf st arena = do
+  interSt <- SymSt.simplify conf $ SymSt.symSt (locSet arena) (\l -> sysPre arena l (SymSt.get st))
+  arena <-
+    pure
+      $ foldl
+          (\arena l -> setDomain arena l (FOL.andf [domain arena l, FOL.neg (SymSt.get st l)]))
+          arena
+          (locSet arena)
+  let newTransRel =
+        Map.mapWithKey
+          (\l -> Map.map (\tr -> FOL.andf [tr, FOL.neg (SymSt.get interSt l)]))
+          (transRel arena)
+  simplifyArena conf $ arena {transRel = newTransRel}
+
+removeAttrEnv :: Config -> SymSt -> Arena -> IO Arena
+removeAttrEnv conf st arena =
+  simplifyArena conf
+    $ foldl
+        (\arena l -> setDomain arena l (FOL.andf [domain arena l, FOL.neg (SymSt.get st l)]))
+        arena
+        (locSet arena)
 
 ---------------------------------------------------------------------------------------------------
 -- Loop- and Subarena

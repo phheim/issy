@@ -38,7 +38,9 @@ import Issy.Utils.Logging
 spotHOA :: Config -> [String] -> String -> IO HOA
 spotHOA cfg options ltlstr = do
   let opts = options ++ ["--deterministic", "--state-based-acceptance", "--complete", "-"]
+  lgv cfg $ ["Spot run:", ltl2tgba cfg] ++ opts ++ [ltlstr]
   (_, stdout, _) <- readProcessWithExitCode (ltl2tgba cfg) opts ltlstr
+  lgv cfg ["Spot return:", stdout]
   case HOA.parse stdout of
     Left err -> error err
     Right hoa -> return hoa

@@ -32,7 +32,6 @@ module Issy.RPG
     empty
   , addLocation
   , addTransition
-  , setInv
   , addSink
   , createLocsFor
   , -- Analysis
@@ -41,7 +40,9 @@ module Issy.RPG
   , -- Simplification
     simplifyRPG
   , -- Predecessors
-    pre
+    removeAttrSys
+  , removeAttrEnv
+  , pre
   , cpreEnv
   , cpreSys
   , -- Loop- and Subarena
@@ -304,6 +305,12 @@ validInput g l = go (trans g l)
       \case
         TIf p tt te -> FOL.ite p (go tt) (go te)
         TSys upds -> FOL.orf [FOL.mapTermM u (g `inv` l) | (u, l) <- upds]
+
+removeAttrSys :: Config -> SymSt -> Game -> IO Game
+removeAttrSys = error "TODO IMPLEMENT"
+
+removeAttrEnv :: Config -> SymSt -> Game -> IO Game
+removeAttrEnv = error "TODO IMPLEMENT"
 
 ---------------------------------------------------------------------------------------------------
 -- Loop- and Subarena
