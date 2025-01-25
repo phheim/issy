@@ -42,33 +42,39 @@ newtype SymSt =
   SymSt (Map Loc Term) -- assert that all location are mapped
   deriving (Eq, Ord, Show)
 
+liftSt :: (Map Loc Term -> a) -> SymSt -> a
+liftSt f (SymSt s) = f s
+
+mapSt :: (Map Loc Term -> Map Loc Term) -> SymSt -> SymSt
+mapSt f (SymSt s) = SymSt $ f s
+
 symSt :: Set Loc -> (Loc -> Term) -> SymSt
-symSt locs gen = SymSt (Map.fromSet gen locs)
+symSt locs gen = SymSt $ Map.fromSet gen locs
 
 get :: SymSt -> Loc -> Term
 get (SymSt s) l = fromMaybe (error "Assertion: All locations should be mapped") (s !? l)
 
 set :: SymSt -> Loc -> Term -> SymSt
-set (SymSt s) l f = SymSt (Map.insert l f s)
+set (SymSt s) l f = SymSt $ Map.insert l f s
 
 disj :: SymSt -> Loc -> Term -> SymSt
-disj s l f = set s l (FOL.orf [f, s `get` l])
+disj s l f = set s l $ FOL.orf [f, s `get` l]
 
 disjS :: SymSt -> SymSt -> SymSt
-disjS (SymSt a) b = SymSt (Map.mapWithKey (\l f -> FOL.orf [f, b `get` l]) a)
+disjS (SymSt a) b = SymSt $ Map.mapWithKey (\l f -> FOL.orf [f, b `get` l]) a
 
 difference :: SymSt -> SymSt -> SymSt
-difference (SymSt a) b = SymSt (Map.mapWithKey (\l f -> FOL.andf [f, FOL.neg (b `get` l)]) a)
+difference (SymSt a) b = SymSt $ Map.mapWithKey (\l f -> FOL.andf [f, FOL.neg (b `get` l)]) a
 
 implies :: Config -> SymSt -> SymSt -> IO Bool
 implies cfg (SymSt a) b =
-  SMT.valid cfg $ FOL.andf ((\l -> (SymSt a `get` l) `FOL.impl` (b `get` l)) <$> Map.keys a)
+  SMT.valid cfg $ FOL.andf $ (\l -> (SymSt a `get` l) `FOL.impl` (b `get` l)) <$> Map.keys a
 
 locations :: SymSt -> [Loc]
-locations (SymSt s) = Map.keys s
+locations = liftSt Map.keys
 
 toList :: SymSt -> [(Loc, Term)]
-toList (SymSt s) = Map.toList s
+toList = liftSt Map.toList
 
 null :: SymSt -> Bool
 null = all ((== FOL.false) . snd) . toList
@@ -77,23 +83,22 @@ simplify :: Config -> SymSt -> IO SymSt
 simplify cfg (SymSt s) = SymSt <$> mapM (SMT.simplify cfg) s
 
 map :: (Term -> Term) -> SymSt -> SymSt
-map mp (SymSt s) = SymSt (Map.map mp s)
+map = mapSt . Map.map
 
 mapWithLoc :: (Loc -> Term -> Term) -> SymSt -> SymSt
-mapWithLoc mp (SymSt s) = SymSt (Map.mapWithKey mp s)
+mapWithLoc = mapSt . Map.mapWithKey
 
 toString :: (Loc -> String) -> SymSt -> String
-toString locToStr (SymSt s) = strM locToStr SMTLib.toString s
+toString = liftSt . flip strM SMTLib.toString
 
 restrictTo :: Set Loc -> SymSt -> SymSt
-restrictTo locs (SymSt s) =
-  SymSt
+restrictTo locs =
+  mapSt
     $ Map.mapWithKey
         (\l v ->
            if l `elem` locs
              then v
              else FOL.false)
-        s
 
 symbols :: SymSt -> Set Symbol
-symbols (SymSt s) = Set.unions $ FOL.symbols <$> Map.elems s
+symbols = liftSt $ Set.unions . fmap FOL.symbols . Map.elems

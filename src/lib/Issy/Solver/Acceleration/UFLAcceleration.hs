@@ -32,7 +32,6 @@ accelReach conf heur player arena loc reach = do
   conf <- pure $ setName "UinAc" conf
   lg conf ["Accelerate in", locName arena loc, "on", strSt arena reach]
   lg conf ["Depth bound", show (H.nestingDepth heur)]
-  lg conf ["Size bound", show (H.loopArenaSize heur)]
   let acst = accState conf heur player arena
   (cons, f, prog, acst) <- accReach acst arena loc reach
   cons <- pure $ cons ++ [Vars.existsX (vars arena) (FOL.andf [f, FOL.neg (reach `get` loc)])]
@@ -95,8 +94,7 @@ accReach acst g loc st = do
   -- Compute new lemma symbols
   (base, step, conc, stepSym, prime, acst) <- pure $ lemmaSymbols (vars g) acst
   -- Compute loop scenario
-  (gl, loc, loc', st, fixedInv, prog) <-
-    loopScenario (config acst) (H.loopArenaSize (heur acst)) g loc st prime
+  (gl, loc, loc', st, fixedInv, prog) <- loopScenario (config acst) (heur acst) g loc st prime
   -- Finialize loop game target with step relation and compute loop attractor
   let st' = set st loc' $ FOL.orf [st `get` loc, step]
   (cons, stAcc, prog, acst) <- iterA acst gl st' loc' prog

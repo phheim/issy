@@ -352,7 +352,18 @@ inducedSubGame arena locs
         (arena0, oldToNew) =
           createLocsFor (empty (variables arena)) (locName arena) (inv arena) locsC
         -- Add transitions 
-        repTrans tr = foldl (\tr old -> replaceByE old (oldToNew old) tr) tr locsC
+        cleanTrans =
+          \case
+            TIf p tt tf -> TIf p (cleanTrans tt) (cleanTrans tf)
+            TSys upds ->
+              TSys
+                $ map
+                    (\(upd, l) ->
+                       if l `notElem` locs
+                         then (Map.empty, l)
+                         else (upd, l))
+                    upds
+        repTrans tr = foldr (\old -> replaceByE old (oldToNew old)) tr locsC
         arena1 =
           foldl
             (\ar old ->
@@ -363,7 +374,7 @@ inducedSubGame arena locs
                         ar
                         new
                         (if old `elem` locs
-                           then repTrans (trans arena old)
+                           then repTrans (cleanTrans (trans arena old))
                            else selfLoop new)))
             arena0
             locsC
@@ -374,9 +385,11 @@ inducedSubGame arena locs
      in (arena1, mOldToNew)
 
 independentProgVars :: Config -> Game -> IO (Set Symbol)
-independentProgVars _ arena =
+independentProgVars _ arena = do
   pure
     $ Set.difference (Vars.stateVars (variables arena))
+    $ Set.map fst
+    $ Set.filter (not . isSelfUpdate)
     $ Set.unions
     $ Set.map (go . trans arena)
     $ locations arena
@@ -384,8 +397,7 @@ independentProgVars _ arena =
     go =
       \case
         TIf _ tt tf -> go tt `Set.union` go tf
-        TSys upds ->
-          Set.fromList $ concatMap (map fst . filter (not . isSelfUpdate) . Map.toList . fst) upds
+        TSys upds -> Set.fromList $ concatMap (Map.toList . fst) upds
 
 ---------------------------------------------------------------------------------------------------
 -- Synthesis

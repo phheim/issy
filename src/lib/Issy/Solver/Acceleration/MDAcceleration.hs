@@ -40,9 +40,7 @@ accelReach conf heur player arena loc reach = do
   lg conf ["Accelerate in", locName arena loc, "on", strSt arena reach]
   let prime = FOL.uniquePrefix "init_" $ usedSymbols arena
   -- 0. Compute loop sceneario
-  (arena, loc, loc', reach, fixInv, prog) <-
-    loopScenario conf (H.loopArenaSize heur) arena loc reach prime
-  lg conf ["Fixed invariant", SMTLib.toString fixInv]
+  (arena, loc, loc', reach, fixInv, prog) <- loopScenario conf heur arena loc reach prime
   -- 1. Guess lemma
   lemma <- lemmaGuess conf heur prime player arena (reach `get` loc)
   case lemma of
@@ -64,7 +62,8 @@ accelReach conf heur player arena loc reach = do
           $ FOL.andf [dom arena loc, base] `FOL.impl` (reach `get` loc)
       unless baseCond $ error "assert: the base should be computed that this holds"
         -- 2. try a few explicit iterations to find invariant
-      invRes <- tryFindInv conf heur prime player arena (step, conc) (loc, loc') fixInv reach prog
+      invRes <-
+        tryFindInv conf heur prime player arena (base, step, conc) (loc, loc') fixInv reach prog
       case invRes of
         Right (conc, prog) -> do
           lg conf ["Invariant iteration resulted in", SMTLib.toString conc]
@@ -105,13 +104,14 @@ tryFindInv ::
   -> Symbol
   -> Player
   -> Arena
-  -> (Term, Term)
+  -> (Term, Term, Term)
   -> (Loc, Loc)
   -> Term
   -> SymSt
   -> SyBo
   -> IO (Either Term (Term, SyBo))
-tryFindInv conf heur prime player arena (step, conc) (loc, loc') fixInv reach prog = iter 0 FOL.true
+tryFindInv conf heur prime player arena (_, step, conc) (loc, loc') fixInv reach prog =
+  iter 0 FOL.true
   where
     iter cnt invar
       | cnt >= H.invariantIterations heur = pure $ Left invar
@@ -121,7 +121,9 @@ tryFindInv conf heur prime player arena (step, conc) (loc, loc') fixInv reach pr
         (stAcc, prog) <- pure $ iterA heur player arena reach' loc' prog
         let res = FOL.removePref prime $ stAcc `get` loc
         res <- SMT.simplify conf res
-        let query = Vars.forallX (vars arena) $ FOL.andf [dom arena loc, conc, invar] `FOL.impl` res
+        let query =
+              Vars.forallX (vars arena)
+                $ FOL.andf [fixInv, dom arena loc, conc, invar] `FOL.impl` res
         unless (null (FOL.frees query)) $ error "assert: found free variables in query"
         holds <- SMT.valid conf query
         if holds
@@ -253,7 +255,11 @@ completeBox conf boxVars reach = do
   let nonBoxVars = filter (`notElem` boxVars) $ Set.toList $ FOL.frees reach
   model <- SMT.satModel conf (FOL.forAll nonBoxVars reach)
   case model of
-    Nothing -> pure Nothing
+    Nothing -> do
+      model <- SMT.satModel conf reach
+      case model of
+        Nothing -> pure Nothing
+        Just model -> pure $ Just $ concatMap (modelCons model) $ Map.toList $ FOL.bindings reach
     Just model -> pure $ Just $ concatMap (modelCons model) $ Map.toList $ FOL.bindings reach
   where
     modelCons model (var, sort) =
