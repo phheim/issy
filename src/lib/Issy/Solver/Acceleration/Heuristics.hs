@@ -2,6 +2,7 @@ module Issy.Solver.Acceleration.Heuristics
   ( Heur
   , forVisits
   , loopArenaSize
+  , loopArenaIncludeSucc
   , iterAMaxCPres
   , minEpsilon
   , invariantIterations
@@ -35,12 +36,15 @@ forVisits conf arena visits =
 ---
 -- General Acceleration
 --- 
-loopArenaSize :: Heur -> Maybe Int
+loopArenaSize :: Heur -> Int
 loopArenaSize heur =
   case accelerationLevel (config heur) of
-    0 -> Just 1
-    1 -> Just 1 -- TODO got to more at some point
-    _ -> Just 2 -- TODO got to locCnt at some point
+    0 -> 1
+    1 -> 1 -- TODO got to more at some point
+    _ -> 2 -- TODO got to locCnt at some point
+
+loopArenaIncludeSucc :: Heur -> Bool
+loopArenaIncludeSucc heur = visitCnt heur `mod` (2 * accelerationDist heur) == 0
 
 iterAMaxCPres :: Heur -> Int
 iterAMaxCPres _ = 1

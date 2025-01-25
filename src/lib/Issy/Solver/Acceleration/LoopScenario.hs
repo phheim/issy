@@ -84,14 +84,14 @@ accTarget conf arena loc indeps st = do
 subArena :: Heur -> Arena -> (Loc, Loc) -> Set Loc
 subArena heur loopArena (loc, loc') =
   let bound = H.loopArenaSize heur
-      forwDist = distances bound (succs loopArena) loc
-      backDist = distances bound (preds loopArena) loc'
+      forwDist = distances (Just bound) (succs loopArena) loc
+      backDist = distances (Just bound) (preds loopArena) loc'
       minPath = Map.intersectionWith (+) forwDist backDist
-      pathInc =
-        case bound of
-          Nothing -> Map.keysSet minPath
-          Just bound -> Map.keysSet $ Map.filter (<= bound) minPath
-   in pathInc `Set.union` Set.fromList [loc, loc'] `Set.union` succs loopArena loc
+      pathInc = Map.keysSet $ Map.filter (<= bound) minPath
+      succ
+        | H.loopArenaIncludeSucc heur = succs loopArena loc
+        | otherwise = Set.empty
+   in pathInc `Set.union` Set.fromList [loc, loc'] `Set.union` succ
 
 distances :: Ord a => Maybe Int -> (a -> Set a) -> a -> Map a Int
 distances bound next init = go 0 (Set.singleton init) $ Map.singleton init 0

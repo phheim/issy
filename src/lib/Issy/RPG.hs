@@ -363,7 +363,10 @@ inducedSubGame arena locs
                          then (Map.empty, l)
                          else (upd, l))
                     upds
-        repTrans tr = foldr (\old -> replaceByE old (oldToNew old)) tr locsC
+        repTrans =
+          \case
+            TIf p tt tf -> TIf p (repTrans tt) (repTrans tf)
+            TSys upds -> TSys $ map (second oldToNew) upds
         arena1 =
           foldl
             (\ar old ->
