@@ -25,9 +25,11 @@ import qualified Issy.Printers.SMTLib as SMTLib (toString)
 import Issy.Solver.Acceleration.Heuristics (Heur)
 import qualified Issy.Solver.Acceleration.Heuristics as H
 import Issy.Solver.Acceleration.LoopScenario (loopScenario)
+import Issy.Solver.Acceleration.Strengthening (strengthenConstr, strengthenSimple)
 import Issy.Solver.GameInterface
 import Issy.Solver.Synthesis (SyBo)
 import qualified Issy.Solver.Synthesis as Synt
+import Issy.Utils.Extra (firstMatching, rightToMaybe)
 import Issy.Utils.Logging
 import qualified Issy.Utils.OpenList as OL (fromSet, pop, push)
 
@@ -64,11 +66,11 @@ accelReach conf heur player arena loc reach = do
       invRes <-
         tryFindInv conf heur prime player arena (base, step, conc) (loc, loc') fixInv reach prog
       case invRes of
-        Right (conc, prog) -> do
-          lg conf ["Invariant iteration resulted in", SMTLib.toString conc]
+        Just (conc, prog) -> do
+          lg conf ["Invariant  search resulted in", SMTLib.toString conc]
           pure (conc, prog)
-        Left overApprox -> do
-          lg conf ["Invariant iteration failed"]
+        Nothing -> do
+          lg conf ["Invariant search failed"]
           pure (FOL.false, Synt.empty)
 
 -------------------------------------------------------------------------------
@@ -85,26 +87,48 @@ tryFindInv ::
   -> Term
   -> SymSt
   -> SyBo
-  -> IO (Either Term (Term, SyBo))
-tryFindInv conf heur prime player arena (_, step, conc) (loc, loc') fixInv reach prog =
+  -> IO (Maybe (Term, SyBo))
+tryFindInv conf heur prime player arena (base, step, conc) (loc, loc') fixInv reach prog =
   iter 0 FOL.true
   where
+    check = checkInv conf heur prime player arena (base, step, conc) (loc, loc') fixInv reach prog
     iter cnt invar
-      | cnt >= H.invariantIterations heur = pure $ Left invar
+      | cnt < H.invariantIterations heur = do
+        res <- check invar
+        case res of
+          Right res -> pure $ Just res
+          Left invar -> iter (cnt + 1) invar
+      | extendAcceleration conf = error "TODO IMPLEMENT"
       | otherwise = do
-        lg conf ["Try invariant", SMTLib.toString invar]
-        let reach' = set reach loc' $ FOL.orf [reach `get` loc, FOL.andf [step, invar]]
-        (stAcc, prog) <- pure $ iterA heur player arena reach' loc' prog
-        let res = FOL.removePref prime $ stAcc `get` loc
-        res <- SMT.simplify conf res
-        let query =
-              Vars.forallX (vars arena)
-                $ FOL.andf [fixInv, dom arena loc, conc, invar] `FOL.impl` res
-        unless (null (FOL.frees query)) $ error "assert: found free variables in query"
-        holds <- SMT.valid conf query
-        if holds
-          then pure $ Right (FOL.andf [dom arena loc, conc, invar, fixInv], prog)
-          else iter (cnt + 1) res
+        let candidates = strengthenSimple conf invar
+        firstMatching (fmap rightToMaybe . check) candidates
+
+checkInv ::
+     Config
+  -> Heur
+  -> Symbol
+  -> Player
+  -> Arena
+  -> (Term, Term, Term)
+  -> (Loc, Loc)
+  -> Term
+  -> SymSt
+  -> SyBo
+  -> Term
+  -> IO (Either Term (Term, SyBo))
+checkInv conf heur prime player arena (_, step, conc) (loc, loc') fixInv reach prog invar = do
+  lg conf ["Check invariant", SMTLib.toString invar]
+  let reach' = set reach loc' $ FOL.orf [reach `get` loc, FOL.andf [step, invar]]
+  (stAcc, prog) <- pure $ iterA heur player arena reach' loc' prog
+  let res = FOL.removePref prime $ stAcc `get` loc
+  res <- SMT.simplify conf res
+  let query =
+        Vars.forallX (vars arena) $ FOL.andf [fixInv, dom arena loc, conc, invar] `FOL.impl` res
+  unless (null (FOL.frees query)) $ error "assert: found free variables in query"
+  holds <- SMT.valid conf query
+  if holds
+    then pure $ Right (FOL.andf [dom arena loc, conc, invar, fixInv], prog)
+    else pure $ Left res
 
 iterA :: Heur -> Player -> Arena -> SymSt -> Loc -> SyBo -> (SymSt, SyBo)
 iterA heur player arena attr shadow = go (noVisits arena) (OL.fromSet (preds arena shadow)) attr

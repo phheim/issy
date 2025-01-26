@@ -1,3 +1,5 @@
+{-# LANGUAGE LambdaCase #-}
+
 module Issy.Utils.Extra where
 
 import Data.Map.Strict (Map)
@@ -36,6 +38,27 @@ ifQuery c t f = do
 
 allM :: (Foldable f, Monad m) => (a -> m Bool) -> f a -> m Bool
 allM pred = foldl (\acc elem -> ifM acc (pred elem) (pure False)) (pure True)
+
+-- TODO: check for library version
+rightToMaybe :: Either a b -> Maybe b
+rightToMaybe =
+  \case
+    Right b -> Just b
+    Left _ -> Nothing
+
+-- TODO: check for library version
+firstMatching :: Monad m => (a -> m (Maybe b)) -> [m a] -> m (Maybe b)
+firstMatching pred = go
+  where
+    go =
+      \case
+        [] -> pure Nothing
+        x:xr -> do
+          res <- x
+          res <- pred res
+          case res of
+            Just res -> pure (Just res)
+            Nothing -> go xr
 
 predecessorRelation :: Ord a => (a -> Set a) -> Set a -> Map a (Set a)
 predecessorRelation succ base =

@@ -223,9 +223,9 @@ configParser = go defaultConfig
         "--accel-attr":arg:ar ->
           case arg of
             "geom" -> go (cfg {ufAcceleration = False, extendAcceleration = False}) ar
-            "geom-chc" -> go (cfg {ufAcceleration = False, extendAcceleration = True}) ar
+            "geom-ext" -> go (cfg {ufAcceleration = False, extendAcceleration = True}) ar
             "unint" -> go (cfg {ufAcceleration = True, extendAcceleration = False}) ar
-            "unint-nest" -> go (cfg {ufAcceleration = True, extendAcceleration = True}) ar
+            "unint-ext" -> go (cfg {ufAcceleration = True, extendAcceleration = True}) ar
             _ -> Left $ "found invalid attractor acceleration mode: " ++ arg
         "--accel-difficulty":arg:ar ->
           case arg of
@@ -306,9 +306,9 @@ help =
   , ""
   , "   --accel-attr TYPE"
   , "       geom       : geometric acceleration with invariant iteration (default)"
-  , "       geom-chc   : geometric acceleration with chc invariant computation"
+  , "       geom-ext   : geometric acceleration with extended invariant computation"
   , "       unint      : acceleration with uninterpreted lemmas"
-  , "       unint-nest : acceleration with uninterpreted lemmas and nesting"
+  , "       unint-ext  : acceleration with uninterpreted lemmas and nesting"
   , ""
   , "   --accel-difficulty TYPE"
   , "       easy   : stick to very local acceleration with simple arguments"

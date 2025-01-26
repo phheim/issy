@@ -67,6 +67,7 @@ library
     , Issy.Solver.Acceleration.LemmaFinding
     , Issy.Solver.Acceleration.LoopScenario
     , Issy.Solver.Acceleration.MDAcceleration
+    , Issy.Solver.Acceleration.Strengthening
     , Issy.Solver.Acceleration.UFLAcceleration
     , Issy.Solver.Attractor
     , Issy.Solver.GameInterface

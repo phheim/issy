@@ -307,10 +307,7 @@ validInput g l = go (trans g l)
         TSys upds -> FOL.orf [FOL.mapTermM u (g `inv` l) | (u, l) <- upds]
 
 removeAttrSys :: Config -> SymSt -> Game -> IO Game
-removeAttrSys conf st arena = do
-  arena <- removeAttrEnv conf st arena
-    -- error "TODO IMPLEMENT"
-  pure arena
+removeAttrSys = removeAttrEnv -- TODO IMPLEMENT FIXME
 
 removeAttrEnv :: Config -> SymSt -> Game -> IO Game
 removeAttrEnv conf st arena = do
