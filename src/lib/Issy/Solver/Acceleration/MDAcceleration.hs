@@ -29,7 +29,7 @@ import Issy.Solver.Acceleration.Strengthening (strengthenConstr, strengthenSimpl
 import Issy.Solver.GameInterface
 import Issy.Solver.Synthesis (SyBo)
 import qualified Issy.Solver.Synthesis as Synt
-import Issy.Utils.Extra (firstMatching, rightToMaybe)
+import Issy.Utils.Extra (firstMatching)
 import Issy.Utils.Logging
 import qualified Issy.Utils.OpenList as OL (fromSet, pop, push)
 
@@ -92,6 +92,15 @@ tryFindInv conf heur prime player arena (base, step, conc) (loc, loc') fixInv re
   iter 0 FOL.true
   where
     check = checkInv conf heur prime player arena (base, step, conc) (loc, loc') fixInv reach prog
+    checkAndConfirm invar = do
+      res <- check invar
+      case res of
+        Left _ -> pure Nothing
+        Right (res, prog) -> do
+          more <- SMT.sat conf $ FOL.andf [res, FOL.neg (get reach loc)]
+          if more
+            then pure (Just (res, prog))
+            else pure Nothing
     iter cnt invar
       | cnt < H.invariantIterations heur = do
         res <- check invar
@@ -101,7 +110,7 @@ tryFindInv conf heur prime player arena (base, step, conc) (loc, loc') fixInv re
       | extendAcceleration conf = error "TODO IMPLEMENT"
       | otherwise = do
         let candidates = strengthenSimple conf invar
-        firstMatching (fmap rightToMaybe . check) candidates
+        firstMatching checkAndConfirm candidates
 
 checkInv ::
      Config
