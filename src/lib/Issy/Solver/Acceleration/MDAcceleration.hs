@@ -18,7 +18,6 @@ import qualified Issy.Base.SymbolicState as SymSt
 import Issy.Base.Variables (Variables)
 import qualified Issy.Base.Variables as Vars
 import Issy.Config (Config, extendAcceleration, setName)
-import qualified Issy.Logic.CHC as CHC
 import Issy.Logic.FOL (Sort, Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.SMT as SMT
@@ -70,30 +69,7 @@ accelReach conf heur player arena loc reach = do
           pure (conc, prog)
         Left overApprox -> do
           lg conf ["Invariant iteration failed"]
-          if extendAcceleration conf
-            then do
-              lg conf ["MaxCHC invariant computation"]
-              invRes <-
-                exactInv
-                  conf
-                  heur
-                  prime
-                  player
-                  arena
-                  (base, step, conc)
-                  (loc, loc')
-                  fixInv
-                  reach
-                  overApprox
-                  prog
-              case invRes of
-                Left err -> do
-                  lg conf ["MaxCHC invariant computation failed with", err]
-                  pure (FOL.false, Synt.empty)
-                Right (conc, prog) -> do
-                  lg conf ["MaxCHC invariant computation resulted in", SMTLib.toString conc]
-                  pure (conc, prog)
-            else pure (FOL.false, Synt.empty)
+          pure (FOL.false, Synt.empty)
 
 -------------------------------------------------------------------------------
 -- Invariant Iteration
@@ -145,43 +121,6 @@ iterA heur player arena attr shadow = go (noVisits arena) (OL.fromSet (preds are
                   (SymSt.disj attr l new)
                   (Synt.enforceTo l new attr prog)
           | otherwise -> go vcnt open attr prog
-
-exactInv ::
-     Config
-  -> Heur
-  -> Symbol
-  -> Player
-  -> Arena
-  -> (Term, Term, Term)
-  -> (Loc, Loc)
-  -> Term
-  -> SymSt
-  -> Term
-  -> SyBo
-  -> IO (Either String (Term, SyBo))
-exactInv conf heur prime player arena (base, step, conc) (loc, loc') fixInv reach invApprox prog = do
-    -- TODO: Add logging
-  let invName = FOL.uniquePrefix "chc_invar" $ Set.insert prime $ usedSymbols arena
-    -- TODO: enhance by only useing usefull stuff! Needs change in CHC stuff
-  let invArgs = Vars.stateVarL (vars arena)
-  let sorts = map (Vars.sortOf (vars arena)) invArgs
-  let invar = FOL.Func (FOL.CustomF invName sorts FOL.SBool) $ map (Vars.mk (vars arena)) invArgs
-  let reach' = set reach loc' $ FOL.orf [reach `get` loc, FOL.andf [step, invar]]
-  (stAcc, prog) <- pure $ iterA heur player arena reach' loc' prog
-  let res = FOL.removePref prime $ stAcc `get` loc
-  res <- SMT.simplifyUF conf res
-  (resPrems, resConc) <- pure $ CHC.fromTerm res
-  let query = (invar : dom arena loc : conc : resPrems, resConc)
-  let maxQuery = ([invar], invApprox)
-  let minQuery = ([base], invar)
-  chcRes <- CHC.computeMax conf (vars arena) invName [query, maxQuery, minQuery]
-  case chcRes of
-    Left err -> pure $ Left err
-    Right invar ->
-      pure
-        $ Right
-            ( FOL.andf [dom arena loc, conc, invar, fixInv]
-            , Synt.replaceUF invName invArgs invar prog)
 
 -------------------------------------------------------------------------------
 -- Manhatten distance lemma generation
