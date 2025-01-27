@@ -261,17 +261,7 @@ simplifySG cfg (arena, obj) = do
 pre :: Arena -> SymSt -> Loc -> Term
 pre a d l =
   let v = variables a
-      f =
-        Vars.existsI v
-          $ Vars.existsX' v
-          $ FOL.andf
-              [ validInput a l
-              , FOL.orfL
-                  (succL a l)
-                  (\l' ->
-                     FOL.andf
-                       [trans a l l', Vars.primeT v (domain a l'), Vars.primeT v (SymSt.get d l')])
-              ]
+      f = Vars.existsI v $ FOL.andf [validInput a l, sysPre a l (SymSt.get d)]
    in FOL.andf [f, domain a l]
 
 cpreEnv :: Arena -> SymSt -> Loc -> Term

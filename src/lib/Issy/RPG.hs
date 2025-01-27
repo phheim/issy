@@ -270,23 +270,13 @@ pruneUnreachables init g = foldl disableLoc g $ locations g `Set.difference` rea
 ---------------------------------------------------------------------------------------------------
 pre :: Game -> SymSt -> Loc -> Term
 pre g st l =
-  FOL.andf [g `inv` l, Vars.existsI (variables g) (FOL.andf [validInput g l, cpreST (trans g l)])]
-  where
-    cpreST =
-      \case
-        TIf p tt te -> FOL.ite p (cpreST tt) (cpreST te)
-        TSys upds ->
-          FOL.orf [FOL.mapTermM u (FOL.andf [st `SymSt.get` l, g `inv` l]) | (u, l) <- upds]
+  FOL.andf
+    [g `inv` l, Vars.existsI (variables g) (FOL.andf [validInput g l, sysPre g l (SymSt.get st)])]
 
 cpreSys :: Game -> SymSt -> Loc -> Term
 cpreSys g st l =
-  FOL.andf [g `inv` l, Vars.forallI (variables g) (validInput g l `FOL.impl` cpreST (trans g l))]
-  where
-    cpreST =
-      \case
-        TIf p tt te -> FOL.ite p (cpreST tt) (cpreST te)
-        TSys upds ->
-          FOL.orf [FOL.mapTermM u (FOL.andf [st `SymSt.get` l, g `inv` l]) | (u, l) <- upds]
+  FOL.andf
+    [g `inv` l, Vars.forallI (variables g) (validInput g l `FOL.impl` sysPre g l (SymSt.get st))]
 
 cpreEnv :: Game -> SymSt -> Loc -> Term
 cpreEnv g st l =
@@ -298,6 +288,14 @@ cpreEnv g st l =
         TSys upds ->
           FOL.andf [FOL.mapTermM u ((g `inv` l) `FOL.impl` (st `SymSt.get` l)) | (u, l) <- upds]
 
+sysPre :: Game -> Loc -> (Loc -> Term) -> Term
+sysPre arena l d = go (trans arena l)
+  where
+    go =
+      \case
+        TIf p tt te -> FOL.ite p (go tt) (go te)
+        TSys upds -> FOL.orf [FOL.mapTermM u (FOL.andf [d l, arena `inv` l]) | (u, l) <- upds]
+
 validInput :: Game -> Loc -> Term
 validInput g l = go (trans g l)
   where
@@ -307,7 +305,16 @@ validInput g l = go (trans g l)
         TSys upds -> FOL.orf [FOL.mapTermM u (g `inv` l) | (u, l) <- upds]
 
 removeAttrSys :: Config -> SymSt -> Game -> IO Game
-removeAttrSys = removeAttrEnv -- TODO IMPLEMENT FIXME
+removeAttrSys conf st arena = do
+  interSt <-
+    SymSt.simplify conf $ SymSt.symSt (locations arena) (\l -> sysPre arena l (SymSt.get st))
+  arena <- removeAttrEnv conf st arena
+  foldM
+    (\arena l -> do
+       newTrans <- simplifyTransition conf (TIf (interSt `SymSt.get` l) (TSys []) (trans arena l))
+       pure (arena {transRel = Map.insert l newTrans (transRel arena)}))
+    arena
+    (locations arena)
 
 removeAttrEnv :: Config -> SymSt -> Game -> IO Game
 removeAttrEnv conf st arena = do
@@ -441,7 +448,7 @@ syntCPre conf arena locVar toLoc loc cond target = do
     --
     selectUpds preCond =
       \case
-        [] -> error "assert: unreachable code"
+        [] -> error "assert: unreachable code - partiy game extraction made a mistake!"
         (upd, loc):ur -> do
           let uassign = updateAssign upd loc
           let preSt = FOL.mapTermM upd $ FOL.andf [target `SymSt.get` loc, inv arena loc]
