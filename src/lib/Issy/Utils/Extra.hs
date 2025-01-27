@@ -39,6 +39,12 @@ ifQuery c t f = do
 allM :: (Foldable f, Monad m) => (a -> m Bool) -> f a -> m Bool
 allM pred = foldl (\acc elem -> ifM acc (pred elem) (pure False)) (pure True)
 
+orM :: Monad m => m Bool -> m Bool -> m Bool
+orM m1 = ifM m1 (pure True)
+
+andM :: Monad m => m Bool -> m Bool -> m Bool
+andM m1 m2 = ifM m1 m2 (pure False)
+
 -- TODO: check for library version
 rightToMaybe :: Either a b -> Maybe b
 rightToMaybe =

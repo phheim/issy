@@ -29,7 +29,7 @@ import Issy.Solver.Acceleration.Strengthening (strengthenConstr, strengthenSimpl
 import Issy.Solver.GameInterface
 import Issy.Solver.Synthesis (SyBo)
 import qualified Issy.Solver.Synthesis as Synt
-import Issy.Utils.Extra (firstMatching)
+import Issy.Utils.Extra (andM, firstMatching, orM)
 import Issy.Utils.Logging
 import qualified Issy.Utils.OpenList as OL (fromSet, pop, push)
 
@@ -328,19 +328,37 @@ boxVars conf player arena reach =
     $ Set.toList
     $ FOL.frees reach
 
+-- TODO: These can be computed once and then used
 usefullTargetVar :: Config -> Player -> Arena -> Symbol -> IO Bool
-usefullTargetVar conf player arena var = do
-  opVar <- varPlayerControlled conf (opponent player) arena var
-  if opVar
-    then varPlayerControlled conf player arena var
-    else pure True
+usefullTargetVar conf player arena var =
+  andM (varProgress conf arena var)
+    $ orM (varPlayerControlled conf player arena var)
+    $ not <$> varPlayerControlled conf (opponent player) arena var
 
 varPlayerControlled :: Config -> Player -> Arena -> Symbol -> IO Bool
 varPlayerControlled conf player arena var = do
-  let cVarName = FOL.uniqueName ("c_" ++ var) $ usedSymbols arena
+  let cVarName = FOL.uniqueName ("copy_" ++ var) $ usedSymbols arena
   let cvar = FOL.Var cVarName (sortOf arena var)
   let st = SymSt.symSt (locations arena) $ const $ cvar `FOL.equal` Vars.mk (vars arena) var
-  let query =
-        FOL.orfL (Set.toList (locations arena)) $ \l ->
-          FOL.andf [pre arena st l, FOL.neg (cpre player arena st l)]
-  SMT.unsat conf query
+  SMT.unsat conf
+    $ FOL.orfL (Set.toList (locations arena))
+    $ \l -> FOL.andf [pre arena st l, FOL.neg (cpre player arena st l)]
+
+varProgress :: Config -> Arena -> Symbol -> IO Bool
+varProgress conf arena var
+  | not (FOL.isNumber (sortOf arena var)) = pure False
+  | otherwise = do
+    let bVarName = FOL.uniqueName ("bound_" ++ var) $ usedSymbols arena
+    let prefix = FOL.uniquePrefix "prefix_" $ usedSymbols arena
+    let varBound = FOL.Var bVarName (sortOf arena var)
+    let varAbs = FOL.func "abs" [Vars.mk (vars arena) var]
+    let varAbsCopy = FOL.func "abs" [FOL.Var (prefix ++ var) (sortOf arena var)]
+    let st =
+          SymSt.symSt (locations arena)
+            $ const
+            $ FOL.andf [varAbs `FOL.gtT` varBound, FOL.neg (varAbs `FOL.equal` varAbsCopy)]
+    SMT.sat conf
+      $ FOL.forAll [bVarName]
+      $ Vars.existsX (vars arena)
+      $ FOL.orfL (Set.toList (locations arena))
+      $ \l -> FOL.andf [dom arena l, FOL.removePref prefix (pre arena st l)]

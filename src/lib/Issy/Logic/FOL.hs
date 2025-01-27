@@ -61,6 +61,8 @@ module Issy.Logic.FOL
   , unintFunc
   , leqT
   , geqT
+  , ltT
+  , gtT
   , equal
   , addT
   , isNumber
@@ -530,6 +532,12 @@ leqT a b = func "<=" [a, b]
 
 geqT :: Term -> Term -> Term
 geqT a b = func ">=" [a, b]
+
+gtT :: Term -> Term -> Term
+gtT a b = func ">" [a, b]
+
+ltT :: Term -> Term -> Term
+ltT a b = func "<" [a, b]
 
 equal :: Term -> Term -> Term
 equal a b = func "=" [a, b]
