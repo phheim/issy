@@ -10,7 +10,6 @@ module Issy.Solver.Acceleration.MDAcceleration
 import Control.Monad (filterM, unless)
 import Data.Bifunctor (second)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (fromMaybe)
 import qualified Data.Set as Set
 
 import Issy.Base.SymbolicState (SymSt, get, set)
@@ -48,23 +47,31 @@ accelReach conf heur player arena loc reach = do
     Nothing -> do
       lg conf ["Lemma guessing failed"]
       pure (FOL.false, Synt.empty)
-    Just (base, step, conc) -> do
+    Just (base, step, conc, invar) -> do
       lg
         conf
         [ "Lemma guessing succeded with"
         , SMTLib.toString base
         , SMTLib.toString step
         , SMTLib.toString conc
+        , "with invariant"
+        , SMTLib.toString invar
         ]
       -- 1.5 Check base condition
-      baseCond <-
-        SMT.valid conf
-          $ Vars.forallX (vars arena)
-          $ FOL.andf [dom arena loc, base] `FOL.impl` (reach `get` loc)
-      unless baseCond $ error "assert: the base should be computed that this holds"
         -- 2. try a few explicit iterations to find invariant
       invRes <-
-        tryFindInv conf heur prime player arena (base, step, conc) (loc, loc') fixInv reach prog
+        tryFindInv
+          conf
+          heur
+          prime
+          player
+          arena
+          (base, step, conc)
+          (loc, loc')
+          fixInv
+          reach
+          prog
+          invar
       case invRes of
         Just (conc, prog) -> do
           lg conf ["Invariant  search resulted in", SMTLib.toString conc]
@@ -87,12 +94,13 @@ tryFindInv ::
   -> Term
   -> SymSt
   -> SyBo
+  -> Term
   -> IO (Maybe (Term, SyBo))
-tryFindInv conf heur prime player arena (base, step, conc) (loc, loc') fixInv reach prog =
-  iter 0 FOL.true
+tryFindInv conf heur prime player arena (base, step, conc) (loc, loc') fixInv reach prog = iter 0
   where
     check = checkInv conf heur prime player arena (base, step, conc) (loc, loc') fixInv reach prog
     checkAndConfirm invar = do
+      invar <- SMT.simplify conf invar
       res <- check invar
       case res of
         Left _ -> pure Nothing
@@ -108,9 +116,17 @@ tryFindInv conf heur prime player arena (base, step, conc) (loc, loc') fixInv re
           Right res -> pure $ Just res
           Left invar -> iter (cnt + 1) invar
       | extendAcceleration conf = error "TODO IMPLEMENT"
-      | otherwise = do
-        let candidates = strengthenSimple conf invar
-        firstMatching checkAndConfirm candidates
+      | otherwise = searchCandidates Set.empty $ strengthenSimple invar
+    searchCandidates checked =
+      \case
+        [] -> pure Nothing
+        c:cr
+          | c `elem` checked -> searchCandidates checked cr
+          | otherwise -> do
+            res <- checkAndConfirm c
+            case res of
+              Nothing -> searchCandidates (Set.insert c checked) cr
+              Just res -> pure $ Just res
 
 checkInv ::
      Config
@@ -125,19 +141,30 @@ checkInv ::
   -> SyBo
   -> Term
   -> IO (Either Term (Term, SyBo))
-checkInv conf heur prime player arena (_, step, conc) (loc, loc') fixInv reach prog invar = do
-  lg conf ["Check invariant", SMTLib.toString invar]
-  let reach' = set reach loc' $ FOL.orf [reach `get` loc, FOL.andf [step, invar]]
-  (stAcc, prog) <- pure $ iterA heur player arena reach' loc' prog
-  let res = FOL.removePref prime $ stAcc `get` loc
-  res <- SMT.simplify conf res
-  let query =
-        Vars.forallX (vars arena) $ FOL.andf [fixInv, dom arena loc, conc, invar] `FOL.impl` res
-  unless (null (FOL.frees query)) $ error "assert: found free variables in query"
-  holds <- SMT.valid conf query
-  if holds
-    then pure $ Right (FOL.andf [dom arena loc, conc, invar, fixInv], prog)
-    else pure $ Left res
+checkInv conf heur prime player arena (base, step, conc) (loc, loc') fixInv reach prog invar
+  | invar == FOL.false = pure $ Left FOL.false
+  | otherwise = do
+    lg conf ["Check invariant", SMTLib.toString invar]
+    let reach' = set reach loc' $ FOL.orf [reach `get` loc, FOL.andf [step, invar]]
+    (stAcc, prog) <- pure $ iterA heur player arena reach' loc' prog
+    let res = FOL.removePref prime $ stAcc `get` loc
+    res <- SMT.simplify conf res
+    let query =
+          Vars.forallX (vars arena) $ FOL.andf [fixInv, dom arena loc, conc, invar] `FOL.impl` res
+    unless (null (FOL.frees query)) $ error "assert: found free variables in query"
+    holds <- SMT.valid conf query
+    if holds
+      then do
+        baseCond <-
+          SMT.valid conf
+            $ Vars.forallX (vars arena)
+            $ FOL.andf [dom arena loc, fixInv, base, invar] `FOL.impl` (reach `get` loc)
+        if baseCond
+          then pure $ Right (FOL.andf [dom arena loc, conc, invar, fixInv], prog)
+          else do
+            lg conf ["Base condition failed"]
+            pure $ Left res
+      else pure $ Left res
 
 iterA :: Heur -> Player -> Arena -> SymSt -> Loc -> SyBo -> (SymSt, SyBo)
 iterA heur player arena attr shadow = go (noVisits arena) (OL.fromSet (preds arena shadow)) attr
@@ -158,22 +185,24 @@ iterA heur player arena attr shadow = go (noVisits arena) (OL.fromSet (preds are
 -------------------------------------------------------------------------------
 -- Manhatten distance lemma generation
 -------------------------------------------------------------------------------
-lemmaGuess :: Config -> Heur -> Symbol -> Player -> Arena -> Term -> IO (Maybe (Term, Term, Term))
+-- TODO: fix non-number variable handeling!
+lemmaGuess ::
+     Config -> Heur -> Symbol -> Player -> Arena -> Term -> IO (Maybe (Term, Term, Term, Term))
 lemmaGuess conf heur prime player arena reach = do
   lg conf ["Guess lemma on", SMTLib.toString reach]
-  boxVars <- boxVars conf player arena reach
-  lg conf ["Use variables", strL id boxVars]
-  box <- mkBox conf heur (vars arena) boxVars reach
-  if null box
-    then pure Nothing
-    else let dist = manhatten box
-             base = boxTerm id box
-             epsilon
-               | FOL.SReal `elem` FOL.sorts dist = FOL.Const $ FOL.CReal $ H.minEpsilon heur
-               | otherwise = FOL.oneT
-             step = FOL.mapSymbol (prime ++) dist `FOL.geqT` FOL.addT [dist, epsilon]
-             conc = FOL.true
-          in pure $ Just (base, step, conc)
+  (reach, invar) <- mkTarget conf heur player arena reach
+  box <- mkBox conf heur (vars arena) reach
+  case box of
+    Nothing -> pure Nothing
+    Just box ->
+      let dist = manhatten box
+          base = boxTerm id box
+          epsilon
+            | FOL.SReal `elem` FOL.sorts dist = FOL.Const $ FOL.CReal $ H.minEpsilon heur
+            | otherwise = FOL.oneT
+          step = FOL.mapSymbol (prime ++) dist `FOL.geqT` FOL.addT [dist, epsilon]
+          conc = FOL.true
+       in pure $ Just (base, step, conc, invar)
 
 type Box a = [(Term, (Bool, a))]
 
@@ -191,22 +220,41 @@ manhatten = FOL.addT . map go
       | upper = FOL.ite (term `FOL.leqT` bound) FOL.zeroT $ FOL.func "-" [term, bound]
       | otherwise = FOL.ite (term `FOL.geqT` bound) FOL.zeroT $ FOL.func "-" [bound, term]
 
-mkBox :: Config -> Heur -> Variables -> [Symbol] -> Term -> IO (Box Term)
-mkBox conf heur vars boxVars reach = do
-  reach <- SMT.simplify conf reach
-  box <- mkOptBox conf heur vars boxVars reach
-  if null box
-    then do
+mkBox :: Config -> Heur -> Variables -> Term -> IO (Maybe (Box Term))
+mkBox conf heur vars reach = do
+  box <- mkOptBox conf heur vars reach
+  case box of
+    Nothing -> do
       lg conf ["Switch to point-base"]
-      fromMaybe [] <$> completeBox conf boxVars reach
-    else pure box
+      completeBox conf reach
+    Just box -> pure $ Just box
 
-mkOptBox :: Config -> Heur -> Variables -> [Symbol] -> Term -> IO (Box Term)
-mkOptBox conf heur vars boxVars reach = do
-  let boxTerms = generateTerms (H.manhattenTermCount heur) vars boxVars
+mkTarget :: Config -> Heur -> Player -> Arena -> Term -> IO (Term, Term)
+mkTarget conf _ player arena reach = do
+  reach <- SMT.simplify conf reach
+  boxVars <- boxVars conf player arena reach
+  let nonBoxVars = filter (`notElem` boxVars) $ Set.toList $ FOL.frees reach
+  lg conf ["Use variables", strL id boxVars]
+  invar <- SMT.simplify conf $ FOL.exists boxVars reach
+  newReach <- SMT.simplify conf $ FOL.forAll nonBoxVars $ invar `FOL.impl` reach
+  let check1 = SMT.sat conf $ FOL.andf [invar, newReach]
+  let check2 = SMT.valid conf $ FOL.andf [invar, newReach] `FOL.impl` reach
+  check <- andM check1 check2
+  if check
+    then do
+      lg conf ["New target", SMTLib.toString newReach]
+      lg conf ["New invariant", SMTLib.toString invar]
+      pure (newReach, invar)
+    else do
+      lg conf ["Keep target"]
+      pure (reach, FOL.true)
+
+mkOptBox :: Config -> Heur -> Variables -> Term -> IO (Maybe (Box Term))
+mkOptBox conf heur vars reach = do
+  let boxTerms = generateTerms (H.manhattenTermCount heur) vars $ Set.toList $ FOL.frees reach
   (boxScheme, maxTerms) <- prepareBox conf reach boxTerms
   if null boxScheme
-    then pure []
+    then pure Nothing
     else do
       let impCond = Vars.forallX vars $ boxTerm (uncurry FOL.Var) boxScheme `FOL.impl` reach
       let exCond = Vars.existsX vars $ boxTerm (uncurry FOL.Var) boxScheme
@@ -215,23 +263,18 @@ mkOptBox conf heur vars boxVars reach = do
       case model of
         Just (Just model) ->
           let toInteger = fmap $ assertConst . FOL.setModel model . uncurry FOL.Var
-           in pure $ map (second toInteger) boxScheme
-        _ -> pure []
+           in pure $ Just $ map (second toInteger) boxScheme
+        _ -> pure Nothing
   where
     assertConst term
       | null (FOL.frees term) = term
       | otherwise = error "assert: result should be an constant"
 
-completeBox :: Config -> [Symbol] -> Term -> IO (Maybe (Box Term))
-completeBox conf boxVars reach = do
-  let nonBoxVars = filter (`notElem` boxVars) $ Set.toList $ FOL.frees reach
-  model <- SMT.satModel conf (FOL.forAll nonBoxVars reach)
+completeBox :: Config -> Term -> IO (Maybe (Box Term))
+completeBox conf reach = do
+  model <- SMT.satModel conf reach
   case model of
-    Nothing -> do
-      model <- SMT.satModel conf reach
-      case model of
-        Nothing -> pure Nothing
-        Just model -> pure $ Just $ concatMap (modelCons model) $ Map.toList $ FOL.bindings reach
+    Nothing -> pure Nothing
     Just model -> pure $ Just $ concatMap (modelCons model) $ Map.toList $ FOL.bindings reach
   where
     modelCons model (var, sort) =

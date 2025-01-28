@@ -59,7 +59,7 @@ boxOptSmtTO :: Heur -> Maybe Int
 boxOptSmtTO _ = Nothing
 
 invariantIterations :: Heur -> Int
-invariantIterations _ = 3
+invariantIterations _ = 2
 
 manhattenTermCount :: Heur -> Int
 manhattenTermCount _ = 2

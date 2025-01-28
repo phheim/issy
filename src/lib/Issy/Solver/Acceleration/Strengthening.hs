@@ -25,8 +25,8 @@ strengthenConstr _ _ _ _ = [] -- TODO IMPLEMENT
 
 ---------------------------------------------------------------------------------------------------
 -- | 'strengthenSimple' strengthens the given 'Term' in different easy syntactic ways
-strengthenSimple :: Config -> Term -> [IO Term]
-strengthenSimple conf = map (SMT.simplify conf) . go
+strengthenSimple :: Term -> [Term]
+strengthenSimple = go
   where
     go t =
       case t of
@@ -37,6 +37,6 @@ strengthenSimple conf = map (SMT.simplify conf) . go
               r2 = go $ FOL.andf ar
            in [FOL.andf [e1, e2] | e1 <- r1, e2 <- r2]
         Func (PredefF "not") [Func (PredefF "=") [a1, a2]] ->
-          [t, FOL.func "<" [a1, a2], FOL.func ">" [a1, a2]]
+          [FOL.func "<" [a1, a2], FOL.func ">" [a1, a2]]
         t -> [t]
 ---------------------------------------------------------------------------------------------------

@@ -134,7 +134,7 @@ booleanFunctions = ["and", "or", "not", "distinct", "=>"]
 predefined :: [String]
 predefined =
   booleanFunctions
-    ++ ["ite", "+", "-", "*", "/", "=", "<", ">", "<=", ">=", "abs", "to_real", "mod"]
+    ++ ["ite", "+", "-", "*", "/", "=", "<", ">", "<=", ">=", "abs", "to_real", "mod", "div"]
 
 data Term
   = Var Symbol Sort
