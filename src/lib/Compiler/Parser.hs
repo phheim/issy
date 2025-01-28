@@ -186,7 +186,7 @@ parseTerm =
     pars
     (\t -> apply1 ATAtom . parseAtom t)
     (unPred (ATUexp . UOP) [(["!"], 8)])
-    (binPred (ATBexp . BOP) [(["<->"], 1, 0), (["<->"], 3, 2), (["||"], 4, 5), (["&&"], 6, 7)])
+    (binPred (ATBexp . BOP) [(["<->"], 1, 0), (["->"], 3, 2), (["||"], 4, 5), (["&&"], 6, 7)])
     (posStr . tpos)
 
 parseAtom :: Token -> [Token] -> PRes (AstAtom, [Token])
