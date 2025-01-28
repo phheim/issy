@@ -28,7 +28,7 @@ import Issy.Solver.Acceleration.Strengthening (strengthenConstr, strengthenSimpl
 import Issy.Solver.GameInterface
 import Issy.Solver.Synthesis (SyBo)
 import qualified Issy.Solver.Synthesis as Synt
-import Issy.Utils.Extra (andM, firstMatching, orM)
+import Issy.Utils.Extra (andM, orM)
 import Issy.Utils.Logging
 import qualified Issy.Utils.OpenList as OL (fromSet, pop, push)
 
@@ -57,7 +57,6 @@ accelReach conf heur player arena loc reach = do
         , "with invariant"
         , SMTLib.toString invar
         ]
-      -- 1.5 Check base condition
         -- 2. try a few explicit iterations to find invariant
       invRes <-
         tryFindInv
@@ -100,7 +99,6 @@ tryFindInv conf heur prime player arena (base, step, conc) (loc, loc') fixInv re
   where
     check = checkInv conf heur prime player arena (base, step, conc) (loc, loc') fixInv reach prog
     checkAndConfirm invar = do
-      invar <- SMT.simplify conf invar
       res <- check invar
       case res of
         Left _ -> pure Nothing
@@ -123,10 +121,12 @@ tryFindInv conf heur prime player arena (base, step, conc) (loc, loc') fixInv re
         c:cr
           | c `elem` checked -> searchCandidates checked cr
           | otherwise -> do
-            res <- checkAndConfirm c
-            case res of
-              Nothing -> searchCandidates (Set.insert c checked) cr
-              Just res -> pure $ Just res
+            c <- SMT.simplify conf c 
+            if c `elem` checked then searchCandidates checked cr else
+                do res <- checkAndConfirm c
+                   case res of
+                        Nothing -> searchCandidates (Set.insert c checked) cr
+                        Just res -> pure $ Just res
 
 checkInv ::
      Config
@@ -151,6 +151,7 @@ checkInv conf heur prime player arena (base, step, conc) (loc, loc') fixInv reac
     res <- SMT.simplify conf res
     let query =
           Vars.forallX (vars arena) $ FOL.andf [fixInv, dom arena loc, conc, invar] `FOL.impl` res
+    -- TODO: make this model based if frees appear!!! split in diffrent function!
     unless (null (FOL.frees query)) $ error "assert: found free variables in query"
     holds <- SMT.valid conf query
     if holds
@@ -185,16 +186,14 @@ iterA heur player arena attr shadow = go (noVisits arena) (OL.fromSet (preds are
 -------------------------------------------------------------------------------
 -- Manhatten distance lemma generation
 -------------------------------------------------------------------------------
--- TODO: fix non-number variable handeling!
 lemmaGuess ::
      Config -> Heur -> Symbol -> Player -> Arena -> Term -> IO (Maybe (Term, Term, Term, Term))
 lemmaGuess conf heur prime player arena reach = do
   lg conf ["Guess lemma on", SMTLib.toString reach]
-  (reach, invar) <- mkTarget conf heur player arena reach
-  box <- mkBox conf heur (vars arena) reach
+  box <- mkBox conf heur player arena reach
   case box of
     Nothing -> pure Nothing
-    Just box ->
+    Just (box, invar) ->
       let dist = manhatten box
           base = boxTerm id box
           epsilon
@@ -220,16 +219,22 @@ manhatten = FOL.addT . map go
       | upper = FOL.ite (term `FOL.leqT` bound) FOL.zeroT $ FOL.func "-" [term, bound]
       | otherwise = FOL.ite (term `FOL.geqT` bound) FOL.zeroT $ FOL.func "-" [bound, term]
 
-mkBox :: Config -> Heur -> Variables -> Term -> IO (Maybe (Box Term))
-mkBox conf heur vars reach = do
-  box <- mkOptBox conf heur vars reach
+mkBox :: Config -> Heur -> Player -> Arena -> Term -> IO (Maybe (Box Term, Term))
+mkBox conf heur player arena reach = do
+  (reach, invar, boxVars) <- mkTarget conf heur player arena reach
+  box <- mkOptBox conf heur (vars arena) reach
   case box of
     Nothing -> do
       lg conf ["Switch to point-base"]
-      completeBox conf reach
-    Just box -> pure $ Just box
+      fmap (\box -> (filterBox boxVars box, invar)) <$> completeBox conf reach
+    Just box -> pure $ Just $ (filterBox boxVars box, invar)
 
-mkTarget :: Config -> Heur -> Player -> Arena -> Term -> IO (Term, Term)
+filterBox :: [Symbol] -> Box a -> Box a
+filterBox boxVars =
+    filter (all (`elem` boxVars) . FOL.frees . fst)
+
+
+mkTarget :: Config -> Heur -> Player -> Arena -> Term -> IO (Term, Term, [Symbol])
 mkTarget conf _ player arena reach = do
   reach <- SMT.simplify conf reach
   boxVars <- boxVars conf player arena reach
@@ -244,10 +249,10 @@ mkTarget conf _ player arena reach = do
     then do
       lg conf ["New target", SMTLib.toString newReach]
       lg conf ["New invariant", SMTLib.toString invar]
-      pure (newReach, invar)
+      pure (newReach, invar, boxVars)
     else do
       lg conf ["Keep target"]
-      pure (reach, FOL.true)
+      pure (reach, FOL.true, boxVars)
 
 mkOptBox :: Config -> Heur -> Variables -> Term -> IO (Maybe (Box Term))
 mkOptBox conf heur vars reach = do

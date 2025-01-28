@@ -283,12 +283,18 @@ false = Const (CBool False)
 
 andf :: [Term] -> Term
 andf xs
-  | false `elem` xs = false
-  | otherwise =
-    case filter (/= true) xs of
-      [] -> true
-      [x] -> x
-      xs -> Func (PredefF "and") xs
+    | false `elem` xs = false
+    | otherwise = case go xs of
+                    [] -> true
+                    [x] -> x
+                    xs -> func "and" xs
+ where
+    go = 
+        \case
+            [] -> []
+            Const (CBool True):xr -> go xr
+            Func (PredefF "and") xs:ys -> go $ xs ++ ys
+            t:xr -> t : go xr
 
 andfL :: [a] -> (a -> Term) -> Term
 andfL xs f = andf $ map f xs

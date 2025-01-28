@@ -9,6 +9,7 @@
 module Issy.Solver.Acceleration.Strengthening
   ( strengthenConstr
   , strengthenSimple
+  , strengthenSmart
   ) where
 
 ---------------------------------------------------------------------------------------------------
@@ -39,4 +40,23 @@ strengthenSimple = go
         Func (PredefF "not") [Func (PredefF "=") [a1, a2]] ->
           [FOL.func "<" [a1, a2], FOL.func ">" [a1, a2]]
         t -> [t]
+
+---------------------------------------------------------------------------------------------------
+-- | 'strengthenSmart' strengthens the given 'Term' in different easy syntactic ways but instead
+-- of explicitly listinge them builds an SMT query
+strengthenSmart :: Symbol -> Term -> [Term]
+strengthenSmart prefix = error "TODO IMPLEMENT"
+  where
+    expand t =
+      case t of
+        Func (PredefF "not") [Func (PredefF "=") [a1, a2]] ->
+          FOL.orf [FOL.func "<" [a1, a2], FOL.func ">" [a1, a2]]
+        Func f args -> Func f $ map expand args
+        t -> t
+    label cnt t =
+      case t of
+        Func (PredefF "or") args -> error "TODO IMPLEMENT"
+        Func f args -> error "TODO IMPLEMENT"
+        t -> (t, cnt)
+
 ---------------------------------------------------------------------------------------------------
