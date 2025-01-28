@@ -121,12 +121,14 @@ tryFindInv conf heur prime player arena (base, step, conc) (loc, loc') fixInv re
         c:cr
           | c `elem` checked -> searchCandidates checked cr
           | otherwise -> do
-            c <- SMT.simplify conf c 
-            if c `elem` checked then searchCandidates checked cr else
-                do res <- checkAndConfirm c
-                   case res of
-                        Nothing -> searchCandidates (Set.insert c checked) cr
-                        Just res -> pure $ Just res
+            c <- SMT.simplify conf c
+            if c `elem` checked
+              then searchCandidates checked cr
+              else do
+                res <- checkAndConfirm c
+                case res of
+                  Nothing -> searchCandidates (Set.insert c checked) cr
+                  Just res -> pure $ Just res
 
 checkInv ::
      Config
@@ -227,12 +229,10 @@ mkBox conf heur player arena reach = do
     Nothing -> do
       lg conf ["Switch to point-base"]
       fmap (\box -> (filterBox boxVars box, invar)) <$> completeBox conf reach
-    Just box -> pure $ Just $ (filterBox boxVars box, invar)
+    Just box -> pure $ Just (filterBox boxVars box, invar)
 
 filterBox :: [Symbol] -> Box a -> Box a
-filterBox boxVars =
-    filter (all (`elem` boxVars) . FOL.frees . fst)
-
+filterBox boxVars = filter (all (`elem` boxVars) . FOL.frees . fst)
 
 mkTarget :: Config -> Heur -> Player -> Arena -> Term -> IO (Term, Term, [Symbol])
 mkTarget conf _ player arena reach = do
@@ -389,7 +389,7 @@ varPlayerControlled conf player arena var = do
   let cvar = FOL.Var cVarName (sortOf arena var)
   let st = SymSt.symSt (locations arena) $ const $ cvar `FOL.equal` Vars.mk (vars arena) var
   SMT.unsat conf
-    $ FOL.orfL (Set.toList (locations arena))
+    $ FOL.orfL (locationL arena)
     $ \l -> FOL.andf [pre arena st l, FOL.neg (cpre player arena st l)]
 
 varProgress :: Config -> Arena -> Symbol -> IO Bool

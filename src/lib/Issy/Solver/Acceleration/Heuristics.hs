@@ -1,6 +1,7 @@
 module Issy.Solver.Acceleration.Heuristics
   ( Heur
   , forVisits
+  , simple
   , loopArenaSize
   , loopArenaIncludeSucc
   , iterAMaxCPres
@@ -25,6 +26,9 @@ data Heur = Heur
   , config :: Config
   , locCnt :: Int
   }
+
+simple :: Config -> Arena -> Heur
+simple conf arena = forVisits conf arena 1
 
 forVisits :: Config -> Arena -> Int -> Heur
 forVisits conf arena visits =

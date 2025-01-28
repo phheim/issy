@@ -58,5 +58,4 @@ strengthenSmart prefix = error "TODO IMPLEMENT"
         Func (PredefF "or") args -> error "TODO IMPLEMENT"
         Func f args -> error "TODO IMPLEMENT"
         t -> (t, cnt)
-
 ---------------------------------------------------------------------------------------------------

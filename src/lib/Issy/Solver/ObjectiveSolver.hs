@@ -123,7 +123,7 @@ iterBuechi conf stats player arena accept init =
               else progOp
       --
       lg conf ["B_i =", strSt arena bset]
-      cset <- cpreS conf player arena bset
+      cset <- SymSt.simplify conf $ cpreS player arena bset
       lg conf ["C_i =", strSt arena cset]
       (wset, stats, subProg) <-
         attractorEx conf stats (opponent player) arena noCheck $ SymSt.map FOL.neg cset

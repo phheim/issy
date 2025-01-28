@@ -6,6 +6,7 @@ module Issy.Solver.GameInterface
   , vars
   , dom
   , locations
+  , locationL
   , preds
   , succs
   , cyclicIn
@@ -43,6 +44,7 @@ import Data.Bifunctor (first)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Set (Set)
+import qualified Data.Set as Set
 
 import Issy.Base.Locations (Loc)
 import Issy.Base.SymbolicState (SymSt)
@@ -80,6 +82,9 @@ dom = liftG RPG.inv Sym.domain
 
 locations :: Arena -> Set Loc
 locations = liftG RPG.locations Sym.locSet
+
+locationL :: Arena -> [Loc]
+locationL = Set.toList . locations
 
 preds :: Arena -> Loc -> Set Loc
 preds = liftG RPG.preds Sym.preds
@@ -171,8 +176,8 @@ cpre p =
     Sys -> cpreSys
     Env -> cpreEnv
 
-cpreS :: Config -> Player -> Arena -> SymSt -> IO SymSt
-cpreS conf p g st = SymSt.simplify conf (SymSt.symSt (locations g) (cpre p g st))
+cpreS :: Player -> Arena -> SymSt -> SymSt
+cpreS p g = SymSt.symSt (locations g) . cpre p g
 
 removeAttrSys :: Config -> SymSt -> Arena -> IO Arena
 removeAttrSys conf st (RPG g) = RPG <$> RPG.removeAttrSys conf st g
