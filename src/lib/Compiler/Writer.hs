@@ -159,7 +159,7 @@ writeGround :: Defs -> AstGround -> String
 writeGround defs =
   \case
     AConstInt n -> show n
-    AConstReal n -> sexpr [show (numerator n), "/", show (denominator n)]
+    AConstReal n -> sexpr ["/", show (numerator n), show (denominator n)]
     AGVar name ->
       case macros defs !? name of
         Just (ATAtom (AAGround pred)) ->
