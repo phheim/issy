@@ -45,26 +45,11 @@ orM m1 = ifM m1 (pure True)
 andM :: Monad m => m Bool -> m Bool -> m Bool
 andM m1 m2 = ifM m1 m2 (pure False)
 
--- TODO: check for library version
 rightToMaybe :: Either a b -> Maybe b
 rightToMaybe =
   \case
     Right b -> Just b
     Left _ -> Nothing
-
--- TODO: check for library version
-firstMatching :: Monad m => (a -> m (Maybe b)) -> [m a] -> m (Maybe b)
-firstMatching pred = go
-  where
-    go =
-      \case
-        [] -> pure Nothing
-        x:xr -> do
-          res <- x
-          res <- pred res
-          case res of
-            Just res -> pure (Just res)
-            Nothing -> go xr
 
 predecessorRelation :: Ord a => (a -> Set a) -> Set a -> Map a (Set a)
 predecessorRelation succ base =
