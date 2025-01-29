@@ -116,24 +116,21 @@ encTrans pname g =
       encOp
         (\(u, l) ->
            encPred g pname (\s -> maybe s (encTerm True) (u !? s)) (outputs g) l
-             ++ " /\\ "
-             ++ encTerm False (RPG.inv g l))
+        )
         "\\/"
         "false"
         upds
 
 encFullTrans :: String -> Game -> Loc -> String
 encFullTrans pname g l =
-  "(("
-    ++ encTerm False (RPG.inv g l)
-    ++ ") /\\ ("
+  "("
     ++ (if not (null (inputs g))
           then "forall"
                  ++ concatMap (\s -> " (" ++ s ++ ": " ++ encSort (sortOf g s) ++ ")") (inputs g)
                  ++ "."
           else "")
     ++ encTrans pname g (RPG.trans g l)
-    ++ "));"
+    ++ ");"
 
 encReach :: Game -> Set Loc -> Loc -> String
 encReach g reach l =
@@ -169,9 +166,7 @@ encAll :: String -> Game -> Loc -> String
 encAll pname g init =
   "forall "
     ++ concatMap (\s -> "(" ++ s ++ ": " ++ encSort (sortOf g s) ++ ")") (outputs g)
-    ++ ". (not "
-    ++ encTerm False (RPG.inv g init)
-    ++ ") \\/ "
+    ++ ". "
     ++ encPred g pname id (outputs g) init
 
 encReachable :: Game -> Loc -> Set Loc -> String
