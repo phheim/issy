@@ -112,7 +112,6 @@ trySimplify conf to term = do
 simplifyTacs :: Config -> Maybe Int -> [String] -> Term -> IO (Maybe Term)
 simplifyTacs conf to tactics f
   | f == FOL.true || f == FOL.false = pure (Just f)
-  | FOL.isSimple f = pure (Just f)
   | FOL.ufFree f = do
     let query = SMTLib.toQuery f ++ "(apply " ++ z3TacticList tactics ++ ")"
     callz3 conf to query $ \res ->
