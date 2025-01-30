@@ -114,9 +114,7 @@ encTrans pname g =
             ++ "))"
     TSys upds ->
       encOp
-        (\(u, l) ->
-           encPred g pname (\s -> maybe s (encTerm True) (u !? s)) (outputs g) l
-        )
+        (\(u, l) -> encPred g pname (\s -> maybe s (encTerm True) (u !? s)) (outputs g) l)
         "\\/"
         "false"
         upds

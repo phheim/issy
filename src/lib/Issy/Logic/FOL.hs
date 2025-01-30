@@ -565,10 +565,13 @@ isNumber = (`elem` [SInt, SReal])
 toNNF :: Term -> Term
 toNNF =
   \case
+    Func (PredefF "not") [Quant Forall s t] -> Quant Exists s $ toNNF $ neg t
+    Func (PredefF "not") [Quant Exists s t] -> Quant Forall s $ toNNF $ neg t
     Func (PredefF "not") [Func (PredefF "not") [t]] -> toNNF t
     Func (PredefF "not") [Func (PredefF "or") args] -> andf $ map (toNNF . neg) args
     Func (PredefF "not") [Func (PredefF "and") args] -> orf $ map (toNNF . neg) args
     Func f args -> Func f $ map toNNF args
+    Quant q s t -> Quant q s $ toNNF t
     atom -> atom
 
 --

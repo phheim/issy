@@ -11,10 +11,8 @@ module Issy.Logic.SMT
   , valid
   , -- Simplification
     simplify
-  , simplifyQE
   , simplifyUF
   , trySimplify
-  , trySimplifyQE
   , trySimplifyUF
   , -- Max SMT
     optPareto
@@ -80,14 +78,7 @@ satCommand f
 ---------------------------------------------------------------------------------------------------
 z3SimplifyQE :: [String]
 z3SimplifyQE =
-  [ "simplify"
-  , "propagate-ineqs"
-  , "qe2"
-  , "simplify"
-  , "propagate-ineqs"
-  , "solver-subsumption"
-  , "simplify"
-  ]
+  ["simplify", "qe-light", "propagate-ineqs", "unit-subsume-simplify", "qe2", "simplify"]
 
 z3Simplify :: [String]
 z3Simplify =
@@ -113,20 +104,15 @@ trySimplify conf to term = do
   case term of
     Nothing -> pure Nothing
     Just term -> do
-      term <- simplifyTacs conf to z3Simplify $ FOL.neg term
+      term <- simplifyTacs conf to z3Simplify $ FOL.toNNF $ FOL.neg term
       case term of
         Nothing -> pure Nothing
-        Just term -> simplifyTacs conf to z3Simplify $ FOL.neg term
-
-simplifyQE :: Config -> Term -> IO Term
-simplifyQE conf = noTimeout . trySimplifyQE conf Nothing
-
-trySimplifyQE :: Config -> Maybe Int -> Term -> IO (Maybe Term)
-trySimplifyQE conf to = simplifyTacs conf to z3SimplifyQE
+        Just term -> simplifyTacs conf to z3Simplify $ FOL.toNNF $ FOL.neg term
 
 simplifyTacs :: Config -> Maybe Int -> [String] -> Term -> IO (Maybe Term)
 simplifyTacs conf to tactics f
   | f == FOL.true || f == FOL.false = pure (Just f)
+  | FOL.isSimple f = pure (Just f)
   | FOL.ufFree f = do
     let query = SMTLib.toQuery f ++ "(apply " ++ z3TacticList tactics ++ ")"
     callz3 conf to query $ \res ->

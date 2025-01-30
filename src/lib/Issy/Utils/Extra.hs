@@ -89,14 +89,14 @@ runTO :: Maybe Int -> String -> [String] -> String -> IO (Maybe String)
 runTO to cmd args input =
   case to of
     Nothing -> do
-      (_, res, _) <- readProcessWithExitCode cmd args input
+      (_, res, _) <- readProcessWithExitCode cmd args $! input
       return (Just res)
     Just n
       | n < 0 -> do
-        (_, res, _) <- readProcessWithExitCode cmd args input
+        (_, res, _) <- readProcessWithExitCode cmd args $! input
         return (Just res)
       | otherwise -> do
-        res <- Sys.timeout (n * 10 ^ (6 :: Int)) $ readProcessWithExitCode cmd args input
+        res <- Sys.timeout (n * 10 ^ (6 :: Int)) $ readProcessWithExitCode cmd args $! input
         case res of
           Just (_, res, _) -> return (Just res)
           Nothing -> pure Nothing
