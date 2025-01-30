@@ -1,6 +1,8 @@
 # Issy
 
-Issy is a tool that contains different techniques for the synthesis of inifinite-state reactive programs.   
+Issy is a tool for the automatic synthesis of inifinite-state reactive programs. 
+
+TODO: link to the different file formats somewhere
 
 ## Perquisites
 
@@ -15,11 +17,15 @@ To build Issy, just run
 ```
     make 
 ```
-in the top-level folder. Stack will take care of getting the respective source code libraries and the compiler so you need to have internet access for that. The ``issy`` binary will be place in the top-level folder of the project. To get a clean build run
+in the top-level folder. Stack will take care of getting the respective source code libraries and the compiler so you need to have internet access for that. The ``issy`` binary is placed in the top-level folder of the project. To get a clean build run
 ```
     make clean
 ```
 
 ## Usage
 
-TODO: Write meaningfull README including building and usage instructions
+TODO How to use tools
+
+## Publications
+
+TODO
