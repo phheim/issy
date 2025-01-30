@@ -28,6 +28,7 @@ module Issy.Solver.GameInterface
   , cpre
   , cpreS
   , pre
+  , extendSt
   , independentProgVars
   , inducedSubArena
   , syntCPre
@@ -152,6 +153,13 @@ domSymSt g = SymSt.symSt (locations g) (dom g)
 
 emptySt :: Arena -> SymSt
 emptySt g = SymSt.symSt (locations g) (const FOL.false)
+
+extendSt :: SymSt -> (Loc -> Loc) -> Arena -> SymSt
+extendSt old oldToNew arena =
+  foldr
+    (\locOld st -> SymSt.set st (oldToNew locOld) (SymSt.get old locOld))
+    (emptySt arena)
+    (SymSt.locations old)
 
 --
 -- Player

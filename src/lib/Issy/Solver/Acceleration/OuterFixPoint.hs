@@ -14,6 +14,7 @@ import qualified Issy.Base.Variables as Vars
 import Issy.Config (Config, setName)
 import Issy.Logic.FOL (Function, Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
+import Issy.Printers.SMTLib as SMTLib
 import qualified Issy.Solver.Acceleration.Heuristics as H
 import Issy.Solver.Acceleration.LemmaFinding (LemSyms(..), Lemma(..), resolve)
 import Issy.Solver.GameInterface
@@ -27,7 +28,8 @@ accelCoBuechi conf player arena loc fset wopp = do
   lg conf ["Accelerate in", locName arena loc, "on", strSt arena fset]
   let (base, step, conc, stepFun, prime, lsym) = lemmaSymbols arena
   (arena, loc') <- pure $ loopArena arena loc
-  fset <- pure $ SymSt.set fset loc $ FOL.neg step
+  fset <- pure $ SymSt.set (extendSt fset id arena) loc' $ FOL.neg step
+  wopp <- pure $ extendSt wopp id arena
   let idMap = Map.fromSet id (locations arena)
   let stratO = Synt.returnOn wopp $ Synt.loopSyBo conf arena loc loc' prime idMap
   (constrRec, rec, stratO) <- pure $ iterB conf arena player fset wopp stratO
@@ -44,6 +46,7 @@ accelCoBuechi conf player arena loc fset wopp = do
   let constr = [baseCond, stepCond, progress]
   unless (all (null . FOL.frees) constr) $ error "assert: constraint with free variables"
   (conc, lemmaAssign) <- resolve conf (H.simple conf arena) (vars arena) constr conc [lsym]
+  lg conf ["Accelerated with", SMTLib.toString conc]
   stratO <- pure $ foldl (replaceLemma (vars arena)) stratO lemmaAssign
   pure (conc, stratO)
 

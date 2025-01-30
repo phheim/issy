@@ -10,18 +10,20 @@ module Issy.Solver.ObjectiveSolver
   ) where
 
 ---------------------------------------------------------------------------------------------------
+import Control.Monad (filterM, foldM)
 import Data.Map.Strict (Map, (!))
 import qualified Data.Map.Strict as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
 
 import Issy.Base.Objectives (Objective(..), WinningCondition(..))
-import Issy.Base.SymbolicState (SymSt, get)
+import Issy.Base.SymbolicState (SymSt, get, set)
 import qualified Issy.Base.SymbolicState as SymSt
-import Issy.Config (Config, generateProgram, setName)
+import Issy.Config (Config, accelerateObjective, generateProgram, setName)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.SMT as SMT
 import qualified Issy.Printers.SMTLib as SMTLib (toString)
+import Issy.Solver.Acceleration.OuterFixPoint (accelCoBuechi)
 import Issy.Solver.Attractor (attractor, attractorEx, noCheck)
 import Issy.Solver.GameInterface
 import Issy.Solver.Synthesis (SyBo)
@@ -133,7 +135,28 @@ iterBuechi conf stats player arena accept init =
         pure
           $ Synt.callOnSt wset subProg
           $ Synt.enforceFromTo (SymSt.map FOL.neg cset) (SymSt.map FOL.neg fset) progOp
-      -- 
+      -- Potential outer fixpoint acceleration
+      (wset, progOp) <-
+        if accelerateObjective conf
+          then do
+            fset' <- SymSt.simplify conf $ fset `SymSt.difference` wset
+            flocs <- Set.fromList . map fst <$> filterM (SMT.sat conf . snd) (SymSt.toList fset')
+            foldM
+              (\(wset, progOp) loc -> do
+                 (wsetAccel, subProg) <- accelCoBuechi conf player arena loc fset' wset
+                 success <- SMT.sat conf $ FOL.andf [wsetAccel, FOL.neg (get wset loc)]
+                 if success
+                   then do
+                     lg conf ["Buechi acceleration succeeded"]
+                     wset <- set wset loc <$> SMT.simplify conf (FOL.orf [get wset loc, wsetAccel])
+                     pure (wset, Synt.callOnSt wset subProg progOp)
+                   else do
+                     lg conf ["Buechi acceleration failed"]
+                     pure (wset, progOp))
+              (wset, progOp)
+              flocs
+          else pure (wset, progOp)
+      --
       fset' <- SymSt.simplify conf $ fset `SymSt.difference` wset
       lg conf ["F_i+1 =", strSt arena fset']
       fp <- SymSt.implies conf fset fset'
