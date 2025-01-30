@@ -7,22 +7,18 @@
 --
 ---------------------------------------------------------------------------------------------------
 module Issy.Solver.Acceleration.Strengthening
-  ( strengthenConstr
+  ( strengthenBool
   , strengthenSimple
-  , strengthenSmart
   ) where
 
 ---------------------------------------------------------------------------------------------------
-import Issy.Config (Config)
-import Issy.Logic.FOL (Function(PredefF), Sort, Symbol, Term(Func))
-import qualified Issy.Logic.FOL as FOL
-import qualified Issy.Logic.SMT as SMT
+import Control.Monad ((<=<))
+import Data.Bifunctor (first)
 
----------------------------------------------------------------------------------------------------
--- | 'strengthenConstr' constraints tries to compute a as weak a possible realizations for
--- the uninterpreted predicate symbol such that it satisfies the given contraint.
-strengthenConstr :: Config -> Symbol -> [Sort] -> Term -> [IO Term]
-strengthenConstr _ _ _ _ = [] -- TODO IMPLEMENT
+import Issy.Config (Config)
+import Issy.Logic.FOL (Function(PredefF), Symbol, Term(Func))
+import qualified Issy.Logic.FOL as FOL
+import Issy.Logic.SMT as SMT
 
 ---------------------------------------------------------------------------------------------------
 -- | 'strengthenSimple' strengthens the given 'Term' in different easy syntactic ways
@@ -42,10 +38,11 @@ strengthenSimple = go
         t -> [t]
 
 ---------------------------------------------------------------------------------------------------
--- | 'strengthenSmart' strengthens the given 'Term' in different easy syntactic ways but instead
+-- | 'strengthenBool' strengthens the given 'Term' in different easy syntactic ways but instead
 -- of explicitly listinge them builds an SMT query
-strengthenSmart :: Symbol -> Term -> [Term]
-strengthenSmart prefix = error "TODO IMPLEMENT"
+strengthenBool :: Config -> Symbol -> Term -> IO Term
+strengthenBool conf prefix =
+  (SMT.simplify conf . fst . label (0 :: Int)) <=< (SMT.simplify conf . expand)
   where
     expand t =
       case t of
@@ -55,7 +52,15 @@ strengthenSmart prefix = error "TODO IMPLEMENT"
         t -> t
     label cnt t =
       case t of
-        Func (PredefF "or") args -> error "TODO IMPLEMENT"
-        Func f args -> error "TODO IMPLEMENT"
+        Func (PredefF "or") args ->
+          first (FOL.orf . reverse)
+            $ foldl
+                (\(args, cnt) -> first ((: args) . addSelector cnt) . label (cnt + 1))
+                ([], cnt)
+                args
+        Func f args ->
+          first (Func f . reverse)
+            $ foldl (\(args, cnt) -> first (: args) . label cnt) ([], cnt) args
         t -> (t, cnt)
+    addSelector cnt t = FOL.andf [t, FOL.bvarT (prefix ++ show cnt)]
 ---------------------------------------------------------------------------------------------------
