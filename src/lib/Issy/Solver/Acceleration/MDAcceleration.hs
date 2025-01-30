@@ -114,7 +114,7 @@ tryFindInv conf heur prime player arena (base, step, conc) (loc, loc') fixInv re
           Right res -> pure $ Just res
           Left invar -> iter (cnt + 1) invar
       | extendAcceleration conf = error "TODO IMPLEMENT"
-      | otherwise = searchCandidates Set.empty $ strengthenSimple invar
+      | otherwise = searchCandidates Set.empty [] -- $ strengthenSimple invar
     searchCandidates checked =
       \case
         [] -> pure Nothing
