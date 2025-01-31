@@ -24,10 +24,19 @@ in the top-level folder. Stack will take care of getting the respective source c
 
 ## Usage
 
+The general ways of using issy is
+```
+    ./issy [OPTIONS] FILENAME
+```
+The output (e.g. Realizable/Unrealizable, synthesized program) are always written to ``STDOUT``. Logging and error informations are outputed on ``STDERR``. The input is either read from a file or from ``STDIN`` if the filename is ``-``.
+A short version of the following explanation can be accessed via ``--help``.
 
-### File format
+Issy supports different file-formats: 
+- On ``--issy`` it expects a file in the [Issy format](./docs/ISSYFORMAT.md). This is the *default*.
+- On ``--llissy`` the expected input is in the [LLIssy format](./docs/LLISSYFORMAT.md).
+- On ``--rpg`` the expected input is a reactive program game in the ``.rpg`` format.
+- On ``--tslmt` the input in in the TSL-MT dialect used by ``tslmt2rpg``.
 
-TODO How to use tools
 
 ## Related Publications
 
