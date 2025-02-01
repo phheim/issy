@@ -25,9 +25,9 @@ As a formalism we use RP-LTL and the symbolic games from the paper TODO: CITE as
 
 ## Grammar
 
-In order to be easy to parse, readable with reasonable effort, and to be similar to the SMTLib-format, the LLISSYS uses s-expression.
+In order to be easy to parse, readable with reasonable effort, and to be similar to the SMTLib-format, the LLissy uses s-expressions.
 
-Only single line comments exist which start with ';' and span the end of the line. Newlines are be '\r\n', '\n\r', '\r' and '\n'. However, when generating LLissy automatically '\n' should be used. Similarly ' ' (Space) and '\t' (Tabs) are both non-newline white-spaces. However, only ' ' should be used upon generation. The following productions define identifiers and natural numbers.
+Only single line comments exist which start with ';' and span to the end of the line. Newlines are '\r\n', '\n\r', '\r' and '\n'. However, when generating LLissy automatically '\n' should be used. Similarly ' ' (Space) and '\t' (Tabs) are both non-newline white-spaces. However, only ' ' should be used upon generation. The following productions define identifiers and natural numbers.
 ```
 ALPHA : 'a'...'z' | 'A'...'Z'
 DIGIT : '0'...'9'
