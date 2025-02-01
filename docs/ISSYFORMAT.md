@@ -4,32 +4,32 @@ This document describes the high-level format used by the Issy tool.
 
 ## Syntax
 ```
-SPEC     : (VARDECL | GAMEDEF | LOGICDEF | MACRO)*
+SPEC     : (VARDECL | LOGICSPEC | GAMESPEC | MACRO)*
 ```
 
-### Variables
+### Variable Declarations
 ```
-VARDECL  : ('input' | 'state') TYPE ID
+VARDECL  : ('input' | 'state') TYPE IDENTIFIER
 TYPE     : 'int' | 'bool' | 'real'
 ```
 
 ### Formula Specifications
 ```
-LOGICDEF : 'formula' '{' LOGICSTM*  '}'
-LOGICSTM : ('assert' | 'assume') RPLTL
-RPLTL    : ATOM | '(' RPLTL ')' | UOP RPLTL | RPLTL BOP RPLTL 
-UOP      : '!' | 'F' | 'X' | 'G'
-BOP      : '&&' | '||' | '->' | '<->' | 'U' | 'W' | 'R'
+LOGICSPEC : 'formula' '{' LOGICSTM*  '}'
+LOGICSTM  : ('assert' | 'assume') RPLTL
+RPLTL     : ATOM | '(' RPLTL ')' | UOPT RPLTL | RPLTL BOPT RPLTL 
+UOPT      : '!' | 'F' | 'X' | 'G'
+BOPT      : '&&' | '||' | '->' | '<->' | 'U' | 'W' | 'R'
 ```
 with precedence as TLSF.
 
 
 ### Game Specifications
 ```
-GAMEDEF  : 'game' WINCOND 'from' ID '{' ( LOCDEF | TRANSDEF)* '}' 
-WINCOND  : 'Safety' | 'Reachability' | 'Buechi' | 'CoBuechi' | 'ParityMaxOdd' 
-LOCDEF   : 'loc' ID [NAT] ['with' TERM]
-TRANSDEF : 'from' ID 'to' ID 'with' TERM
+GAMESPEC  : 'game' WINCOND 'from' IDENTIFIER '{' ( LOCDEF | TRANSDEF)* '}' 
+WINCOND   : 'Safety' | 'Reachability' | 'Buechi' | 'CoBuechi' | 'ParityMaxOdd' 
+LOCDEF    : 'loc' IDENTIFIER [NAT] ['with' TERM]
+TRANSDEF  : 'from' IDENTIFIER 'to' IDENTIFIER 'with' TERM
 
 TERM     : ATOM | '(' TERM ')' | UOP TERM | TERM BOP TERM 
 UOP      : '!' 
@@ -40,16 +40,16 @@ with precedence (from high to low):
     {!} > {&&} > {||} > {-> (ra)} > {<-> (ra)} 
 ```
 
-## Ground Predicates
+## Atomic Predicates
 
 ```
-ATOM    : GPRED | BCONST | ID['''] | 'havoc' '('ID* ')' | 'keep' '(' ID* ')'
+ATOM    : APRED | BCONST | IDENTIFIER['''] | 'havoc' '('IDENTIFIER* ')' | 'keep' '(' IDENTIFIER* ')'
 BCONST  : 'true'  | 'false'
-GPRED   : '[' GROUND ']'
-GROUND  : CONST | ID['''] | '(' GROUND ')' | GUOP GROUND | GROUND GBOP GROUND
+APRED   : '[' PRED ']'
+PRED    : CONST | IDENTIFIER['''] | '(' PRED ')' | AUOP PRED | PRED ABOP PRED
 CONST   : NAT   | RAT
-GUOP    : '*' | '+' | '-' | '/' | 'mod' | '=' | '<' | '>'| '<=' | '>='
-GBOP    : '-' | 'abs'
+AUOP    : '*' | '+' | '-' | '/' | 'mod' | '=' | '<' | '>'| '<=' | '>='
+ABOP    : '-' | 'abs'
 ```
 with precedence (from high to low):
 ```
@@ -59,15 +59,15 @@ with precedence (from high to low):
 ### Macros
 
 ```
-MACRO   : 'def' ID '=' TERM
+MACRO   : 'def' IDENTIFIER '=' TERM
 ```
-Note macros can be used in all RPLTL, TERM, and GROUND. However, for usage in GROUND the marco term has to be a single ground predicate term!
+Note macros can be used in all RPLTL, TERM, and PRED. However, for usage in PRED the marco term has to be a single predicate term!
 
-### Basics
+### Identifiers and Numerical Constants
 ```
-ID      : ALPHA (ALPHA | DIGIT | '_')*
-NAT     : DIGIT+
-RAT     : DIGIT+ '.' DIGIT+
+IDENTIFIER      : ALPHA (ALPHA | DIGIT | '_')*
+NAT             : DIGIT+
+RAT             : DIGIT+ '.' DIGIT+
 ```
 
 ### Comments
