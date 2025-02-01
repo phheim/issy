@@ -7,7 +7,7 @@ module Issy.Solver.Acceleration.MDAcceleration
   ) where
 
 -------------------------------------------------------------------------------
-import Control.Monad (filterM, unless)
+import Control.Monad (filterM)
 import Data.Bifunctor (second)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
@@ -24,7 +24,7 @@ import qualified Issy.Printers.SMTLib as SMTLib (toString)
 import Issy.Solver.Acceleration.Heuristics (Heur)
 import qualified Issy.Solver.Acceleration.Heuristics as H
 import Issy.Solver.Acceleration.LoopScenario (loopScenario)
-import Issy.Solver.Acceleration.Strengthening (strengthenConstr, strengthenSimple)
+import Issy.Solver.Acceleration.Strengthening (strengthenBool)
 import Issy.Solver.GameInterface
 import Issy.Solver.Synthesis (SyBo)
 import qualified Issy.Solver.Synthesis as Synt
@@ -98,37 +98,26 @@ tryFindInv ::
 tryFindInv conf heur prime player arena (base, step, conc) (loc, loc') fixInv reach prog = iter 0
   where
     check = checkInv conf heur prime player arena (base, step, conc) (loc, loc') fixInv reach prog
-    checkAndConfirm invar = do
-      res <- check invar
-      case res of
-        Left _ -> pure Nothing
-        Right (res, prog) -> do
-          more <- SMT.sat conf $ FOL.andf [res, FOL.neg (get reach loc)]
-          if more
-            then pure (Just (res, prog))
-            else pure Nothing
     iter cnt invar
       | cnt < H.invariantIterations heur = do
         res <- check invar
         case res of
           Right res -> pure $ Just res
           Left invar -> iter (cnt + 1) invar
-      | extendAcceleration conf = error "TODO IMPLEMENT"
-      | otherwise = searchCandidates Set.empty [] -- $ strengthenSimple invar
-    searchCandidates checked =
-      \case
-        [] -> pure Nothing
-        c:cr
-          | c `elem` checked -> searchCandidates checked cr
-          | otherwise -> do
-            c <- SMT.simplify conf c
-            if c `elem` checked
-              then searchCandidates checked cr
-              else do
-                res <- checkAndConfirm c
-                case res of
-                  Nothing -> searchCandidates (Set.insert c checked) cr
-                  Just res -> pure $ Just res
+      | extendAcceleration conf = pure Nothing -- TODO IMPLEMENT or DEPRECATE?
+      | otherwise = do
+        lg conf ["Try to strenghten smartly"]
+        let prefix =
+              FOL.uniquePrefix "selectors_b"
+                $ Set.insert prime
+                $ Set.union (FOL.symbols invar)
+                $ usedSymbols arena
+        res <- check =<< strengthenBool conf prefix invar
+        case res of
+          Right res -> pure $ Just res
+          Left res -> do
+            lg conf ["Smart strengthening failed with remainder", SMTLib.toString res]
+            pure Nothing
 
 checkInv ::
      Config
@@ -153,21 +142,32 @@ checkInv conf heur prime player arena (base, step, conc) (loc, loc') fixInv reac
     res <- SMT.simplify conf res
     let query =
           Vars.forallX (vars arena) $ FOL.andf [fixInv, dom arena loc, conc, invar] `FOL.impl` res
-    -- TODO: make this model based if frees appear!!! split in diffrent function!
-    unless (null (FOL.frees query)) $ error "assert: found free variables in query"
-    holds <- SMT.valid conf query
-    if holds
-      then do
-        baseCond <-
-          SMT.valid conf
-            $ Vars.forallX (vars arena)
+    let baseCond =
+          Vars.forallX (vars arena)
             $ FOL.andf [dom arena loc, fixInv, base, invar] `FOL.impl` (reach `get` loc)
-        if baseCond
-          then pure $ Right (FOL.andf [dom arena loc, conc, invar, fixInv], prog)
-          else do
-            lg conf ["Base condition failed"]
-            pure $ Left res
-      else pure $ Left res
+    let accelValue = FOL.andf [dom arena loc, conc, invar, fixInv]
+    let progress = Vars.existsX (vars arena) $ FOL.andf [accelValue, FOL.neg (get reach loc)]
+    if null (FOL.frees query)
+       -- Not Boolean Paramters
+      then do
+        holds <- SMT.valid conf query
+        if holds
+          then do
+            baseCondHolds <- SMT.valid conf baseCond
+            if baseCondHolds
+              then pure $ Right (accelValue, prog)
+              else do
+                lg conf ["Base condition failed"]
+                pure $ Left res
+          else pure $ Left res
+      else do
+        model <- SMT.trySatModel conf (H.invSatModelTO heur) $ FOL.andf [query, baseCond, progress]
+        case model of
+          Just (Just model) -> do
+            accelValue <- SMT.simplify conf $ FOL.setModel model accelValue
+            prog <- pure $ Synt.mapTerms (FOL.setModel model) prog
+            pure $ Right (accelValue, prog)
+          _ -> pure $ Left res
 
 iterA :: Heur -> Player -> Arena -> SymSt -> Loc -> SyBo -> (SymSt, SyBo)
 iterA heur player arena attr shadow = go (noVisits arena) (OL.fromSet (preds arena shadow)) attr
@@ -191,6 +191,7 @@ iterA heur player arena attr shadow = go (noVisits arena) (OL.fromSet (preds are
 lemmaGuess ::
      Config -> Heur -> Symbol -> Player -> Arena -> Term -> IO (Maybe (Term, Term, Term, Term))
 lemmaGuess conf heur prime player arena reach = do
+  reach <- SMT.simplify conf reach
   lg conf ["Guess lemma on", SMTLib.toString reach]
   box <- mkBox conf heur player arena reach
   case box of
@@ -228,16 +229,23 @@ mkBox conf heur player arena reach = do
   case box of
     Nothing -> do
       lg conf ["Switch to point-base"]
-      fmap (\box -> (filterBox boxVars box, invar)) <$> completeBox conf reach
-    Just box -> pure $ Just (filterBox boxVars box, invar)
+      fmap (\box -> (filterBoxAll boxVars box, invar)) <$> completeBox conf reach
+    Just box -> pure $ Just (filterBoxAny boxVars box, invar)
 
-filterBox :: [Symbol] -> Box a -> Box a
-filterBox boxVars = filter (all (`elem` boxVars) . FOL.frees . fst)
+filterBoxAll :: [Symbol] -> Box a -> Box a
+filterBoxAll boxVars = filter (all (`elem` boxVars) . FOL.frees . fst)
+
+filterBoxAny :: [Symbol] -> Box a -> Box a
+filterBoxAny boxVars = filter (any (`elem` boxVars) . FOL.frees . fst)
 
 mkTarget :: Config -> Heur -> Player -> Arena -> Term -> IO (Term, Term, [Symbol])
 mkTarget conf _ player arena reach = do
   reach <- SMT.simplify conf reach
   boxVars <- boxVars conf player arena reach
+  boxVars <-
+    if null boxVars
+      then pure (filter (FOL.isNumber . sortOf arena) (Vars.stateVarL (vars arena)))
+      else pure boxVars
   let nonBoxVars = filter (`notElem` boxVars) $ Set.toList $ FOL.frees reach
   lg conf ["Use variables", strL id boxVars]
   invar <- SMT.simplify conf $ FOL.exists boxVars reach

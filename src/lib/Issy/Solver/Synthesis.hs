@@ -14,6 +14,7 @@ module Issy.Solver.Synthesis
   , callOn
   , callOnSt
   , replaceUF
+  , mapTerms
   , fromStayIn
   , -- Extraction
     extractProg

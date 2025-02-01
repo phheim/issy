@@ -9,6 +9,7 @@ module Issy.Solver.Acceleration.Heuristics
   , invariantIterations
   , manhattenTermCount
   , boxOptSmtTO
+  , invSatModelTO
   , lemmaResolveTO
   , templatePattern
   , nestingDepth
@@ -44,8 +45,10 @@ loopArenaSize :: Heur -> Int
 loopArenaSize heur =
   case accelerationLevel (config heur) of
     0 -> 1
-    1 -> 1 -- TODO got to more at some point
-    _ -> 2 -- TODO got to locCnt at some point
+    1
+      | locCnt heur < 10 * accelerationDist heur -> 1
+      | otherwise -> 2
+    _ -> 1 + (locCnt heur `div` (10 * accelerationDist heur))
 
 loopArenaIncludeSucc :: Heur -> Bool
 loopArenaIncludeSucc heur = visitCnt heur `mod` (2 * accelerationDist heur) == 0
@@ -60,13 +63,16 @@ minEpsilon :: Heur -> Rational
 minEpsilon _ = 1 % (10 ^ (3 :: Int))
 
 boxOptSmtTO :: Heur -> Maybe Int
-boxOptSmtTO _ = Nothing
+boxOptSmtTO _ = Just 20
 
 invariantIterations :: Heur -> Int
 invariantIterations _ = 2
 
 manhattenTermCount :: Heur -> Int
 manhattenTermCount _ = 2
+
+invSatModelTO :: Heur -> Maybe Int
+invSatModelTO _ = Just 20
 
 ---
 -- UF Acceleration
@@ -85,7 +91,6 @@ nestingDepth heur
 lemmaResolveTO :: Heur -> Maybe Int
 lemmaResolveTO heur = Just $ visitCnt heur ^ (2 :: Int)
 
---TODO: Add bound by number of cells!
 templatePattern :: Heur -> (Integer, [Integer])
 templatePattern heur =
   let dis = accelerationDist heur * accelerationDist heur
