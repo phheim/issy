@@ -28,10 +28,10 @@ with precedence as TLSF.
 ```
 GAMESPEC  : 'game' WINCOND 'from' IDENTIFIER '{' ( LOCDEF | TRANSDEF)* '}' 
 WINCOND   : 'Safety' | 'Reachability' | 'Buechi' | 'CoBuechi' | 'ParityMaxOdd' 
-LOCDEF    : 'loc' IDENTIFIER [NAT] ['with' TERM]
-TRANSDEF  : 'from' IDENTIFIER 'to' IDENTIFIER 'with' TERM
+LOCDEF    : 'loc' IDENTIFIER [NAT] ['with' FORMULA]
+TRANSDEF  : 'from' IDENTIFIER 'to' IDENTIFIER 'with' FORMULA
 
-TERM     : ATOM | '(' TERM ')' | UOP TERM | TERM BOP TERM 
+FORMULA     : ATOM | '(' FORMULA ')' | UOP FORMULA | FORMULA BOP FORMULA 
 UOP      : '!' 
 BOP      : '&&' | '||' | '->' | '<->'
 ```
@@ -59,9 +59,9 @@ with precedence (from high to low):
 ### Macros
 
 ```
-MACRO   : 'def' IDENTIFIER '=' TERM
+MACRO   : 'def' IDENTIFIER '=' FORMULA | APRED
 ```
-Note macros can be used in all RPLTL, TERM, and PRED. However, for usage in PRED the marco term has to be a single predicate term!
+Note macros can be used in all RPLTL, FORMULA, and PRED. However, for usage in PRED the marco term has to be a single predicate term!
 
 ### Identifiers and Numerical Constants
 ```
