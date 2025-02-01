@@ -71,7 +71,7 @@ Issy uses different external tools, which are need for different operations. Som
 - ``--caller-aut PATH``set the path to spots ``ltl2tgba``. By default ``ltl2tgba`` is assumed to be in the PATH.
 - ``--caller-muval PATH`` set the path to a script that reads its input on (it's) STDIN and a tiemout in seconds as argument, and calls MuVal on the input with the respective timeout.
 - ``--caller-chcmx  PATH`` set the path to a script that reads its input on (it's) STDIN and a tiemout in seconds as argument, and calls CHCMax on the input with the respective timeout.
-Example for those wrapper scripts can be found TODO.
+Example for those wrapper scripts can be found [here](./scripts).
 
 ## Related Publications and Documents
 
