@@ -14,7 +14,7 @@ library
     , process
     , hanoi
     , finite
-    , tsl
+    , tsl-parser
 
   exposed-modules:
       Compiler

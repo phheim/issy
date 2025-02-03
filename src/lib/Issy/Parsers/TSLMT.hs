@@ -179,7 +179,7 @@ parseTSL s =
   case parseDecls s of
     Left err -> error $ "parseTSL" ++ err
     Right (vars, tslstr) -> do
-      mSpec <- fromTSL Nothing tslstr
+      mSpec <- fromTSL tslstr
       case mSpec of
         Left err -> error $ show err
         Right spec -> pure $ translateSpec vars spec

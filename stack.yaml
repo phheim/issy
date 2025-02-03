@@ -6,5 +6,5 @@ extra-deps:
   - git: https://github.com/phheim/finite.git
     commit: af77f552896e082403fa95a6c7e02f669535930a
   - git: https://github.com/phheim/tsltools.git
-    commit: bfb795c08dceabb12dc78334f73aeda71b6b630c
+    commit: 686da01befd8a442985631c1d164fc1c76c54bbc
 
