@@ -33,6 +33,7 @@ import Issy.Config (Config, setName)
 import Issy.Logic.FOL (Term)
 import qualified Issy.Logic.RPLTL as RPLTL
 import qualified Issy.Logic.TSLMT as TSL
+import qualified Issy.Logic.Temporal as TL
 import Issy.Monitor.Formula (Formula)
 import qualified Issy.Monitor.Formula as MF
 import Issy.Monitor.Monitor
@@ -57,33 +58,33 @@ import Issy.Utils.Logging
 ---------------------------------------------------------------------------------------------------
 -- | 'initializeRPLTL' creates as 'Monitor' for RPLTL formula specifications. In order to used the
 -- monitor its transitions and verdict have to be computed.
-initializeRPLTL :: Config -> RPLTL.Spec -> IO Monitor
+initializeRPLTL :: Config -> TL.Spec RPLTL.Atom -> IO Monitor
 initializeRPLTL cfg spec = do
   cfg <- pure $ setName "Monitor" cfg
-  preds <- MP.generatePredicatesRPLTL cfg (RPLTL.variables spec) (RPLTL.preds spec)
+  preds <- MP.generatePredicatesRPLTL cfg (TL.variables spec) (RPLTL.preds spec)
   initialize
     cfg
     False
-    (MR.globalState (RPLTL.variables spec))
-    (RPLTL.variables spec)
-    (MF.fromRPLTL <$> RPLTL.assumptions spec)
-    (MF.fromRPLTL <$> RPLTL.guarantees spec)
+    (MR.globalState (TL.variables spec))
+    (TL.variables spec)
+    (MF.fromRPLTL <$> TL.assumptions spec)
+    (MF.fromRPLTL <$> TL.guarantees spec)
     preds
 
 ---------------------------------------------------------------------------------------------------
 -- | 'initializeTSL' creates as 'Monitor' for TSLMT formula specifications. In order to used the
 -- monitor its transitions and verdict have to be computed.
-initializeTSL :: Config -> TSL.Spec -> IO Monitor
+initializeTSL :: Config -> TL.Spec TSL.Atom -> IO Monitor
 initializeTSL cfg spec = do
   cfg <- pure $ setName "Monitor TSL" cfg
-  preds <- MP.generatePredicatesTSL cfg (TSL.variables spec) (TSL.preds spec) (TSL.updates spec)
+  preds <- MP.generatePredicatesTSL cfg (TL.variables spec) (TSL.preds spec) (TSL.updates spec)
   initialize
     cfg
     True
-    (MR.globalStateTSL (TSL.variables spec) (TSL.updates spec))
-    (TSL.variables spec)
-    (MF.fromTSL <$> TSL.assumptions spec)
-    (MF.fromTSL <$> TSL.guarantees spec)
+    (MR.globalStateTSL (TL.variables spec) (TSL.updates spec))
+    (TL.variables spec)
+    (MF.fromTSL <$> TL.assumptions spec)
+    (MF.fromTSL <$> TL.guarantees spec)
     preds
 
 ---------------------------------------------------------------------------------------------------

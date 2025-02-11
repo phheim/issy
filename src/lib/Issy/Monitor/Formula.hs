@@ -530,12 +530,12 @@ fromTL fromAtomic = go
                 TL.Until -> fand [fweak ff fg, feventually fg]
                 TL.Release -> fweak fg (fand [ff, fg])
 
-fromTSL :: TSL.Formula -> Formula
+fromTSL :: TL.Formula TSL.Atom -> Formula
 fromTSL =
   fromTL $ \case
     TSL.Update var term -> fupdate True var term
     TSL.Predicate term -> fpred True term
 
-fromRPLTL :: RPLTL.Formula -> Formula
+fromRPLTL :: TL.Formula RPLTL.Atom -> Formula
 fromRPLTL = fromTL (fpred True)
 -------------------------------------------------------------------------------

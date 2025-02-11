@@ -25,7 +25,8 @@ import Issy.Base.Objectives (Objective)
 import qualified Issy.Base.Objectives as Obj
 import Issy.Base.Variables (Variables)
 import Issy.Config (Config)
-import qualified Issy.Logic.RPLTL as RPLTL
+import Issy.Logic.FOL (Term)
+import qualified Issy.Logic.Temporal as TL
 import qualified Issy.SymbolicArena as SG
 
 ---------------------------------------------------------------------------------------------------
@@ -33,7 +34,7 @@ import qualified Issy.SymbolicArena as SG
 -- Invariant: only one non-safety part and all the same variables
 data Specification = Specification
   { variables :: Variables
-  , formulas :: [RPLTL.Spec]
+  , formulas :: [TL.Spec Term]
   , games :: [(SG.Arena, Objective)]
   , hadNonSafety :: Bool
   } deriving (Eq, Ord, Show)
@@ -44,16 +45,16 @@ empty :: Variables -> Specification
 empty vars = Specification {variables = vars, formulas = [], games = [], hadNonSafety = False}
 
 ---------------------------------------------------------------------------------------------------
-addFormula :: Specification -> RPLTL.Spec -> Either String Specification
+addFormula :: Specification -> TL.Spec Term -> Either String Specification
 addFormula spec formula
-  | variables spec /= RPLTL.variables formula =
+  | variables spec /= TL.variables formula =
     error "assert: tried to add formula with different variables"
-  | hadNonSafety spec && not (RPLTL.isSafety formula) = Left "Found second non-safety formula"
+  | hadNonSafety spec && not (TL.isSafety formula) = Left "Found second non-safety formula"
   | otherwise =
     Right
       $ spec
           { formulas = formulas spec ++ [formula]
-          , hadNonSafety = hadNonSafety spec || not (RPLTL.isSafety formula)
+          , hadNonSafety = hadNonSafety spec || not (TL.isSafety formula)
           }
 
 ---------------------------------------------------------------------------------------------------

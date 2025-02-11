@@ -13,7 +13,6 @@ import qualified Issy.Base.Objectives as Obj
 import Issy.Base.Variables (Variables)
 import qualified Issy.Base.Variables as Vars
 import qualified Issy.Logic.FOL as FOL
-import qualified Issy.Logic.RPLTL as RPLTL
 import qualified Issy.Logic.Temporal as TL
 import qualified Issy.Printers.SMTLib as SMTLib (toString)
 import Issy.Specification (Specification)
@@ -45,14 +44,14 @@ printSort =
     FOL.SReal -> "Real"
     _ -> error "assert: function types should not appear here"
 
-printFSpec :: RPLTL.Spec -> String
+printFSpec :: TL.Spec FOL.Term -> String
 printFSpec spec =
   ps
-    [ mps (("\n" ++) . printFormula) (RPLTL.assumptions spec)
-    , mps (("\n" ++) . printFormula) (RPLTL.guarantees spec)
+    [ mps (("\n" ++) . printFormula) (TL.assumptions spec)
+    , mps (("\n" ++) . printFormula) (TL.guarantees spec)
     ]
 
-printFormula :: RPLTL.Formula -> String
+printFormula :: TL.Formula FOL.Term -> String
 printFormula = go
   where
     ops op =

@@ -42,7 +42,7 @@ updates =
 selfUpdates :: Variables -> Set TSL.Atom
 selfUpdates vars = Set.map (\v -> TSL.Update v (Vars.mk vars v)) $ Vars.stateVars vars
 
-exactlyOneUpd :: Symbol -> Set Term -> [TSL.Formula]
+exactlyOneUpd :: Symbol -> Set Term -> [TL.Formula TSL.Atom]
 exactlyOneUpd var updateTerms = map (TL.UExp TL.Globally) (atLeastOne : atMostOne)
   where
     updates = map (TL.Atom . TSL.Update var) (Set.toList updateTerms)
@@ -54,7 +54,10 @@ exactlyOneUpd var updateTerms = map (TL.UExp TL.Globally) (atLeastOne : atMostOn
         [_] -> []
         x:y:xr -> TL.Not (TL.And [x, y]) : go (x : xr) ++ go (y : xr)
 
-tsl2ltlMap :: Variables -> TSL.Formula -> (TSL.Formula, TSL.Atom -> String, String -> TSL.Atom)
+tsl2ltlMap ::
+     Variables
+  -> TL.Formula TSL.Atom
+  -> (TL.Formula TSL.Atom, TSL.Atom -> String, String -> TSL.Atom)
 tsl2ltlMap vars tslFormula = (TL.And (tslFormula : constr), (atoms2ap !), (ap2atoms !))
   where
     atoms = selfUpdates vars `Set.union` TL.atoms tslFormula
@@ -133,10 +136,10 @@ doatran2tran stateVars locOf atomOf = go
     fromUpdate (TSL.Update var term) = (var, term)
     fromUpdate _ = error "fromUpdate applied to TSL.Predicate"
 
-tsl2rpg :: Config -> TSL.Spec -> IO (Game, Objective)
+tsl2rpg :: Config -> TL.Spec TSL.Atom -> IO (Game, Objective)
 tsl2rpg cfg spec = do
-  let tsl = TSL.toFormula spec
-  let vars = TSL.variables spec
+  let tsl = TL.toFormula spec
+  let vars = TL.variables spec
   cfg <- pure $ setName "RPG2TSL" cfg
   lg cfg ["VARS:", show vars]
   lg cfg ["TSL:", show tsl]

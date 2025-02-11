@@ -21,7 +21,7 @@ import Issy.Base.Variables (Type(..), Variables)
 import qualified Issy.Base.Variables as Vars
 import Issy.Logic.FOL (Constant(..), Function(..), Sort(..), Symbol, Term(..))
 import qualified Issy.Logic.FOL as FOL
-import qualified Issy.Logic.TSLMT as TSLMT (Atom(..), Formula, Spec(..))
+import qualified Issy.Logic.TSLMT as TSLMT
 import qualified Issy.Logic.Temporal as TL
 import Issy.Parsers.SMTLib (tryParseInt, tryParseRat)
 
@@ -142,7 +142,7 @@ translatePredTerm typ toStr =
            in (func, args ++ [translateSignalTerm typ toStr st])
         _ -> error "found illegal predicate structure"
 
-translateFormula :: (a -> Sort) -> (a -> String) -> Formula a -> TSLMT.Formula
+translateFormula :: (a -> Sort) -> (a -> String) -> Formula a -> TL.Formula TSLMT.Atom
 translateFormula typ toStr = go
   where
     go =
@@ -164,17 +164,17 @@ translateFormula typ toStr = go
         Weak f g -> TL.BExp TL.WeakUntil (go f) (go g)
         _ -> error "Found not implemented operator"
 
-translateSpec :: Variables -> Specification -> TSLMT.Spec
+translateSpec :: Variables -> Specification -> TL.Spec TSLMT.Atom
 translateSpec vars spec =
   let toStr = stName (symboltable spec)
       transform = translateFormula (Vars.sortOf vars . toStr) toStr
-   in TSLMT.Spec
-        { TSLMT.variables = vars
-        , TSLMT.assumptions = transform <$> TSL.assumptions spec
-        , TSLMT.guarantees = transform <$> TSL.guarantees spec
+   in TL.Spec
+        { TL.variables = vars
+        , TL.assumptions = transform <$> TSL.assumptions spec
+        , TL.guarantees = transform <$> TSL.guarantees spec
         }
 
-parseTSL :: String -> IO TSLMT.Spec
+parseTSL :: String -> IO (TL.Spec TSLMT.Atom)
 parseTSL s =
   case parseDecls s of
     Left err -> error $ "parseTSL" ++ err

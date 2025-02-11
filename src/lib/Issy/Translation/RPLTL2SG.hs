@@ -14,7 +14,6 @@ import Issy.Base.Variables (Variables)
 import Issy.Config (Config)
 import Issy.Logic.FOL (Term)
 import qualified Issy.Logic.FOL as FOL
-import qualified Issy.Logic.RPLTL as RPLTL
 import qualified Issy.Logic.Temporal as TL
 import Issy.SymbolicArena (Arena)
 import qualified Issy.SymbolicArena as SG
@@ -23,15 +22,15 @@ import qualified Issy.Translation.LTL2DOA as LTL2DOA
 import Issy.Utils.Extra (intmapSet)
 import Issy.Utils.Logging
 
-translate :: Config -> RPLTL.Spec -> IO (Arena, Objective)
+translate :: Config -> TL.Spec Term -> IO (Arena, Objective)
 translate cfg spec = do
-  let formula = RPLTL.toFormula spec
+  let formula = TL.toFormula spec
   let (atoms2ap, ap2atoms) = rpltlToltlMap formula
   doa <- LTL2DOA.translate cfg atoms2ap formula
   lg cfg ["DOA:", show doa]
-  SG.simplifySG cfg $ doa2game (RPLTL.variables spec) ap2atoms doa
+  SG.simplifySG cfg $ doa2game (TL.variables spec) ap2atoms doa
 
-rpltlToltlMap :: RPLTL.Formula -> (Term -> String, String -> Term)
+rpltlToltlMap :: TL.Formula Term -> (Term -> String, String -> Term)
 rpltlToltlMap formula =
   let atomsAP = intmapSet (\n atom -> (atom, 'a' : show n)) $ TL.atoms formula
       atoms2ap = Map.fromList atomsAP

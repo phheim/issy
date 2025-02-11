@@ -17,7 +17,6 @@ import Issy.Base.Variables (Type, Variables)
 import qualified Issy.Base.Variables as Vars
 import Issy.Logic.FOL (Sort(..), Term)
 import qualified Issy.Logic.FOL as FOL
-import qualified Issy.Logic.RPLTL as RPLTL
 import qualified Issy.Logic.Temporal as TL
 import Issy.Parsers.SExpression (PRes, Pos, SExpr(..), getPos, parse, perr)
 import qualified Issy.Parsers.SMTLib as SMTLib (tryParseInt, tryParseRat)
@@ -101,16 +100,16 @@ isVarName =
 --
 -- Formula
 --
-parseSpec :: Variables -> SExpr -> PRes RPLTL.Spec
+parseSpec :: Variables -> SExpr -> PRes (TL.Spec Term)
 parseSpec vars =
   \case
     SPar _ [SPar _ sasp, SPar _ sgar] -> do
       asmpt <- mapM (parseFormula vars) sasp
       guar <- mapM (parseFormula vars) sgar
-      pure $ RPLTL.Spec {RPLTL.variables = vars, RPLTL.assumptions = asmpt, RPLTL.guarantees = guar}
+      pure $ TL.Spec {TL.variables = vars, TL.assumptions = asmpt, TL.guarantees = guar}
     s -> perr (getPos s) "Expected RP-LTL specification pattern"
 
-parseFormula :: Variables -> SExpr -> PRes RPLTL.Formula
+parseFormula :: Variables -> SExpr -> PRes (TL.Formula Term)
 parseFormula vars = go
   where
     go =

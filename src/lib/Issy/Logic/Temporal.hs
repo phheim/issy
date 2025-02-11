@@ -4,16 +4,19 @@ module Issy.Logic.Temporal
   ( BOp(..)
   , UOp(..)
   , Formula(..)
+  , Spec(..)
   , next
   , globally
   , eventually
   , atoms
   , isSafety
-  , isTemporalBounded
+  , toFormula
   ) where
 
 import Data.Set (Set)
 import qualified Data.Set as Set
+
+import Issy.Base.Variables (Variables)
 
 data BOp
   = Until
@@ -37,6 +40,18 @@ data Formula a
   | BExp BOp (Formula a) (Formula a)
   deriving (Eq, Ord, Show)
 
+data Spec a = Spec
+  { variables :: Variables
+  , assumptions :: [Formula a]
+  , guarantees :: [Formula a]
+  } deriving (Eq, Ord, Show)
+
+toFormula :: Spec a -> Formula a
+toFormula spec = Or [Not (And (assumptions spec)), And (guarantees spec)]
+
+isSafety :: Spec a -> Bool
+isSafety spec = all isTemporalBounded (assumptions spec) && all formulaIsSafety (guarantees spec)
+
 next :: Formula a -> Formula a
 next = UExp Next
 
@@ -57,16 +72,18 @@ isTemporalBounded =
     UExp _ _ -> False
     BExp {} -> False
 
-isSafety :: Formula a -> Bool
-isSafety =
-  \case
-    And fs -> all isSafety fs
-    Or fs -> all isSafety fs
-    UExp Globally f -> isSafety f
-    UExp Next f -> isSafety f
-    BExp WeakUntil f g -> isSafety f && isSafety g
-    BExp Release f g -> isSafety f && isSafety g
-    f -> isTemporalBounded f
+formulaIsSafety :: Formula a -> Bool
+formulaIsSafety = go
+  where
+    go =
+      \case
+        And fs -> all go fs
+        Or fs -> all go fs
+        UExp Globally f -> go f
+        UExp Next f -> go f
+        BExp WeakUntil f g -> go f && go g
+        BExp Release f g -> go f && go g
+        f -> isTemporalBounded f
 
 atoms :: Ord a => Formula a -> Set a
 atoms =

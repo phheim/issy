@@ -16,8 +16,9 @@ import System.Exit (die)
 
 import Issy.Base.Objectives (Objective)
 import Issy.Config (Config, pruneGame)
-import qualified Issy.Logic.RPLTL as RPLTL
+import Issy.Logic.FOL (Term)
 import qualified Issy.Logic.TSLMT as TSLMT
+import qualified Issy.Logic.Temporal as TL
 import qualified Issy.Monitor as Monitor
 import qualified Issy.Products.RPGMonitor as RPGMonitor
 import qualified Issy.Products.SGMonitor as SGMonitor
@@ -39,7 +40,7 @@ specToSG cfg spec = do
     Nothing -> pure game
     Just err -> die err
 
-rpltlToSG :: Config -> RPLTL.Spec -> IO (SG.Arena, Objective)
+rpltlToSG :: Config -> TL.Spec Term -> IO (SG.Arena, Objective)
 rpltlToSG cfg spec = do
   (arena, obj) <- RPLTL2SG.translate cfg spec
   if pruneGame cfg
@@ -50,7 +51,7 @@ rpltlToSG cfg spec = do
 
 ---------------------------------------------------------------------------------------------------
 -- | DOCUMENT
-tslToRPG :: Config -> TSLMT.Spec -> IO (RPG.Game, Objective)
+tslToRPG :: Config -> TL.Spec TSLMT.Atom -> IO (RPG.Game, Objective)
 tslToRPG cfg spec = do
   (game, obj) <- TSL2RPG.tsl2rpg cfg spec
   if pruneGame cfg
