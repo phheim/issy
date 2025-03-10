@@ -47,7 +47,7 @@ SPEC : '(' '(' VARDEC* ')' '(' FSPEC* ')' '(' GSPEC*  ')' ')'
 
 A variable declaration declares an input or state variable and its respective type
 ```
-VARDEC  : '(' 'input' ID ')' | '(' 'state' ID ')'
+VARDEC  : '(' 'input' TYPE ID ')' | '(' 'state' TYPE ID ')'
 TYPE    : 'Int' | 'Bool' | 'Real'
 ``` 
 
@@ -62,7 +62,7 @@ NOP     : 'and' | 'or'
 ```
 
 A game specification consists of a list of location definitions, transition definitions from one location to another location, and an objective definition.
-The objective defines the initial location and the winning condition. Each location is annotated with a natural number. For Safety, Reachability, Buechi, and CoBuechi a locations is safe, target, Buechi accepting, coBuechu rejecting (should be visited only at most finitely often), iff the number is greater than zero. For ParitMaxOdd the number is the color in the parity game.
+The objective defines the initial location and the winning condition. Each location is annotated with a natural number. For Safety, Reachability, Buechi, and CoBuechi a locations is safe, target, Buechi accepting, coBuechu accepting (should be visited eventually always), iff the number is greater than zero. For ParitMaxOdd the number is the color in the parity game.
 ```
 GSPEC    : '(' '(' LOCDEF* ')' '(' TRANSDEF* ')' OBJ ')'
 LOCDEF   : '(' ID NAT TERM ')'
