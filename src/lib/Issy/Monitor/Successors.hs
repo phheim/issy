@@ -32,6 +32,7 @@ import Issy.Monitor.State
   , toExpansionState
   )
 import qualified Issy.Monitor.State as M (State)
+import Issy.Base.Variables (Variables)
 import qualified Issy.Printers.SMTLib as SMTLib (toString)
 import Issy.Utils.Extra
 import Issy.Utils.Logging
@@ -54,7 +55,7 @@ generateSuccessor cfg mon st assign = do
           Just tree -> pure (tree, mon)
           Nothing -> do
             lg cfg ["Compute Expansion", stateName mon st, strL (strP SMTLib.toString show) assign]
-            tree <- computeExpansion cfg (hasUpdates mon) (predicates mon) expState assign
+            tree <- computeExpansion cfg (variables mon) (hasUpdates mon) (predicates mon) expState assign
             pure
               (tree, mon {expansionCache = Map.insert (expState, assign) tree (expansionCache mon)})
       (trans, newCtx) <- applySucessorRules cfg oldState (gls mon) expansionTree
@@ -81,23 +82,25 @@ applySucessorRules cfg oldState =
 
 computeExpansion ::
      Config
+  -> Variables   
   -> Bool
   -> Set Term
   -> ExpansionState
   -> [(Term, Bool)]
   -> IO (Trans [(Term, [(Bool, Symbol, Term)], ExpansionState)])
-computeExpansion cfg hasUpd preds st assign =
+computeExpansion cfg vars hasUpd preds st assign =
   let constr = map polTerm assign
-   in computeBranching cfg hasUpd preds constr $ replacesSt assign $ expandSt st
+   in computeBranching cfg vars hasUpd preds constr $ replacesSt assign $ expandSt st
 
 computeBranching ::
      Config
+  -> Variables   
   -> Bool
   -> Set Term
   -> [Term]
   -> ExpansionState
   -> IO (Trans [(Term, [(Bool, Symbol, Term)], ExpansionState)])
-computeBranching cfg hasUpd preds = go
+computeBranching cfg vars hasUpd preds = go
   where
     go constr st =
       case pickFreeSt st of
@@ -116,7 +119,7 @@ computeBranching cfg hasUpd preds = go
         Nothing
           | hasUpd -> TrSucc <$> computeUpdates cfg preds (FOL.andf constr) st
           | otherwise -> do
-            prop <- FOL.andf <$> propagatedPredicatesRPLTL cfg (FOL.andf constr) preds
+            prop <- FOL.andf <$> propagatedPredicatesRPLTL cfg vars (FOL.andf constr) preds
             prop <- SMT.simplify cfg prop
             pure $ TrSucc [(prop, [], normESt (shiftSt st))]
 
