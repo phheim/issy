@@ -1,6 +1,6 @@
 # Low-Level Format for Synthesis of Infinite-State Reactive Systems 
 
-This document describes the Low-Level Format for Synthesis of Infinite-State Reactive Systems (LLissy). This document is still preliminary and might change upon discussion with the academic community.
+This document describes the Low-Level Format for Synthesis of Infinite-State Reactive Systems (LLissy). This document is still preliminary and might change upon discussion with the academic community. A simple example can be found [here](./docs/sample.llissy).
 
 The goals of the development of the LLissy format include:
 - Having a common format for the specification of synthesis problems for infinite-state reactive systems.
