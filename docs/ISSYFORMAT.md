@@ -20,7 +20,7 @@ TYPE     : 'int' | 'bool' | 'real'
 
 ### Formula Specifications
 
-A formula specification is a list of RPLTL formulas (as defined in the paper [*Translation of Temporal Logic for Efficient Infinite-State Reactive Synthesis*](https://doi.org/10.1145/3704888)), prefixed by the keywords 'assume' and 'assert', denoting constraints on the environment and the system respectively. They use temporal ('X', 'F', 'G') operators like LTL, but with quantifier-free first-order atoms  instead of Boolean propositions. The precedence is like in TLSF. A formula specification is an implication with antecedent the conjunction of the assumptions and consequent the conjunction of the asserts.
+A formula specification is a list of RPLTL formulas (as defined in the paper [*Translation of Temporal Logic for Efficient Infinite-State Reactive Synthesis*](https://doi.org/10.1145/3704888)), prefixed by the keywords 'assume' and 'assert', denoting constraints on the environment and the system respectively. They use temporal operators (next 'X', eventually 'F', globally 'G', until 'U', weak until 'W', release 'R') like LTL, but with quantifier-free first-order atoms  instead of Boolean propositions. The precedence is like in TLSF. A formula specification is an implication with antecedent the conjunction of the assumptions and consequent the conjunction of the asserts.
 
 ```
 LOGICSPEC : 'formula' '{' LOGICSTM*  '}'
