@@ -34,7 +34,7 @@ BOPT      : '&&' | '||' | '->' | '<->' | 'U' | 'W' | 'R'
 ### Game Specifications
 
 A game specification defines the type of winning condition and the initial location of the defined game. Locations (which can be thought of as the values of a local program counter) have names, colors (used in the winning condition), and domain terms (which constrain the possible values of the variables). Transition definitions determine the possible transitions between locations. They are labeled by formulas, which specify under what conditions a transition can be taken and what is its effect. 
-Location names have local scope -- if a location name appears in multiple games, those are unrelated. The formula associated with each location acts like an invariant restricting the set of possible variable valuations in states with this location.
+Location names have local scope -- if a location name appears in multiple games, those are unrelated. The domain formula associated with each location acts like an invariant restricting the set of possible variable valuations in states with this location.
 
 ```
 GAMESPEC  : 'game' WINCOND 'from' IDENTIFIER '{' ( LOCDEF | TRANSDEF)* '}' 
