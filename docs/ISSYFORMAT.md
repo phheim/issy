@@ -1,6 +1,6 @@
 # Issy Format
 
-This document describes the high-level format used by the Issy tool.
+This document describes the high-level format used by the Issy tool. A simple example can be found [here](./docs/sample.issy).
 
 ## Syntax
 An Issy specification consists of variable declarations, formula specifications, game specifications and macro definitions for better readability.
