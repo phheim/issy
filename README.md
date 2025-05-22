@@ -76,7 +76,8 @@ Examples of those wrapper scripts can be found [here](./scripts).
 
 ## Related Publications and Documents
 
-- [*Translation of Temporal Logic for Efficient Infinite-State Reactive Synthesis*](https://doi.org/10.1145/3704888), Philippe Heim, Rayna Dimitrova, POPL2025.  
+- [*Translation of Temporal Logic for Efficient Infinite-State Reactive Synthesis*](https://doi.org/10.1145/3704888), Philippe Heim, Rayna Dimitrova, POPL2025.
+- [POPL25 Talk](https://youtu.be/Mv0oqdhMfZo)
 - [*Localized Attractor Computations for Infinite-State Games*](https://doi.org/10.1007/978-3-031-65633-0_7), Anne-Kathrin Schmuck, Philippe Heim, Rayna Dimitrova, Satya Prakash Nayak, CAV2024.
 - [*Solving Infinite-State Games via Acceleration*](https://doi.org/10.1145/3632899), Philippe Heim, Rayna Dimitrova, POPL2024.
 - [POPL24 Talk](https://youtu.be/3G0WaerPZpQ)
