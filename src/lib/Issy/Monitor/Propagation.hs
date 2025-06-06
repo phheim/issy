@@ -79,7 +79,8 @@ generatePredicatesRPLTL cfg vars preds = do
         _ -> Set.empty
 
 propagatedPredicatesRPLTL :: Config -> Variables -> Term -> Set Term -> IO [Term]
-propagatedPredicatesRPLTL cfg vars constr = filterM (SMT.valid cfg . FOL.impl constr . (Vars.primeT vars)) . Set.toList
+propagatedPredicatesRPLTL cfg vars constr =
+  filterM (SMT.valid cfg . FOL.impl constr . (Vars.primeT vars)) . Set.toList
 
 propagatedPredicatesTSL :: Config -> Term -> [(Symbol, Term)] -> Set Term -> IO [Term]
 propagatedPredicatesTSL cfg constr upds = filterM propagate . Set.toList

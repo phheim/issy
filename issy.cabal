@@ -80,6 +80,7 @@ library
     , Issy.Translation
     , Issy.Translation.DOA
     , Issy.Translation.LTL2DOA
+    , Issy.Translation.RPG2SG
     , Issy.Translation.RPLTL2SG
     , Issy.Translation.TSL2RPG
     , Issy.Utils.Extra

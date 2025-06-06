@@ -9,6 +9,7 @@ import Data.Map.Strict ((!?))
 import qualified Data.Map.Strict as Map
 import Data.Set (Set)
 
+import Issy.Base.Variables (Variables)
 import Issy.Config (Config, setName)
 import Issy.Logic.FOL (Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
@@ -32,7 +33,6 @@ import Issy.Monitor.State
   , toExpansionState
   )
 import qualified Issy.Monitor.State as M (State)
-import Issy.Base.Variables (Variables)
 import qualified Issy.Printers.SMTLib as SMTLib (toString)
 import Issy.Utils.Extra
 import Issy.Utils.Logging
@@ -55,7 +55,8 @@ generateSuccessor cfg mon st assign = do
           Just tree -> pure (tree, mon)
           Nothing -> do
             lg cfg ["Compute Expansion", stateName mon st, strL (strP SMTLib.toString show) assign]
-            tree <- computeExpansion cfg (variables mon) (hasUpdates mon) (predicates mon) expState assign
+            tree <-
+              computeExpansion cfg (variables mon) (hasUpdates mon) (predicates mon) expState assign
             pure
               (tree, mon {expansionCache = Map.insert (expState, assign) tree (expansionCache mon)})
       (trans, newCtx) <- applySucessorRules cfg oldState (gls mon) expansionTree
@@ -82,7 +83,7 @@ applySucessorRules cfg oldState =
 
 computeExpansion ::
      Config
-  -> Variables   
+  -> Variables
   -> Bool
   -> Set Term
   -> ExpansionState
@@ -94,7 +95,7 @@ computeExpansion cfg vars hasUpd preds st assign =
 
 computeBranching ::
      Config
-  -> Variables   
+  -> Variables
   -> Bool
   -> Set Term
   -> [Term]

@@ -4,11 +4,14 @@ module Issy.Base.Objectives
   ( Objective(..)
   , WinningCondition(..)
   , mapWC
+  , mapLoc
   , isSafety
   ) where
 
 import Data.Map.Strict (Map)
+import qualified Data.Map.Strict as Map
 import Data.Set (Set)
+import qualified Data.Set as Set
 
 import Issy.Base.Locations (Loc)
 
@@ -42,6 +45,9 @@ mapWC mapSet mapMap =
     Buechi ls -> Buechi $ mapSet ls
     CoBuechi ls -> CoBuechi $ mapSet ls
     Parity rank -> Parity $ mapMap rank
+
+mapLoc :: (Loc -> Loc) -> WinningCondition -> WinningCondition
+mapLoc mp = mapWC (Set.map mp) (Map.mapKeys mp)
 
 isSafety :: Objective -> Bool
 isSafety obj =
