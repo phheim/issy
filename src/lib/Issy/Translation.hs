@@ -9,6 +9,7 @@
 module Issy.Translation
   ( tslToRPG
   , specToSG
+  , rpgToSG
   ) where
 
 ---------------------------------------------------------------------------------------------------
@@ -26,6 +27,7 @@ import qualified Issy.Products.SymbolicGames as SGProd
 import qualified Issy.RPG as RPG
 import qualified Issy.Specification as Spec
 import qualified Issy.SymbolicArena as SG
+import Issy.Translation.RPG2SG (rpgToSG)
 import qualified Issy.Translation.RPLTL2SG as RPLTL2SG
 import qualified Issy.Translation.TSL2RPG as TSL2RPG
 

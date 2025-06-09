@@ -19,6 +19,7 @@ data Mode
   | Solve
   | EncodeTSLMT
   | EncodeMuCLP
+  | EncodeRPG
 
 data InputFormat
   = HighLevel
@@ -93,6 +94,11 @@ main = do
       game <- liftErr $ parseRPG input
       putStrLn $ uncurry rpgToMuCLP game
     (EncodeMuCLP, _) -> die "invalid arguments: can only encode RPGs to MuCLP at the moment"
+    (EncodeRPG, RPG) -> do
+      game <- liftErr $ parseRPG input
+      putStrLn $ printSG $ rpgToSG game
+    (EncodeRPG, _) ->
+      die "invalid arguments: can only encode RPGs/TSLMT to Symbolic Games at the moment"
 
 printRes :: Config -> (Bool, Stats, Maybe (IO String)) -> IO ()
 printRes conf (res, stats, printProg) = do
@@ -146,6 +152,7 @@ getMode =
     "--to-game" -> Just ToGame
     "--encode-tslmt" -> Just EncodeTSLMT
     "--encode-muclp" -> Just EncodeMuCLP
+    "--encode-rpg-as-sg" -> Just EncodeRPG
     _ -> Nothing
 
 getInputFormat :: String -> Maybe InputFormat

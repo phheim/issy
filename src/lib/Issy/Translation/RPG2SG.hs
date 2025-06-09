@@ -51,4 +51,5 @@ transToCond vars = Map.toList . fmap (FOL.orf . map FOL.andf) . go
         RPG.TSys upds -> Map.fromListWith (++) $ map (\(upd, l) -> (l, [[updToCond vars upd]])) upds
 
 updToCond :: Variables -> Map Symbol Term -> Term
-updToCond vars upd = FOL.andfL (Map.toList upd) $ \(v, u) -> FOL.equal (Vars.mk vars v) u
+updToCond vars upd =
+  FOL.andfL (Map.toList upd) $ \(v, u) -> FOL.equal (Vars.primeT vars (Vars.mk vars v)) u

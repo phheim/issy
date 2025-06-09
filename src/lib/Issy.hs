@@ -32,6 +32,7 @@ module Issy
     checkSpecification
   , -- Encoding
     rpgToMuCLP
+  , rpgToSG
   , rpgToTSLT
   ) where
 
@@ -40,7 +41,7 @@ module Issy
 import Issy.Config (Config(..), defaultConfig)
 import Issy.Statistics (Stats, emptyStats, printStats)
 
--- Extractors
+-- Encoding
 import Issy.Extractors.MuCLP (rpgToMuCLP)
 import Issy.Extractors.TSLT (rpgToTSLT)
 
@@ -59,7 +60,7 @@ import Issy.Solver.GameInterface (fromRPG, fromSG)
 import Issy.Solver.ObjectiveSolver (solve)
 
 -- Translation (with and without pruning)
-import Issy.Translation (specToSG, tslToRPG)
+import Issy.Translation (rpgToSG, specToSG, tslToRPG)
 
 -- Checking
 import Issy.Specification (checkSpecification)
