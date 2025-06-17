@@ -1,11 +1,18 @@
--------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
+-- | 
+-- Module      : Issy.Solver.Attractor
+-- Description : Implementation of top-level attractor computation
+-- Copyright   : (c) Philippe Heim, 2025
+-- License     : The Unlicense
+--
+---------------------------------------------------------------------------------------------------
 module Issy.Solver.Attractor
   ( attractor
   , attractorEx
   , noCheck
   ) where
 
--------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
 import Control.Monad (filterM)
 import Data.Maybe (fromMaybe)
 import qualified Data.Set as Set
@@ -27,24 +34,23 @@ import Issy.Utils.Logging
 import Issy.Utils.OpenList (OpenList)
 import qualified Issy.Utils.OpenList as OL
 
--------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
 type StopCheck = Maybe (Loc -> SymSt -> IO Bool)
 
 noCheck :: StopCheck
 noCheck = Nothing
 
--------------------------------------------------------------------------------
--- | 'attractor' compute the attractor for a given player, game, and symbolic
--- state
+---------------------------------------------------------------------------------------------------
+-- | 'attractor' compute the attractor for a given player, game, and symbolic state
 attractor :: Config -> Stats -> Player -> Arena -> StopCheck -> SymSt -> IO (SymSt, Stats)
 attractor cfg stats player arena stopCheck target = do
   cfg <- pure $ setName "Attr" $ cfg {generateProgram = False}
   (res, stats, _) <- attractorFull cfg stats player arena stopCheck target
   pure (res, stats)
 
--------------------------------------------------------------------------------
--- | 'attractorEx' compute the attractor for a given player, game, and symbolic
--- state and does program extraction if indicated in the 'Config'.
+---------------------------------------------------------------------------------------------------
+-- | 'attractorEx' compute the attractor for a given player, game, and symbolic state and does 
+-- program extraction if indicated in the 'Config'.
 attractorEx :: Config -> Stats -> Player -> Arena -> StopCheck -> SymSt -> IO (SymSt, Stats, SyBo)
 attractorEx cfg stats player arena stopCheck target = do
   cfg <-
@@ -54,10 +60,9 @@ attractorEx cfg stats player arena stopCheck target = do
           else setName "Attr " cfg
   attractorFull cfg stats player arena stopCheck target
 
--------------------------------------------------------------------------------
--- | 'attractorFull' does the complete attractor computation and is later used
--- for the different type of attractor computations (with/without extraction)
---
+---------------------------------------------------------------------------------------------------
+-- | 'attractorFull' does the complete attractor computation and is later used for the different
+-- type of attractor computations (with/without extraction)
 attractorFull :: Config -> Stats -> Player -> Arena -> StopCheck -> SymSt -> IO (SymSt, Stats, SyBo)
 attractorFull cfg stats player arena stopCheck target = do
   satLocs <- Set.fromList . map fst <$> filterM (SMT.sat cfg . snd) (SymSt.toList target)
@@ -118,9 +123,9 @@ attractorFull cfg stats player arena stopCheck target = do
     strLocs = strS (locName arena)
     strStA = strSt arena
 
--------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
 -- Heuristics
--------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
 accelNow :: Loc -> Term -> VisitCounter -> Bool
 accelNow l f vcnt = (f /= FOL.false) && visits2accel (visits l vcnt)
 
@@ -129,4 +134,4 @@ accelerationDist = 4
 
 visits2accel :: Int -> Bool
 visits2accel k = (k >= accelerationDist) && (k `mod` accelerationDist == 0)
--------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------

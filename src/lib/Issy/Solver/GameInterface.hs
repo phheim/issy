@@ -1,5 +1,14 @@
+---------------------------------------------------------------------------------------------------
+-- | 
+-- Module      : Issy.Solver.GameInterface
+-- Description : Interface to encapsulate Symbolic Games and RPGs for the solving
+-- Copyright   : (c) Philippe Heim, 2025
+-- License     : The Unlicense
+--
+---------------------------------------------------------------------------------------------------
 {-# LANGUAGE LambdaCase #-}
 
+---------------------------------------------------------------------------------------------------
 module Issy.Solver.GameInterface
   ( Arena
   , Loc
@@ -41,6 +50,7 @@ module Issy.Solver.GameInterface
   , visits
   ) where
 
+---------------------------------------------------------------------------------------------------
 import Data.Bifunctor (first)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
@@ -57,6 +67,9 @@ import qualified Issy.Logic.FOL as FOL
 import qualified Issy.RPG as RPG
 import qualified Issy.SymbolicArena as Sym
 
+---------------------------------------------------------------------------------------------------
+-- Data Structure
+---------------------------------------------------------------------------------------------------
 data Arena
   = RPG RPG.Game
   | Sym Sym.Arena
@@ -75,6 +88,9 @@ liftG _ h (Sym a) = h a
 liftV :: (Vars.Variables -> a) -> Arena -> a
 liftV f = f . liftG RPG.variables Sym.variables
 
+---------------------------------------------------------------------------------------------------
+-- Game Operations
+---------------------------------------------------------------------------------------------------
 vars :: Arena -> Vars.Variables
 vars = liftV id
 
@@ -142,9 +158,9 @@ locName = liftG RPG.locName Sym.locName
 sortOf :: Arena -> Symbol -> Sort
 sortOf = liftV Vars.sortOf
 
---
+---------------------------------------------------------------------------------------------------
 -- Arena related symbolic state handeling
---
+---------------------------------------------------------------------------------------------------
 strSt :: Arena -> SymSt -> String
 strSt = SymSt.toString . locName
 
@@ -161,9 +177,9 @@ extendSt old oldToNew arena =
     (emptySt arena)
     (SymSt.locations old)
 
---
+---------------------------------------------------------------------------------------------------
 -- Player
---
+---------------------------------------------------------------------------------------------------
 data Player
   = Sys
   | Env
@@ -175,9 +191,9 @@ opponent =
     Sys -> Env
     Env -> Sys
 
---
+---------------------------------------------------------------------------------------------------
 -- Enforcement
---
+---------------------------------------------------------------------------------------------------
 cpre :: Player -> Arena -> SymSt -> Loc -> Term
 cpre p =
   case p of
@@ -195,9 +211,9 @@ removeAttrEnv :: Config -> SymSt -> Arena -> IO Arena
 removeAttrEnv conf st (RPG g) = RPG <$> RPG.removeAttrEnv conf st g
 removeAttrEnv conf st (Sym a) = Sym <$> Sym.removeAttrEnv conf st a
 
---
+---------------------------------------------------------------------------------------------------
 -- Visit Counting
---
+---------------------------------------------------------------------------------------------------
 newtype VisitCounter =
   VC (Map Loc Int)
 
@@ -209,3 +225,4 @@ visit l (VC vc) = VC $ Map.insertWith (+) l 1 vc
 
 visits :: Loc -> VisitCounter -> Int
 visits l (VC vc) = Map.findWithDefault 0 l vc
+---------------------------------------------------------------------------------------------------

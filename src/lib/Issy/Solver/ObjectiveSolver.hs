@@ -1,8 +1,9 @@
 ---------------------------------------------------------------------------------------------------
 -- | 
--- Module       :   Solver.ObjectiveSolver
---
--- Implements the different solving techniques for the different types of winning conditions
+-- Module      : Issy.Solver.ObjectiveSolver
+-- Description : Implementation of solving techniques for various of winning conditions
+-- Copyright   : (c) Philippe Heim, 2025
+-- License     : The Unlicense
 --
 ---------------------------------------------------------------------------------------------------
 module Issy.Solver.ObjectiveSolver

@@ -1,4 +1,11 @@
 ---------------------------------------------------------------------------------------------------
+-- | 
+-- Module      : Issy.Solver.Synthesis
+-- Description : Methods and data-stucture for synthesis bookkeeping and extraction
+-- Copyright   : (c) Philippe Heim, 2025
+-- License     : The Unlicense
+--
+---------------------------------------------------------------------------------------------------
 {-# LANGUAGE LambdaCase #-}
 
 ---------------------------------------------------------------------------------------------------
