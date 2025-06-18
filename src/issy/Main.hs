@@ -230,6 +230,8 @@ configParser = go defaultConfig
         "--accel-attr":arg:ar ->
           case arg of
             "geom" -> go (cfg {ufAcceleration = False, extendAcceleration = False}) ar
+            "gen-geom" ->
+              go (cfg {ufAcceleration = False, extendAcceleration = False, genGeomAccel = True}) ar
             "geom-ext" -> go (cfg {ufAcceleration = False, extendAcceleration = True}) ar
             "unint" -> go (cfg {ufAcceleration = True, extendAcceleration = False}) ar
             "unint-ext" -> go (cfg {ufAcceleration = True, extendAcceleration = True}) ar
@@ -240,6 +242,7 @@ configParser = go defaultConfig
             "medium" -> go (cfg {accelerationLevel = 1}) ar
             "hard" -> go (cfg {accelerationLevel = 2}) ar
             _ -> Left $ "found invalid attractor acceleration difficulty: " ++ arg
+        "--disable-summaries":sr -> go (cfg {enforcementSummaries = False}) sr
         -- Synthesis
         "--synt":sr -> go (cfg {generateProgram = True}) sr
         -- External tools
@@ -314,6 +317,7 @@ help =
   , "   --accel-attr TYPE"
   , "       geom       : geometric acceleration with invariant iteration (default)"
   , "       geom-ext   : geometric acceleration with extended invariant computation"
+  , "       gen-geom   : generalized geometric acceleration"
   , "       unint      : acceleration with uninterpreted lemmas"
   , "       unint-ext  : acceleration with uninterpreted lemmas and nesting"
   , ""
@@ -321,6 +325,8 @@ help =
   , "       easy   : stick to very local acceleration with simple arguments"
   , "       medium : go to elaborated accleration argument over time but stay reasonable (default)"
   , "       hard   : use everything that is possible, this will create signifcant overhead"
+  , ""
+  , "   --disable-summaries : disable computation of enforcement summaries"
   , ""
   , " Synthesis:"
   , "   --synt         : generate program if spec is realizable (default: disabled)"

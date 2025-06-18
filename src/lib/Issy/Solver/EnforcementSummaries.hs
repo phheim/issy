@@ -6,9 +6,7 @@
 -- License     : The Unlicense
 --
 ---------------------------------------------------------------------------------------------------
-{-# LANGUAGE LambdaCase #-}
 
----------------------------------------------------------------------------------------------------
 module Issy.Solver.EnforcementSummaries
   ( EnforcementSum
   , EnforceStore
@@ -40,7 +38,7 @@ data EnforcementSum = EnforcementSum
   -- ^ 'sybo' is the book-kept strategy with meta variables
   }
 
-data EnforceStore = EnforceStore
+newtype EnforceStore = EnforceStore
   { summaries :: [EnforcementSum]
   }
 

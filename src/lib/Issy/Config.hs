@@ -47,12 +47,16 @@ data Config = Config
   , accelerateObjective :: Bool
   -- ^ 'acclerate' indicates if accleration is enabled not only for attractors
   -- but also for outer-fixpoint objectives like Büchi or parity.
+  , genGeomAccel :: Bool
+  -- ^ 'genGeomAccel' indicates if general geometric acceleration is enabled
   , ufAcceleration :: Bool
   -- ^ DOCUMENT
   , extendAcceleration :: Bool
   -- ^ DOCUMENT
   , accelerationLevel :: Word
   -- ^ if this is set, depending if is set ufAcceleration, we nest or use chc 
+  , enforcementSummaries :: Bool
+  -- ^ 'enforcementSummaries' indicates if enforcment summaires are used 
     --
     -- Synthesis
     --  
@@ -100,9 +104,11 @@ defaultConfig =
     -- Game solving
     , accelerate = True
     , accelerateObjective = False
+    , genGeomAccel = False
     , ufAcceleration = False
     , extendAcceleration = False
     , accelerationLevel = 1
+    , enforcementSummaries = True
     -- Synthesis
     , generateProgram = False
     -- External tools
