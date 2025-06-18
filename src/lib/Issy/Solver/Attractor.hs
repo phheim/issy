@@ -103,22 +103,26 @@ attractorFull cfg stats player arena stopCheck target = do
               -- Check if we accelerate
           if accelerate cfg && canAccel arena l && accelNow l old vcnt
                   -- Acceleration
-            then do
-              lg cfg ["Attempt reachability acceleration"]
-              (acc, progSub) <- accelReach cfg (visits l vcnt) player arena l reach
-              stats <- pure $ Stats.accel stats
-              lg cfg ["Accleration formula", SMTLib.toString acc]
-              res <- SMT.simplify cfg $ FOL.orf [new, acc]
-              succ <- not <$> SMT.valid cfg (res `FOL.impl` new)
-              lg cfg ["Accelerated:", show succ]
-              if succ
-                      -- Acceleration succeed
-                then do
-                  stats <- pure $ Stats.accelSucc stats
-                  prog <- pure $ Synt.callOn l acc progSub prog
-                  attr stats vcnt open (set reach l res) prog
-                else attr stats vcnt open reach prog
+            then accel stats vcnt open reach prog l
             else attr stats vcnt open reach prog
+    -- Acceleration
+    accel ::
+         Stats -> VisitCounter -> OpenList Loc -> SymSt -> SyBo -> Loc -> IO (SymSt, Stats, SyBo)
+    accel stats vcnt open reach prog l = do
+      lg cfg ["Attempt reachability acceleration"]
+      (acc, progSub) <- accelReach cfg (visits l vcnt) player arena l reach
+      stats <- pure $ Stats.accel stats
+      lg cfg ["Accleration formula", SMTLib.toString acc]
+      res <- SMT.simplify cfg $ FOL.orf [get reach l, acc]
+      succ <- not <$> SMT.valid cfg (res `FOL.impl` get reach l)
+      lg cfg ["Accelerated:", show succ]
+      if succ
+                      -- Acceleration succeed
+        then do
+          stats <- pure $ Stats.accelSucc stats
+          prog <- pure $ Synt.callOn l acc progSub prog
+          attr stats vcnt open (set reach l res) prog
+        else attr stats vcnt open reach prog
     -- Logging helper
     strLocs = strS (locName arena)
     strStA = strSt arena

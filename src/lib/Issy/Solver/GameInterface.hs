@@ -73,7 +73,7 @@ import qualified Issy.SymbolicArena as Sym
 data Arena
   = RPG RPG.Game
   | Sym Sym.Arena
-  deriving (Show)
+  deriving (Eq, Ord, Show)
 
 fromRPG :: (RPG.Game, a) -> (Arena, a)
 fromRPG = first RPG

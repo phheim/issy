@@ -112,7 +112,7 @@ data Game = Game
   , transRel :: Map Loc Transition
   , predecessors :: Map Loc (Set Loc)
   , invariant :: Map Loc Term
-  } deriving (Show)
+  } deriving (Eq, Ord, Show)
 
 ---------------------------------------------------------------------------------------------------
 -- Accessors
