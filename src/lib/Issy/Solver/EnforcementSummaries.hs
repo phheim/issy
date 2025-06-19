@@ -8,8 +8,8 @@
 ---------------------------------------------------------------------------------------------------
 module Issy.Solver.EnforcementSummaries
   ( EnforcementSum
-  , EnforceStore
-  , emptyESStore
+  , EnfSt
+  , empty
   , applyIn
   , computeIn
   ) where
@@ -38,17 +38,17 @@ data EnforcementSum = EnforcementSum
   -- ^ 'sybo' is the book-kept strategy with meta variables
   }
 
-newtype EnforceStore = EnforceStore
+newtype EnfSt = EnfSt
   { summaries :: [EnforcementSum]
   }
 
-emptyESStore :: EnforceStore
-emptyESStore = EnforceStore {summaries = []}
+empty :: EnfSt
+empty = EnfSt {summaries = []}
 
-triedSummary :: EnforceStore -> Arena -> Loc -> Player -> Bool
+triedSummary :: EnfSt -> Arena -> Loc -> Player -> Bool
 triedSummary = error "TODO IMPLEMENT?, need equality check on arena"
 
-findSummary :: EnforceStore -> Arena -> Loc -> Player -> Maybe EnforcementSum
+findSummary :: EnfSt -> Arena -> Loc -> Player -> Maybe EnforcementSum
 findSummary = error "TODO IMPLEMENT"
 
 isSubgameFrom :: (Loc, Arena) -> (Loc, Arena) -> Bool
