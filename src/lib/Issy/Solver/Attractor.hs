@@ -20,13 +20,13 @@ import qualified Data.Set as Set
 
 import Issy.Base.SymbolicState (SymSt, get, set)
 import qualified Issy.Base.SymbolicState as SymSt
-import Issy.Config (Config, accelerate, generateProgram, setName)
+import Issy.Config (Config, accelerate, enforcementSummaries, generateProgram, setName)
 import Issy.Logic.FOL (Term)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.SMT as SMT
 import qualified Issy.Printers.SMTLib as SMTLib (toString)
 import Issy.Solver.Acceleration (accelReach, canAccel)
-import Issy.Solver.EnforcementSummaries (EnfSt)
+import Issy.Solver.EnforcementSummaries (EnfSt, trySummary)
 import Issy.Solver.GameInterface
 import Issy.Solver.Synthesis (SyBo)
 import qualified Issy.Solver.Synthesis as Synt
@@ -114,8 +114,29 @@ attractorFull cfg solst player arena stopCheck target = do
               -- Check if we accelerate
           if accelerate cfg && canAccel arena l && accelNow l old vcnt
                   -- Acceleration
-            then accel solst vcnt open reach prog l
+            then accelSum solst vcnt open reach prog l
             else attr solst vcnt open reach prog
+    -- Acceleration or summary application
+    accelSum ::
+         SolSt -> VisitCounter -> OpenList Loc -> SymSt -> SyBo -> Loc -> IO (SymSt, SolSt, SyBo)
+    accelSum solst vcnt open reach prog l
+      | enforcementSummaries cfg = do
+        (enfst', msum) <- trySummary cfg player arena l (enfst solst) reach
+        solst <- pure $ solst {enfst = enfst'}
+        case msum of
+                -- Summary was not found and could not be computed either
+          Nothing -> accel solst vcnt open reach prog l
+          Just (sum, subProg) -> do
+                        -- TODO: use programm
+                        -- TODO: add QELIM stepp
+                        -- If the summary does not add new stuff we do not accelerate
+            extended <- SMT.sat cfg $ FOL.andf [sum, FOL.neg (get reach l)]
+            if extended
+              then do
+                new <- SMT.simplify cfg $ FOL.orf [get reach l, sum]
+                attr solst vcnt open (set reach l new) prog
+              else accel solst vcnt open reach prog l
+      | otherwise = accel solst vcnt open reach prog l
     -- Acceleration
     accel ::
          SolSt -> VisitCounter -> OpenList Loc -> SymSt -> SyBo -> Loc -> IO (SymSt, SolSt, SyBo)

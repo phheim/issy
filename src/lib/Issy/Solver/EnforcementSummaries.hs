@@ -7,11 +7,9 @@
 --
 ---------------------------------------------------------------------------------------------------
 module Issy.Solver.EnforcementSummaries
-  ( EnforcementSum
-  , EnfSt
+  ( EnfSt
   , empty
-  , applyIn
-  , computeIn
+  , trySummary
   ) where
 
 ---------------------------------------------------------------------------------------------------
@@ -38,6 +36,9 @@ data EnforcementSum = EnforcementSum
   -- ^ 'sybo' is the book-kept strategy with meta variables
   }
 
+-- Entries for tried things:
+--  -> player + arena + location (isomorphy reachability!)
+--  -> result state: failed/summary entry (meta vars, trarget, prog, result formula)
 newtype EnfSt = EnfSt
   { summaries :: [EnforcementSum]
   }
@@ -45,13 +46,23 @@ newtype EnfSt = EnfSt
 empty :: EnfSt
 empty = EnfSt {summaries = []}
 
-triedSummary :: EnfSt -> Arena -> Loc -> Player -> Bool
-triedSummary = error "TODO IMPLEMENT?, need equality check on arena"
+--------------------------------------------------------------------------------------------------- 
+-- Application & Computation
+--------------------------------------------------------------------------------------------------- 
+-- TODO: document, do not QELIM result, that is resposibility of caller
+trySummary :: Config -> Player -> Arena -> Loc -> EnfSt -> SymSt -> IO (EnfSt, Maybe (Term, SyBo))
+trySummary = error "TODO IMPLEMENT, check if already computed"
+    -- What this does:
+    -- -> check if summary has been tried to computed and if matching exists
+    --      -> if tried but no matching, give up
+    --      -> if matching exits apply it
+    -- -> if no matching exits try to compute
+    -- --> give up
 
-findSummary :: EnfSt -> Arena -> Loc -> Player -> Maybe EnforcementSum
-findSummary = error "TODO IMPLEMENT"
-
-isSubgameFrom :: (Loc, Arena) -> (Loc, Arena) -> Bool
+--------------------------------------------------------------------------------------------------- 
+-- Detection
+--------------------------------------------------------------------------------------------------- 
+isSubgameFrom :: (Loc, Arena) -> (Loc, Arena) -> Maybe (Loc -> Loc)
 isSubgameFrom (lSub, arenaSub) (l, arena) = error "TODO IMPLEMENT"
 
 ---------------------------------------------------------------------------------------------------
@@ -63,14 +74,17 @@ isSubgameFrom (lSub, arenaSub) (l, arena) = error "TODO IMPLEMENT"
 applyIn :: Config -> EnforcementSum -> Arena -> SymSt -> IO (Maybe (Loc, Term))
 applyIn = error "TODO IMPLEMENT -> QELIM should go somewhere else"
 
-applySummary :: EnforcementSum -> SymSt -> Term
+-- TODO: Be sure that location match!!!
+-- TODO: idea, summaries are computed based on getting them
+applySummary :: EnforcementSum -> SymSt -> (Term, SyBo)
 applySummary = error "TODO IMPLEMENT"
 
 ---------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
 -- Computation
 --------------------------------------------------------------------------------------------------- 
-computeIn :: Config -> Arena -> Loc -> IO (Maybe EnforcementSum)
-computeIn =
+computeSumIn :: Config -> Arena -> Loc -> IO (Maybe EnforcementSum)
+computeSumIn =
   error
     "TODO IMPLEMENT: build sub-game with additional variables, and equality contraints! attractor computation + acceleration with new computation (cyclic dependency!)"
 ---------------------------------------------------------------------------------------------------
