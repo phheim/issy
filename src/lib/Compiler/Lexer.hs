@@ -29,7 +29,7 @@ alpha :: [Char]
 alpha = ['a' .. 'z'] ++ ['A' .. 'Z']
 
 idChar :: [Char]
-idChar = alpha ++ digit ++ ['\'']
+idChar = alpha ++ digit ++ ['\''] ++ ['_']
 
 numChar :: [Char]
 numChar = digit ++ ['.']
