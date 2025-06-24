@@ -87,7 +87,7 @@ rankingFunc vars prf =
       cellL = filter (not . Vars.isBounded vars) $ numbers vars
    in ( addT
           (constVar
-             : [br "a" c (br "b" c (Vars.mk vars c) (func "-" [Vars.mk vars c])) zeroT | c <- cellL])
+             : [br "a" c (br "b" c (Vars.mk vars c) (FOL.invT (Vars.mk vars c))) zeroT | c <- cellL])
       , [ constVar `leqT` Const (CInt 5)
         , Const (CInt (-5)) `leqT` constVar
         , addBools (bvarT . varcl prf "a" <$> cellL) 2 -- Might want to remove again!
@@ -102,7 +102,7 @@ rankLemma vars prime prf =
       (diff, conD) =
         if any ((== SReal) . Vars.sortOf vars) (Vars.stateVars vars)
           then let eps = rvarT (varcn prf "epislon")
-                in (eps, [func ">" [eps, zeroT], eps `leqT` oneT])
+                in (eps, [eps `gtT` zeroT, eps `leqT` oneT])
           else (oneT, [])
    in (Lemma (r `leqT` zeroT) (addT [diff, primeT vars prime r] `leqT` r) true, conR ++ conD)
 
@@ -110,7 +110,7 @@ invc :: Integer -> Variables -> Symbol -> (Term, [Term])
 invc restr vars prf =
   let constVar = ivarT (varcn prf "c")
       cellL = numbers vars
-   in ( addT [br "a" c (br "b" c (Vars.mk vars c) (func "-" [Vars.mk vars c])) zeroT | c <- cellL]
+   in ( addT [br "a" c (br "b" c (Vars.mk vars c) (FOL.invT (Vars.mk vars c))) zeroT | c <- cellL]
           `leqT` constVar
       , [ addBools (bvarT . varcl prf "a" <$> cellL) restr
         , constVar `leqT` Const (CInt 5)
@@ -138,7 +138,7 @@ constCompInv rest vars prf =
       let cc = varc c
           var = Vars.mk vars c
           br n = ite (bvarT (varcl prf n c))
-       in br "a" (br "b" true (func "=" [cc, var])) (br "b" (cc `leqT` var) (var `leqT` cc))
+       in br "a" (br "b" true (cc `equal` var)) (br "b" (cc `leqT` var) (var `leqT` cc))
 
 genInstH :: Heur -> Variables -> Symbol -> Symbol -> LemInst
 genInstH heur vars prime pref =

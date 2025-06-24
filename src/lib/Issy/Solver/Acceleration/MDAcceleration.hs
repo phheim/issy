@@ -219,8 +219,8 @@ manhatten :: Box Term -> Term
 manhatten = FOL.addT . map go
   where
     go (term, (upper, bound))
-      | upper = FOL.ite (term `FOL.leqT` bound) FOL.zeroT $ FOL.func "-" [term, bound]
-      | otherwise = FOL.ite (term `FOL.geqT` bound) FOL.zeroT $ FOL.func "-" [bound, term]
+      | upper = FOL.ite (term `FOL.leqT` bound) FOL.zeroT $ FOL.subT term bound
+      | otherwise = FOL.ite (term `FOL.geqT` bound) FOL.zeroT $ FOL.subT bound term
 
 mkBox :: Config -> Heur -> Player -> Arena -> Term -> IO (Maybe (Box Term, Term))
 mkBox conf heur player arena reach = do
@@ -315,12 +315,12 @@ prepareBox conf reach boxTerms = go [] [] boxTerms
           lo <- boundIn conf False boxTerm reach
           case (lo, up) of
             (True, False) ->
-              go (newbox False : box) (FOL.func "-" [FOL.zeroT, newvar False] : maxTerms) xr
+              go (newbox False : box) (FOL.subT FOL.zeroT (newvar False) : maxTerms) xr
             (False, True) -> go (newbox True : box) (newvar True : maxTerms) xr
             (True, True) ->
               go
                 (newbox True : newbox False : box)
-                (FOL.func "-" [newvar True, newvar False] : maxTerms)
+                (FOL.subT (newvar True) (newvar False) : maxTerms)
                 xr
             (False, False) -> go box maxTerms xr
 
@@ -362,7 +362,7 @@ generateTerms maxSize vars boxVars =
         [x] -> [[x]]
         x:xr ->
           let rec = multCombs xr
-           in map (x :) rec ++ map (FOL.func "-" [FOL.zeroT, x] :) rec
+           in map (x :) rec ++ map (FOL.subT FOL.zeroT x :) rec
         --
     boundPowerList :: [a] -> [[a]]
     boundPowerList =
@@ -407,8 +407,8 @@ varProgress conf arena var
     let bVarName = FOL.uniqueName ("bound_" ++ var) $ usedSymbols arena
     let prefix = FOL.uniquePrefix "prefix_" $ usedSymbols arena
     let varBound = FOL.Var bVarName (sortOf arena var)
-    let varAbs = FOL.func "abs" [Vars.mk (vars arena) var]
-    let varAbsCopy = FOL.func "abs" [FOL.Var (prefix ++ var) (sortOf arena var)]
+    let varAbs = FOL.func FOL.FAbs [Vars.mk (vars arena) var]
+    let varAbsCopy = FOL.func FOL.FAbs [FOL.Var (prefix ++ var) (sortOf arena var)]
     let st =
           SymSt.symSt (locations arena)
             $ const

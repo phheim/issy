@@ -16,6 +16,8 @@ module Issy.Logic.FOL
   , Quantifier(..)
   , Constant(..)
   , predefined
+  , booleanFunctions
+  , comparisionFunctions
   , --
     Model
   , modelToMap
@@ -65,6 +67,8 @@ module Issy.Logic.FOL
   , gtT
   , equal
   , addT
+  , subT
+  , invT
   , isNumber
   , --
     bindings
@@ -110,9 +114,40 @@ isFuncSort =
     _ -> False
 
 data Function
-  = PredefF Symbol
-  | CustomF Symbol [Sort] Sort
+  = CustomF Symbol [Sort] Sort
+  -- Boolean functions
+  | FAnd
+  | FOr
+  | FNot
+  | FDistinct
+  | FImply
+  -- Arithmetic operators
+  | FIte
+  | FAdd
+  | FSub
+  | FMul
+  | FDivReal
+  | FEq
+  | FLt
+  | FGt
+  | FLte
+  | FGte
+  | FAbs
+  | FToReal
+  | FMod
+  | FDivInt
   deriving (Eq, Ord, Show)
+
+booleanFunctions :: [Function]
+booleanFunctions = [FAnd, FOr, FNot, FDistinct, FImply]
+
+comparisionFunctions :: [Function]
+comparisionFunctions = [FEq, FLt, FLte, FGt, FGte]
+
+predefined :: [Function]
+predefined =
+  booleanFunctions
+    ++ [FIte, FAdd, FSub, FMul, FDivReal, FEq, FLt, FGt, FLte, FGte, FAbs, FToReal, FMod, FDivInt]
 
 data Quantifier
   = Exists
@@ -127,14 +162,6 @@ data Constant
   | CBool Bool
   -- ^ 'BoolConst' is a bool constant
   deriving (Eq, Ord, Show)
-
-booleanFunctions :: [String]
-booleanFunctions = ["and", "or", "not", "distinct", "=>"]
-
-predefined :: [String]
-predefined =
-  booleanFunctions
-    ++ ["ite", "+", "-", "*", "/", "=", "<", ">", "<=", ">=", "abs", "to_real", "mod", "div"]
 
 data Term
   = Var Symbol Sort
@@ -216,11 +243,11 @@ mapTerm m =
     Func f args ->
       let margs = map (mapTerm m) args
        in case f of
-            PredefF _ -> Func f margs
             CustomF v sargs starg ->
               case m v (SFunc sargs starg) of
                 Nothing -> Func f margs
                 Just funInst -> foldl betaReduce funInst margs
+            _ -> Func f margs
     Quant q t f -> Quant q t (mapTerm m f)
     Lambda t f -> Lambda t (mapTerm m f)
     QVar n -> QVar n
@@ -235,8 +262,8 @@ mapSymbol m = rec
     rec =
       \case
         Var v t -> Var (m v) t
-        Func (PredefF f) args -> Func (PredefF f) (rec <$> args)
         Func (CustomF f sig term) args -> Func (CustomF (m f) sig term) (rec <$> args)
+        Func f args -> Func f (rec <$> args)
         Quant q t f -> Quant q t (rec f)
         Lambda t f -> Lambda t (rec f)
         QVar n -> QVar n
@@ -250,11 +277,11 @@ setTerm targ val = go
       | targ == f && not val = false
       | otherwise =
         case f of
-          Func (PredefF "and") fs -> andf (map go fs)
-          Func (PredefF "or") fs -> orf (map go fs)
-          Func (PredefF "not") [f] -> neg (go f)
-          Func (PredefF "=>") [f, g] -> go f `impl` go g
-          Func (PredefF "distinct") fs -> distinct (map go fs)
+          Func FAnd fs -> andf (map go fs)
+          Func FOr fs -> orf (map go fs)
+          Func FNot [f] -> neg (go f)
+          Func FImply [f, g] -> go f `impl` go g
+          Func FDistinct fs -> distinct (map go fs)
           _ -> f
 
 replaceUF :: Symbol -> [Symbol] -> Term -> Term -> Term
@@ -288,13 +315,13 @@ andf xs
     case go xs of
       [] -> true
       [x] -> x
-      xs -> func "and" xs
+      xs -> func FAnd xs
   where
     go =
       \case
         [] -> []
         Const (CBool True):xr -> go xr
-        Func (PredefF "and") xs:ys -> go $ xs ++ ys
+        Func FAnd xs:ys -> go $ xs ++ ys
         t:xr -> t : go xr
 
 andfL :: [a] -> (a -> Term) -> Term
@@ -307,7 +334,7 @@ orf xs
     case filter (/= false) xs of
       [] -> false
       [x] -> x
-      xs -> Func (PredefF "or") xs
+      xs -> Func FOr xs
 
 orfL :: [a] -> (a -> Term) -> Term
 orfL xs f = orf $ map f xs
@@ -317,13 +344,13 @@ neg =
   \case
     Const (CBool True) -> false
     Const (CBool False) -> true
-    Func (PredefF "not") [f] -> f
-    f -> Func (PredefF "not") [f]
+    Func FNot [f] -> f
+    f -> Func FNot [f]
 
 ite :: Term -> Term -> Term -> Term
 ite c t e
   | t == e = t
-  | otherwise = Func (PredefF "ite") [c, t, e]
+  | otherwise = Func FIte [c, t, e]
 
 impl :: Term -> Term -> Term
 impl f g = orf [neg f, g]
@@ -335,13 +362,13 @@ xor :: Term -> Term -> Term
 xor f g = neg (iff f g)
 
 distinct :: [Term] -> Term
-distinct = Func (PredefF "distinct")
+distinct = Func FDistinct
 
 exactlyOne :: [Term] -> Term
 exactlyOne fs = andf (orf fs : map (\f -> f `impl` andf [neg g | g <- fs, g /= f]) fs)
 
 atMostOne :: [Term] -> Term
-atMostOne fs = geqT oneT $ func "+" $ map (\f -> ite f oneT zeroT) fs
+atMostOne fs = geqT oneT $ func FAdd $ map (\f -> ite f oneT zeroT) fs
 
 quantify :: Symbol -> Term -> Term
 quantify var = quant 0
@@ -389,8 +416,8 @@ ufFree =
     Var _ _ -> True
     Const _ -> True
     QVar _ -> True
-    Func (PredefF _) fs -> all ufFree fs
-    Func _ _ -> False
+    Func (CustomF {}) _ -> False
+    Func _ fs -> all ufFree fs
     Quant _ _ f -> ufFree f
     Lambda _ f -> ufFree f
 
@@ -400,9 +427,9 @@ bindingsS =
     Var v s -> Set.singleton (v, s)
     Func f args ->
       case f of
-        PredefF _ -> Set.unions (map bindingsS args)
         CustomF f sarg starg ->
           Set.unions (Set.singleton (f, SFunc sarg starg) : map bindingsS args)
+        _ -> Set.unions (map bindingsS args)
     Quant _ _ f -> bindingsS f
     Lambda _ f -> bindingsS f
     _ -> Set.empty
@@ -413,8 +440,8 @@ sorts =
     Var _ s -> Set.singleton s
     Func f args ->
       case f of
-        PredefF _ -> Set.unions $ map sorts args
         CustomF _ sarg starg -> Set.fromList (starg : sarg) `Set.union` Set.unions (map sorts args)
+        _ -> Set.unions $ map sorts args
     Quant _ s f -> Set.singleton s `Set.union` sorts f
     Lambda _ f -> sorts f
     _ -> Set.empty
@@ -439,8 +466,8 @@ symbols :: Term -> Set Symbol
 symbols =
   \case
     Var s _ -> Set.singleton s
-    Func (PredefF f) args -> Set.unions $ Set.singleton f : map symbols args
     Func (CustomF f _ _) args -> Set.unions $ Set.singleton f : map symbols args
+    Func _ args -> Set.unions $ map symbols args
     Quant _ _ f -> symbols f
     Lambda _ f -> symbols f
     _ -> Set.empty
@@ -449,9 +476,9 @@ nonBoolTerms :: Term -> Set Term
 nonBoolTerms =
   \case
     Const (CBool _) -> Set.empty
-    Func (PredefF f) args
+    Func f args
       | f `elem` booleanFunctions -> Set.unions $ map nonBoolTerms args
-      | otherwise -> Set.singleton $ Func (PredefF f) args
+      | otherwise -> Set.singleton $ Func f args
     f -> Set.singleton f
 
 equalitiesFor :: Symbol -> Term -> Set Term
@@ -459,10 +486,10 @@ equalitiesFor var = go
   where
     go =
       \case
-        Func (PredefF "=") [Var v _, t]
+        Func FEq [Var v _, t]
           | v == var -> Set.singleton t
           | otherwise -> go t
-        Func (PredefF "=") [t, Var v _]
+        Func FEq [t, Var v _]
           | v == var -> Set.singleton t
           | otherwise -> go t
         Func _ args -> Set.unions $ map go args
@@ -528,33 +555,39 @@ zeroT = Const (CInt 0)
 oneT :: Term
 oneT = Const (CInt 1)
 
-func :: String -> [Term] -> Term
-func = Func . PredefF
+func :: Function -> [Term] -> Term
+func = Func
 
 unintFunc :: String -> Sort -> [(Symbol, Sort)] -> Term
 unintFunc name resSort args = Func (CustomF name (map snd args) resSort) $ map (uncurry Var) args
 
 leqT :: Term -> Term -> Term
-leqT a b = func "<=" [a, b]
+leqT a b = func FLte [a, b]
 
 geqT :: Term -> Term -> Term
-geqT a b = func ">=" [a, b]
+geqT a b = func FGte [a, b]
 
 gtT :: Term -> Term -> Term
-gtT a b = func ">" [a, b]
+gtT a b = func FGt [a, b]
 
 ltT :: Term -> Term -> Term
-ltT a b = func "<" [a, b]
+ltT a b = func FLt [a, b]
 
 equal :: Term -> Term -> Term
-equal a b = func "=" [a, b]
+equal a b = func FEq [a, b]
 
 addT :: [Term] -> Term
 addT =
   \case
     [] -> zeroT
     [t] -> t
-    ts -> func "+" ts
+    ts -> func FAdd ts
+
+subT :: Term -> Term -> Term
+subT a b = func FSub [a, b]
+
+invT :: Term -> Term
+invT a = func FSub [a]
 
 isNumber :: Sort -> Bool
 isNumber = (`elem` [SInt, SReal])
@@ -565,11 +598,11 @@ isNumber = (`elem` [SInt, SReal])
 toNNF :: Term -> Term
 toNNF =
   \case
-    Func (PredefF "not") [Quant Forall s t] -> Quant Exists s $ toNNF $ neg t
-    Func (PredefF "not") [Quant Exists s t] -> Quant Forall s $ toNNF $ neg t
-    Func (PredefF "not") [Func (PredefF "not") [t]] -> toNNF t
-    Func (PredefF "not") [Func (PredefF "or") args] -> andf $ map (toNNF . neg) args
-    Func (PredefF "not") [Func (PredefF "and") args] -> orf $ map (toNNF . neg) args
+    Func FNot [Quant Forall s t] -> Quant Exists s $ toNNF $ neg t
+    Func FNot [Quant Exists s t] -> Quant Forall s $ toNNF $ neg t
+    Func FNot [Func FNot [t]] -> toNNF t
+    Func FNot [Func FOr args] -> andf $ map (toNNF . neg) args
+    Func FNot [Func FAnd args] -> orf $ map (toNNF . neg) args
     Func f args -> Func f $ map toNNF args
     Quant q s t -> Quant q s $ toNNF t
     atom -> atom
@@ -583,8 +616,8 @@ pushdownQE =
   \case
     Quant q s t ->
       case (q, pushdownQE t) of
-        (Forall, Func (PredefF "and") args) -> andf $ map (Quant q s) args
-        (Exists, Func (PredefF "or") args) -> orf $ map (Quant q s) args
+        (Forall, Func FAnd args) -> andf $ map (Quant q s) args
+        (Exists, Func FOr args) -> orf $ map (Quant q s) args
         (q, t) -> Quant q s t
     Func f args -> Func f (map pushdownQE args)
     term -> term

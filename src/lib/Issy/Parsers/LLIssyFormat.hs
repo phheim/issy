@@ -19,7 +19,7 @@ import Issy.Logic.FOL (Sort(..), Term)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.Temporal as TL
 import Issy.Parsers.SExpression (PRes, Pos, SExpr(..), getPos, parse, perr)
-import qualified Issy.Parsers.SMTLib as SMTLib (tryParseInt, tryParseRat)
+import qualified Issy.Parsers.SMTLib as SMTLib (parseFuncName, tryParseInt, tryParseRat)
 import Issy.Specification (Specification)
 import qualified Issy.Specification as Spec
 import Issy.SymbolicArena (Arena)
@@ -53,6 +53,9 @@ parseLLIssyFormat input = do
 --
 -- Variable Declaration
 --
+keywords :: [String]
+keywords = ["true", "false", "and", "or", "not", "distinct", "ite", "abs", "mod", "div", "to_real"]
+
 parseVarDecs :: SExpr -> PRes Variables
 parseVarDecs =
   \case
@@ -61,8 +64,7 @@ parseVarDecs =
   where
     addDec vars d = do
       (name, varType) <- parseVarDec d
-      when (name `elem` FOL.predefined ++ ["true, false"])
-        $ perr (getPos d) "Keyword not allowed as variable"
+      when (name `elem` keywords) $ perr (getPos d) "Keyword not allowed as variable"
       unless (isVarName name) $ perr (getPos d) $ "\"" ++ name ++ "\" is not a legal variable name"
       when (name `elem` Vars.allSymbols vars)
         $ perr (getPos d)
@@ -219,7 +221,8 @@ parseTerm vars = go
                 case SMTLib.tryParseRat 1 0 name of
                   Just r -> pure $ FOL.Const $ FOL.CReal r
                   Nothing -> perr p $ "Found undeclared variables or constant \"" ++ name ++ "\""
-        SPar _ (SId p name:args)
-          | name `elem` FOL.predefined -> FOL.func name <$> mapM go args
-          | otherwise -> perr p $ "Found unkown function while parsing term: \"" ++ name ++ "\""
+        SPar _ (SId p name:args) ->
+          case SMTLib.parseFuncName name of
+            Just func -> FOL.func func <$> mapM go args
+            Nothing -> perr p $ "Found unkown function while parsing term: \"" ++ name ++ "\""
         s -> perr (getPos s) "Found unkown pattern while parsing term"

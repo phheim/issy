@@ -14,8 +14,9 @@ import System.Process (readProcessWithExitCode)
 import Issy.Base.Variables (Variables)
 import qualified Issy.Base.Variables as Vars
 import Issy.Config (Config, muvalScript, muvalTimeOut)
-import Issy.Logic.FOL (Constant(..), Function(..), Quantifier(..), Sort(..), Symbol, Term(..))
+import Issy.Logic.FOL (Constant(..), Quantifier(..), Sort(..), Symbol, Term(..))
 import qualified Issy.Logic.FOL as FOL
+import Issy.Printers.SMTLib (funcToString)
 import Issy.Utils.Extra (firstLine)
 import Issy.Utils.Logging
 
@@ -67,21 +68,24 @@ encTerm fpPred (qpref, qdepth, bvars) funarg =
       | otherwise -> qpref ++ show (qdepth - k - 1)
     Func f args ->
       case f of
-        CustomF name _ _
+        FOL.CustomF name _ _
           | name == fpPred -> fpPred ++ concatMap ((" " ++) . recT) args
           | otherwise -> error "assert: cannot use non-fixpoint uninterpreted function"
-        PredefF n
-          | n == "or" -> encOp rec "\\/" "false" args
-          | n == "and" -> encOp rec "/\\" "true" args
-          | n == "not" -> "(not " ++ rec (head args) ++ ")"
-          | n == "+" -> encOp rec "+" "0" args
-          | n == "-" && length args == 1 -> "(- " ++ rec (head args) ++ ")"
-          | n `elem` ["-", "=", "<", ">", ">=", "<=", "*"] -> binOp n args
-          | n == "/" ->
-            case args of
-              [Const (CInt c1), Const (CInt c2)] -> encConst funarg (CReal (c1 % c2))
-              _ -> error (n ++ " only supported for constants")
-          | otherwise -> error (n ++ " not supported yet")
+        FOL.FOr -> encOp rec "\\/" "false" args
+        FOL.FAnd -> encOp rec "/\\" "true" args
+        FOL.FNot -> "(not " ++ rec (head args) ++ ")"
+        FOL.FAdd -> encOp rec "+" "0" args
+        FOL.FSub
+          | length args == 1 -> "(- " ++ rec (head args) ++ ")"
+          | otherwise -> binOp "-" args
+        FOL.FDivReal ->
+          case args of
+            [Const (CInt c1), Const (CInt c2)] -> encConst funarg (CReal (c1 % c2))
+            _ -> error "'/' only supported for constants"
+        f
+          | f `elem` [FOL.FMul, FOL.FEq, FOL.FLt, FOL.FGt, FOL.FLte, FOL.FGte] ->
+            binOp (funcToString f) args
+          | otherwise -> error (funcToString f ++ " not supported yet")
     Quant Exists sort term ->
       "(exists ( "
         ++ qpref

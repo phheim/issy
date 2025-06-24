@@ -11,7 +11,7 @@ import Data.Map.Strict ((!?))
 import Data.Ratio ((%))
 import Data.Set (Set)
 
-import Issy.Logic.FOL (Model, Sort(..), Symbol, Term)
+import Issy.Logic.FOL (Function(..), Model, Sort(..), Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
 import Issy.Parsers.SMTLibLexer (Token(..), tokenize)
 
@@ -76,14 +76,39 @@ exprToTerm ty =
     EList [EVar "not", r] -> FOL.neg <$> exprToTerm ty r
     EList (EVar n:r) -> do
       args <- mapM (exprToTerm ty) r
-      if n `elem` FOL.predefined
-        then Right $ FOL.func n args
-        else case ty n of
-               Just (SFunc argT retT) -> Right $ FOL.Func (FOL.CustomF n argT retT) args
-               Just _ -> perr "exprToTerm" "Expected function sort"
-               Nothing -> perr "exprToTerm" ("Undefined function: " ++ n)
+      case parseFuncName n of
+        Just f -> Right $ FOL.func f args
+        Nothing ->
+          case ty n of
+            Just (SFunc argT retT) -> Right $ FOL.Func (CustomF n argT retT) args
+            Just _ -> perr "exprToTerm" "Expected function sort"
+            Nothing -> perr "exprToTerm" ("Undefined function: " ++ n)
     EList [t] -> exprToTerm ty t
     _ -> perr "exprToTerm" "Unknown pattern"
+
+parseFuncName :: String -> Maybe Function
+parseFuncName =
+  \case
+    "and" -> Just FAnd
+    "or" -> Just FOr
+    "not" -> Just FNot
+    "distinct" -> Just FDistinct
+    "=>" -> Just FImply
+    "ite" -> Just FIte
+    "+" -> Just FAdd
+    "-" -> Just FSub
+    "*" -> Just FMul
+    "/" -> Just FDivReal
+    "=" -> Just FEq
+    "<" -> Just FLt
+    ">" -> Just FGt
+    "<=" -> Just FLte
+    ">=" -> Just FGte
+    "abs" -> Just FAbs
+    "to_real" -> Just FToReal
+    "mod" -> Just FMod
+    "div" -> Just FDivInt
+    _ -> Nothing
 
 parseConstTerm :: (String -> Maybe Sort) -> String -> PRes Term
 parseConstTerm types =

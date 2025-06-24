@@ -57,30 +57,27 @@ encTerm upd =
     Lambda _ _ -> error "Not supported"
     Var v s -> encVar True v s
     Const c -> encConst upd c
-    Func f args ->
-      case f of
-        CustomF {} -> error "Not supported"
-        PredefF n
-          | n == "or" && not upd -> encOp (encTerm upd) "||" "false" args
-          | n == "and" && not upd -> encOp (encTerm upd) "&&" "true" args
-          | n == "not" && not upd -> "(! " ++ encTerm upd (head args) ++ ")"
-          | n == "-" && length args == 1 -> "(sub i0() " ++ encTerm upd (head args) ++ ")"
-          | n == "+" ->
-            if length args <= 2
-              then op "add" args
-              else "(add "
-                     ++ encTerm upd (head args)
-                     ++ " "
-                     ++ encTerm upd (Func (PredefF "+") (tail args))
-                     ++ ")"
-          | n == "-" -> op "sub" args
-          | n == "=" -> op "eq" args
-          | n == "<" -> op "lt" args
-          | n == ">" -> op "gt" args
-          | n == "<=" -> op "le" args
-          | n == ">=" -> op "ge" args
-          | n == "*" -> op "mul" args
-          | otherwise -> error (n ++ " not supported yet")
+    Func n args
+      | n == FOr && not upd -> encOp (encTerm upd) "||" "false" args
+      | n == FAnd && not upd -> encOp (encTerm upd) "&&" "true" args
+      | n == FNot && not upd -> "(! " ++ encTerm upd (head args) ++ ")"
+      | n == FSub && length args == 1 -> "(sub i0() " ++ encTerm upd (head args) ++ ")"
+      | n == FAdd ->
+        if length args <= 2
+          then op "add" args
+          else "(add "
+                 ++ encTerm upd (head args)
+                 ++ " "
+                 ++ encTerm upd (Func FAdd (tail args))
+                 ++ ")"
+      | n == FSub -> op "sub" args
+      | n == FEq -> op "eq" args
+      | n == FLt -> op "lt" args
+      | n == FGt -> op "gt" args
+      | n == FLte -> op "le" args
+      | n == FGte -> op "ge" args
+      | n == FMul -> op "mul" args
+      | otherwise -> error (show n ++ " not supported yet")
   where
     op name args = "(" ++ name ++ concatMap ((" " ++) . encTerm upd) args ++ ")"
 

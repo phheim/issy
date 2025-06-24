@@ -291,8 +291,8 @@ printTerm =
     FOL.Const (FOL.CBool b)
       | b -> "true"
       | otherwise -> "false"
-    FOL.Func (FOL.PredefF name) args ->
-      case (name, args) of
+    FOL.Func func args ->
+      case (SMTLib.funcToString func, args) of
         ("abs", [arg]) -> "(abs(" ++ printTerm arg ++ "))"
         ("-", [arg]) -> "(- (" ++ printTerm arg ++ "))"
         ("not", [arg]) -> "(!(" ++ printTerm arg ++ "))"

@@ -38,10 +38,10 @@ fromTerm = go . FOL.toNNF
   where
     go =
       \case
-        FOL.Func (FOL.PredefF "or") [arg] -> go arg
-        FOL.Func (FOL.PredefF "or") (a:args) ->
+        FOL.Func FOL.FOr [arg] -> go arg
+        FOL.Func FOL.FOr (a:args) ->
           case FOL.toNNF (FOL.neg a) of
-            FOL.Func (FOL.PredefF "and") andArgs -> first (andArgs ++) $ go $ FOL.orf args
+            FOL.Func FOL.FAnd andArgs -> first (andArgs ++) $ go $ FOL.orf args
             a -> first (a :) $ go $ FOL.orf args
         conc -> ([], conc)
 
@@ -68,7 +68,7 @@ chcEncode invPred sorts constr =
   where
     enc :: ([Term], Term) -> String
     enc (prem, conc) =
-      let implication = FOL.func "=>" [FOL.andf prem, conc]
+      let implication = FOL.func FOL.FImply [FOL.andf prem, conc]
           qimplication = FOL.forAll (Set.toList (FOL.frees implication)) implication
        in "(assert " ++ SMTLib.toString qimplication ++ "))"
 
@@ -125,7 +125,7 @@ callCHCMax cfg query = do
 
 encodeConstr :: ([Term], Term) -> Term
 encodeConstr (prems, conc) =
-  let horn = FOL.func "=>" [FOL.andf prems, conc]
+  let horn = FOL.func FOL.FImply [FOL.andf prems, conc]
    in FOL.forAll (Set.toList (FOL.frees horn)) horn
 
 encodeFP :: Variables -> Symbol -> [Term] -> String
@@ -203,9 +203,13 @@ fpExprToTerm varMap = go
             "/\\" -> pure $ FOL.andf [t1, t2]
             "\\/" -> pure $ FOL.orf [t1, t2]
             "!=" -> pure $ FOL.neg $ FOL.equal t1 t2
-            _
-              | op `elem` ["+", "-", "=", "<=", ">=", "*"] -> pure $ FOL.func op [t1, t2]
-              | otherwise -> Left $ "Found illegal operator: " ++ op
+            "+" -> pure $ FOL.func FOL.FAdd [t1, t2]
+            "-" -> pure $ FOL.func FOL.FSub [t1, t2]
+            "=" -> pure $ FOL.func FOL.FEq [t1, t2]
+            "<=" -> pure $ FOL.func FOL.FLte [t1, t2]
+            ">=" -> pure $ FOL.func FOL.FGte [t1, t2]
+            "*" -> pure $ FOL.func FOL.FMul [t1, t2]
+            _ -> Left $ "Found illegal operator: " ++ op
 
 parseFPHead :: Variables -> String -> String -> Either String (Map String (Symbol, Sort), String)
 parseFPHead vars fpPred sr = do

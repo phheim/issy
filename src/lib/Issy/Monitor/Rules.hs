@@ -586,7 +586,8 @@ genInvPrec cfg gls dom st
     if base == FOL.true || base == FOL.false
       then pure (st, gls)
       else do
-        let init = Vars.forallX (vars gls) $ FOL.func "=>" [FOL.andf [base, fpPred gls], FOL.false]
+        let init =
+              Vars.forallX (vars gls) $ FOL.func FOL.FImply [FOL.andf [base, fpPred gls], FOL.false]
             -- Transtion condition in CHC
         let tr = FOL.andf $ exactlyOneUpd gls : updateEffect gls : (encode gls <$> dedInv dom st)
         let trans =
@@ -594,7 +595,7 @@ genInvPrec cfg gls dom st
                 $ Vars.forallI (vars gls)
                 $ FOL.forAll (aux gls)
                 $ Vars.forallX' (vars gls)
-                $ FOL.func "=>" [FOL.andf [fpPred' gls, tr], fpPred gls]
+                $ FOL.func FOL.FImply [FOL.andf [fpPred' gls, tr], fpPred gls]
         res <- CHC.computeFP cfg (vars gls) (fixpointPred gls) init trans
         case res of
           Just alpha -> do

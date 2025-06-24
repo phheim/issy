@@ -5,6 +5,7 @@
 module Issy.Printers.SMTLib
   ( toString
   , toQuery
+  , funcToString
   , sortToString
   ) where
 
@@ -66,12 +67,7 @@ t2Term a =
     Quant Forall t f -> "(forall ((" ++ hQwant t f
     Quant Exists t f -> "(exists ((" ++ hQwant t f
     Lambda t f -> "(lambda ((" ++ hQwant t f --FIXME: This is non-standard!
-    Func f args ->
-      let fun =
-            case f of
-              PredefF name -> name
-              CustomF name _ _ -> name
-       in "(" ++ fun ++ concatMap ((" " ++) . t2Term a) args ++ ")"
+    Func f args -> "(" ++ funcToString f ++ concatMap ((" " ++) . t2Term a) args ++ ")"
     Const (CInt n)
       | n >= 0 -> show n
       | otherwise -> "(- " ++ show (-n) ++ ")"
@@ -82,4 +78,28 @@ t2Term a =
   where
     hQwant t f =
       fst a ++ show (snd a) ++ " " ++ sortToString t ++ ")) " ++ t2Term (fst a, snd a + 1) f ++ ")"
+
+funcToString :: Function -> String
+funcToString =
+  \case
+    CustomF name _ _ -> name
+    FAnd -> "and"
+    FOr -> "or"
+    FNot -> "not"
+    FDistinct -> "distinct"
+    FImply -> "=>"
+    FIte -> "ite"
+    FAdd -> "+"
+    FSub -> "-"
+    FMul -> "*"
+    FDivReal -> "/"
+    FEq -> "="
+    FLt -> "<"
+    FGt -> ">"
+    FLte -> "<="
+    FGte -> ">="
+    FAbs -> "abs"
+    FToReal -> "to_real"
+    FMod -> "mod"
+    FDivInt -> "div"
 ---------------------------------------------------------------------------------------------------

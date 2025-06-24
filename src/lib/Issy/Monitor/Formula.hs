@@ -45,7 +45,7 @@ import qualified Data.Set as Set
 
 import Issy.Base.Variables (Variables)
 import qualified Issy.Base.Variables as Vars
-import Issy.Logic.FOL (Constant(..), Function(..), Symbol, Term(..))
+import Issy.Logic.FOL (Constant(..), Symbol, Term(..))
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.RPLTL as RPLTL
 import qualified Issy.Logic.TSLMT as TSL
@@ -109,11 +109,11 @@ fpred pol =
     Const (CBool False)
       | pol -> ffalse
       | otherwise -> ftrue
-    Func (PredefF "not") [term] -> FPred (not pol) term
-    Func (PredefF "and") terms
+    Func FOL.FNot [term] -> FPred (not pol) term
+    Func FOL.FAnd terms
       | pol -> fand (map (fpred pol) terms)
       | otherwise -> for (map (fpred pol) terms)
-    Func (PredefF "or") terms
+    Func FOL.FOr terms
       | pol -> for (map (fpred pol) terms)
       | otherwise -> fand (map (fpred pol) terms)
     term -> FPred pol term

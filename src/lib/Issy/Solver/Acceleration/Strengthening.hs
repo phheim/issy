@@ -16,7 +16,7 @@ import Control.Monad ((<=<))
 import Data.Bifunctor (first)
 
 import Issy.Config (Config)
-import Issy.Logic.FOL (Function(PredefF), Symbol, Term(Func))
+import Issy.Logic.FOL (Symbol, Term(Func))
 import qualified Issy.Logic.FOL as FOL
 import Issy.Logic.SMT as SMT
 
@@ -27,14 +27,14 @@ strengthenSimple = go
   where
     go t =
       case t of
-        Func (PredefF "or") args -> t : concatMap go args
-        Func (PredefF "and") [] -> [FOL.true]
-        Func (PredefF "and") (a:ar) ->
+        Func FOL.FOr args -> t : concatMap go args
+        Func FOL.FAnd [] -> [FOL.true]
+        Func FOL.FAnd (a:ar) ->
           let r1 = go a
               r2 = go $ FOL.andf ar
            in [FOL.andf [e1, e2] | e1 <- r1, e2 <- r2]
-        Func (PredefF "not") [Func (PredefF "=") [a1, a2]] ->
-          [FOL.func "<" [a1, a2], FOL.func ">" [a1, a2]]
+        Func FOL.FNot [Func FOL.FEq [a1, a2]] ->
+          [FOL.func FOL.FLt [a1, a2], FOL.func FOL.FGt [a1, a2]]
         t -> [t]
 
 ---------------------------------------------------------------------------------------------------
@@ -46,13 +46,13 @@ strengthenBool conf prefix =
   where
     expand t =
       case t of
-        Func (PredefF "not") [Func (PredefF "=") [a1, a2]] ->
-          FOL.orf [FOL.func "<" [a1, a2], FOL.func ">" [a1, a2]]
+        Func FOL.FNot [Func FOL.FEq [a1, a2]] ->
+          FOL.orf [FOL.func FOL.FLt [a1, a2], FOL.func FOL.FGt [a1, a2]]
         Func f args -> Func f $ map expand args
         t -> t
     label cnt t =
       case t of
-        Func (PredefF "or") args ->
+        Func FOL.FOr args ->
           first (FOL.orf . reverse)
             $ foldl
                 (\(args, cnt) -> first ((: args) . addSelector cnt) . label (cnt + 1))

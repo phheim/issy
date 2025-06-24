@@ -70,21 +70,24 @@ encTerm upd =
       | otherwise -> v
     Const c -> encConst upd c
     QVar _ -> error "Not supported"
-    Func f args ->
-      case f of
-        CustomF {} -> error "Not supported"
-        PredefF n
-          | n == "or" -> encOp (encTerm upd) "\\/" "false" args
-          | n == "and" -> encOp (encTerm upd) "/\\" "true" args
-          | n == "not" -> "(not " ++ encTerm upd (head args) ++ ")"
-          | n == "+" -> encOp (encTerm upd) "+" "0" args
-          | n == "-" && length args == 1 -> "(- " ++ encTerm upd (head args) ++ ")"
-          | n `elem` ["-", "=", "<", ">", ">=", "<=", "*"] -> binOp n args
-          | n == "/" ->
-            case args of
-              [Const (CInt c1), Const (CInt c2)] -> encConst upd (CReal (c1 % c2))
-              _ -> error (n ++ " only supported for constants")
-          | otherwise -> error (n ++ " not supported yet")
+    Func n args
+      | n == FOr -> encOp (encTerm upd) "\\/" "false" args
+      | n == FAnd -> encOp (encTerm upd) "/\\" "true" args
+      | n == FNot -> "(not " ++ encTerm upd (head args) ++ ")"
+      | n == FAdd -> encOp (encTerm upd) "+" "0" args
+      | n == FSub && length args == 1 -> "(- " ++ encTerm upd (head args) ++ ")"
+      | n == FDivReal ->
+        case args of
+          [Const (CInt c1), Const (CInt c2)] -> encConst upd (CReal (c1 % c2))
+          _ -> error "'/' only supported for constants"
+      | n == FSub -> binOp "-" args
+      | n == FEq -> binOp "=" args
+      | n == FLt -> binOp "<" args
+      | n == FLte -> binOp "<=" args
+      | n == FGt -> binOp ">" args
+      | n == FGte -> binOp ">=" args
+      | n == FMul -> binOp "*" args
+      | otherwise -> error (show n ++ " not supported yet")
     Quant {} -> error "Not supported"
     Lambda _ _ -> error "Not supported"
   where

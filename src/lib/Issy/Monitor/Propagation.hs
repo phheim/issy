@@ -36,10 +36,10 @@ generatePredicatesTSL cfg vars preds updates = do
     --
     mutate term =
       case term of
-        FOL.Func (FOL.PredefF "not") [arg] -> mutate arg
-        FOL.Func (FOL.PredefF name) args
-          | name `elem` ["=", "<", ">", "<=", ">="] ->
-            Set.fromList [FOL.func "=" args, FOL.func "<" args, FOL.func "<=" args]
+        FOL.Func FOL.FNot [arg] -> mutate arg
+        FOL.Func f args
+          | f `elem` FOL.comparisionFunctions ->
+            Set.fromList [FOL.func FOL.FEq args, FOL.func FOL.FLt args, FOL.func FOL.FLte args]
           | otherwise -> Set.empty
         _ -> Set.empty
     --
@@ -71,10 +71,10 @@ generatePredicatesRPLTL cfg vars preds = do
     --
     mutate term =
       case term of
-        FOL.Func (FOL.PredefF "not") [arg] -> mutate arg
-        FOL.Func (FOL.PredefF name) args
-          | name `elem` ["=", "<", ">", "<=", ">="] ->
-            Set.fromList [FOL.func "=" args, FOL.func "<" args, FOL.func "<=" args]
+        FOL.Func FOL.FNot [arg] -> mutate arg
+        FOL.Func f args
+          | f `elem` FOL.comparisionFunctions ->
+            Set.fromList [FOL.func FOL.FEq args, FOL.func FOL.FLt args, FOL.func FOL.FLte args]
           | otherwise -> Set.empty
         _ -> Set.empty
 

@@ -72,26 +72,25 @@ translateSignalTerm typ toStr =
     PredicateTerm pt -> translatePredTerm typ toStr pt
 
 parseFunc :: String -> Function
-parseFunc str =
-  PredefF
-    $ case str of
-        "and" -> "and"
-        "or" -> "or"
-        "not" -> "not"
-        "ite" -> "ite"
-        "add" -> "+"
-        "sub" -> "-"
-        "mul" -> "*"
-        "div" -> "/"
-        "mod" -> "mod"
-        "abs" -> "abs"
-        "to_real" -> "to_real"
-        "eq" -> "="
-        "lt" -> "<"
-        "gt" -> ">"
-        "lte" -> "<="
-        "gte" -> ">="
-        str -> error $ "found unkown function : " ++ str
+parseFunc =
+  \case
+    "and" -> FAnd
+    "or" -> FOr
+    "not" -> FNot
+    "ite" -> FIte
+    "add" -> FAdd
+    "sub" -> FSub
+    "mul" -> FMul
+    "div" -> FDivReal
+    "mod" -> FMod
+    "abs" -> FAbs
+    "to_real" -> FToReal
+    "eq" -> FEq
+    "lt" -> FLt
+    "gt" -> FGt
+    "lte" -> FLte
+    "gte" -> FGte
+    str -> error $ "found unkown function : " ++ str
 
 parseConst :: String -> Constant
 parseConst =
