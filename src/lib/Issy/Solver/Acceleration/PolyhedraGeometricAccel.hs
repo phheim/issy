@@ -38,5 +38,49 @@ import qualified Issy.Utils.OpenList as OL (fromSet, pop, push)
 -- Top-level acceleration
 ---------------------------------------------------------------------------------------------------
 accelReach :: Config -> Heur -> Player -> Arena -> Loc -> SymSt -> IO (Term, SyBo)
-accelReach = error "TODO IMPLEMENT"
+accelReach conf heur player arena loc reach = do
+  conf <- pure $ setName "GGeoA" conf
+  lg conf ["Accelerate in", locName arena loc, "on", strSt arena reach]
+  error "TODO IMPLEMENT"
+
+accelGAL :: Config -> Player -> Arena -> Loc -> SymSt -> Term -> Term -> IO (Term, SyBo)
+accelGAL conf player arena loc reach maintain inv = error "TODO IMPLEMENT"
+  where
+    iter = error "TODO IMPLEMENT"
+
+---------------------------------------------------------------------------------------------------
+-- Attractor through loop arena
+---------------------------------------------------------------------------------------------------
+preCond :: Config -> Player -> Arena -> Loc -> SymSt -> (Term, Term, Term) -> Term
+preCond = error "TODO IMPLEMENT"
+
+---------------------------------------------------------------------------------------------------
+-- Lemma Guessing based on polyhedra
+---------------------------------------------------------------------------------------------------
+data GenAccelLemma = GenAccelLemma
+  { base :: Term
+  , step :: Term
+  , stay :: Term
+  , conc :: Term
+  }
+
+lemmaGuess :: Config -> Heur -> Symbol -> Player -> Arena -> Term -> IO (Maybe GenAccelLemma)
+lemmaGuess = error "TODO IMPLEMENT"
+
+galUnion :: [GenAccelLemma] -> GenAccelLemma
+galUnion = error "TODO IMPLEMENT"
+
+data Polyhedron = Polyhedron
+  { variables :: [Symbol]
+  , conditions :: [([Term], Term)]
+  }
+
+fromPolyhedron :: Polyhedron -> GenAccelLemma
+fromPolyhedron = error "TODO IMPLEMENT"
+
+extractPolyhedra :: Term -> [(Polyhedron, Term)]
+extractPolyhedra = error "TODO IMPLEMENT"
+
+toDNF :: Term -> [[Term]]
+toDNF = error "TODO IMPLEMENT"
 ---------------------------------------------------------------------------------------------------

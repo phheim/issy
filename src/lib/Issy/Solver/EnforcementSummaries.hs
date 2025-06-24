@@ -1,7 +1,7 @@
 ---------------------------------------------------------------------------------------------------
 -- | 
 -- Module      : Issy.Solver.EnforcementSummaries
--- Description : Implementaion of Enforcement Summaries
+-- Description : Implementation of Enforcement Summaries
 -- Copyright   : (c) Philippe Heim, 2025
 -- License     : The Unlicense
 --
@@ -17,7 +17,7 @@ import Data.List (find)
 
 import Issy.Base.SymbolicState (SymSt, get)
 import qualified Issy.Base.Variables as Vars
-import Issy.Base.Variables(Variables)
+import Issy.Base.Variables (Variables)
 import Issy.Config (Config, setName)
 import Issy.Logic.FOL (Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
@@ -63,7 +63,7 @@ data SummaryContent = SummaryContent
 -- TODO: document, do not QELIM result, that is resposibility of caller
 trySummary :: Config -> Player -> Arena -> Loc -> EnfSt -> SymSt -> IO (EnfSt, Maybe (Term, SyBo))
 trySummary conf player arena loc enfst reach = do
-  conf <- pure $ setName "Summaries" conf 
+  conf <- pure $ setName "Summaries" conf
   lgd conf ["Try to apply summary"] -- TODO: details
   case find (matchKey player arena loc . fst) (summaries enfst) of
     Just (key, content) -> do
@@ -74,15 +74,15 @@ trySummary conf player arena loc enfst reach = do
     Nothing ->
       case find (matchKey player arena loc) (failed enfst) of
         Just _ -> do
-            lgd conf ["No valid summary exists"]
-            pure (enfst, Nothing)
+          lgd conf ["No valid summary exists"]
+          pure (enfst, Nothing)
         Nothing -> do
           lg conf ["Compute summary"] -- TODO: details
           (key, content) <- computeSum conf player arena loc
           case content of
-            Nothing -> do 
-                    lg conf ["Summary computation failed"]
-                    pure (enfst {failed = failed enfst ++ [key]}, Nothing)
+            Nothing -> do
+              lg conf ["Summary computation failed"]
+              pure (enfst {failed = failed enfst ++ [key]}, Nothing)
             Just content -> do
               lg conf ["Summary computation succeeded"] -- TODO: details
               enfst <- pure $ enfst {summaries = summaries enfst ++ [(key, content)]}
@@ -92,12 +92,12 @@ trySummary conf player arena loc enfst reach = do
               pure (enfst, Just res)
 
 matchKey :: Player -> Arena -> Loc -> SummaryKey -> Bool
-matchKey player arena loc key 
-  |  player == sumPlayer key = 
-        case isSubarenaFrom (sumLoc key, sumArena key) (loc, arena) of
-            Nothing -> False -- TODO: this has to be used!!!
-            Just _ -> True
-  |  otherwise = False
+matchKey player arena loc key
+  | player == sumPlayer key =
+    case isSubarenaFrom (sumLoc key, sumArena key) (loc, arena) of
+      Nothing -> False -- TODO: this has to be used!!!
+      Just _ -> True
+  | otherwise = False
 
 ---------------------------------------------------------------------------------------------------
 -- Application
