@@ -223,6 +223,6 @@ parseTerm vars = go
                   Nothing -> perr p $ "Found undeclared variables or constant \"" ++ name ++ "\""
         SPar _ (SId p name:args) ->
           case SMTLib.parseFuncName name of
-            Just func -> FOL.func func <$> mapM go args
+            Just func -> mapM go args >>= func
             Nothing -> perr p $ "Found unkown function while parsing term: \"" ++ name ++ "\""
         s -> perr (getPos s) "Found unkown pattern while parsing term"

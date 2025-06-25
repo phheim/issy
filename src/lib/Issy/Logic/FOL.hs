@@ -68,7 +68,15 @@ module Issy.Logic.FOL
   , equal
   , addT
   , subT
+  , minusT
+  , multT
   , invT
+  , implyT
+  , realdivT
+  , intdivT
+  , absT
+  , modT
+  , toRealT
   , isNumber
   , --
     bindings
@@ -124,14 +132,11 @@ data Function
   -- Arithmetic operators
   | FIte
   | FAdd
-  | FSub
   | FMul
   | FDivReal
   | FEq
   | FLt
-  | FGt
   | FLte
-  | FGte
   | FAbs
   | FToReal
   | FMod
@@ -142,12 +147,13 @@ booleanFunctions :: [Function]
 booleanFunctions = [FAnd, FOr, FNot, FDistinct, FImply]
 
 comparisionFunctions :: [Function]
-comparisionFunctions = [FEq, FLt, FLte, FGt, FGte]
+comparisionFunctions = [FEq, FLt, FLte]
 
 predefined :: [Function]
 predefined =
   booleanFunctions
-    ++ [FIte, FAdd, FSub, FMul, FDivReal, FEq, FLt, FGt, FLte, FGte, FAbs, FToReal, FMod, FDivInt]
+    ++ comparisionFunctions
+    ++ [FIte, FAdd, FMul, FDivReal, FAbs, FToReal, FMod, FDivInt]
 
 data Quantifier
   = Exists
@@ -345,6 +351,8 @@ neg =
     Const (CBool True) -> false
     Const (CBool False) -> true
     Func FNot [f] -> f
+    Func FLt [f, g] -> geqT f g
+    Func FLte [f, g] -> gtT f g
     f -> Func FNot [f]
 
 ite :: Term -> Term -> Term -> Term
@@ -408,6 +416,7 @@ quantifierFree =
   \case
     Func _ fs -> all quantifierFree fs
     Quant {} -> False
+    Lambda _ _ -> False
     _ -> True
 
 ufFree :: Term -> Bool
@@ -552,11 +561,32 @@ rvarT name = Var name SReal
 zeroT :: Term
 zeroT = Const (CInt 0)
 
+minusOne :: Term
+minusOne = Const (CInt (-1))
+
 oneT :: Term
 oneT = Const (CInt 1)
 
 func :: Function -> [Term] -> Term
 func = Func
+
+implyT :: Term -> Term -> Term
+implyT a b = func FImply [a, b]
+
+realdivT :: Term -> Term -> Term
+realdivT a b = func FDivReal [a, b]
+
+intdivT :: Term -> Term -> Term
+intdivT a b = func FDivInt [a, b]
+
+modT :: Term -> Term -> Term
+modT a b = func FMod [a, b]
+
+absT :: Term -> Term
+absT a = func FAbs [a]
+
+toRealT :: Term -> Term
+toRealT a = func FAbs [a]
 
 unintFunc :: String -> Sort -> [(Symbol, Sort)] -> Term
 unintFunc name resSort args = Func (CustomF name (map snd args) resSort) $ map (uncurry Var) args
@@ -564,17 +594,24 @@ unintFunc name resSort args = Func (CustomF name (map snd args) resSort) $ map (
 leqT :: Term -> Term -> Term
 leqT a b = func FLte [a, b]
 
-geqT :: Term -> Term -> Term
-geqT a b = func FGte [a, b]
-
-gtT :: Term -> Term -> Term
-gtT a b = func FGt [a, b]
-
 ltT :: Term -> Term -> Term
 ltT a b = func FLt [a, b]
 
+geqT :: Term -> Term -> Term
+geqT a b = leqT b a
+
+gtT :: Term -> Term -> Term
+gtT a b = ltT b a
+
 equal :: Term -> Term -> Term
 equal a b = func FEq [a, b]
+
+multT :: [Term] -> Term
+multT =
+  \case
+    [] -> oneT
+    [t] -> t
+    ts -> func FMul ts
 
 addT :: [Term] -> Term
 addT =
@@ -583,11 +620,24 @@ addT =
     [t] -> t
     ts -> func FAdd ts
 
+minusT :: [Term] -> Term
+minusT =
+  \case
+    [] -> error "assert: empty minus"
+    [x] -> invT x
+    x:xr -> addT (x : map invT xr)
+
 subT :: Term -> Term -> Term
-subT a b = func FSub [a, b]
+subT a b = minusT [a, b]
 
 invT :: Term -> Term
-invT a = func FSub [a]
+invT =
+  \case
+    Const (CInt n) -> Const $ CInt (-n)
+    Const (CReal n) -> Const $ CReal (-n)
+    Func FAdd ts -> addT $ map invT ts
+    Func FMul (t:tr) -> multT $ invT t : tr
+    t -> Func FMul [minusOne, t]
 
 isNumber :: Sort -> Bool
 isNumber = (`elem` [SInt, SReal])
@@ -621,3 +671,35 @@ pushdownQE =
         (q, t) -> Quant q s t
     Func f args -> Func f (map pushdownQE args)
     term -> term
+--typeCheck :: Term -> Either String Sort
+--typeCheck = go (const Nothing)
+--    where
+--        go varType = \case
+--            Var _ sort -> Right sort -- TODO: check also consitency of type
+--            Const (CInt _) -> Right SInt
+--            Const (CReal _) -> Right SReal
+--            Const (CBool _) -> Right SBool
+--            QVar n -> case varType n of
+--                            Nothing -> Left "found unmapped quantified variable"
+--                            Just sort -> Right sort
+--            Quant _ sort term -> go (\n -> if n == 0 then Just sort else varType (n - 1)) term
+--            Lambda sort term -> error "TODO IMPLEMENT"
+--            Func func args -> 
+--                case (func, map (go varType) args) of
+--                    (CustomF _ argSort resSort, args) 
+--                        | argSort == args -> Right resSort
+--                        | otherwise -> Left "sorts do not match function application"
+--                    (FAnd, args) -> boolOp args
+--                    (FOr, args) -> boolOp args
+--                    (FDistinct, args) -> boolOp args
+--                    (FNot, [SBool]) -> Right SBool
+--                    (FNot, _) -> Left "illegal usage of 'not'"
+--                    _ -> error "TODO IMPLEMENT" 
+--        boolOp args 
+--         | all (==SBool) args = Right SBool
+--         | otherwise = Left "TODO: Proper error"
+--
+--
+-- Pre-Simplification / Pre-Simplification check
+-- TODO: This might be a different module
+--

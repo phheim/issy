@@ -194,7 +194,7 @@ fpExprToTerm varMap = go
               Nothing -> Left $ "Found illegal identifier: " ++ (c : cs)
           | otherwise ->
             case varMap !? (c : cs) of
-              Just (v, sort) -> pure $ FOL.Var v sort
+              Just (v, sort) -> pure $ FOL.var v sort
               Nothing -> Left $ "Found unknown identifier: " ++ (c : cs)
         FPBop op e1 e2 -> do
           t1 <- go e1
@@ -203,12 +203,12 @@ fpExprToTerm varMap = go
             "/\\" -> pure $ FOL.andf [t1, t2]
             "\\/" -> pure $ FOL.orf [t1, t2]
             "!=" -> pure $ FOL.neg $ FOL.equal t1 t2
-            "+" -> pure $ FOL.func FOL.FAdd [t1, t2]
-            "-" -> pure $ FOL.func FOL.FSub [t1, t2]
-            "=" -> pure $ FOL.func FOL.FEq [t1, t2]
-            "<=" -> pure $ FOL.func FOL.FLte [t1, t2]
-            ">=" -> pure $ FOL.func FOL.FGte [t1, t2]
-            "*" -> pure $ FOL.func FOL.FMul [t1, t2]
+            "+" -> pure $ FOL.addT [t1, t2]
+            "-" -> pure $ FOL.subT t1 t2
+            "=" -> pure $ FOL.equal t1 t2
+            "<=" -> pure $ FOL.leqT t1 t2
+            ">=" -> pure $ FOL.geqT t1 t2
+            "*" -> pure $ FOL.multT [t1, t2]
             _ -> Left $ "Found illegal operator: " ++ op
 
 parseFPHead :: Variables -> String -> String -> Either String (Map String (Symbol, Sort), String)

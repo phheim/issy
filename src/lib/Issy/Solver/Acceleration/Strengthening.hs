@@ -33,8 +33,7 @@ strengthenSimple = go
           let r1 = go a
               r2 = go $ FOL.andf ar
            in [FOL.andf [e1, e2] | e1 <- r1, e2 <- r2]
-        Func FOL.FNot [Func FOL.FEq [a1, a2]] ->
-          [FOL.func FOL.FLt [a1, a2], FOL.func FOL.FGt [a1, a2]]
+        Func FOL.FNot [Func FOL.FEq [a1, a2]] -> [FOL.ltT a1 a2, FOL.gtT a1 a2]
         t -> [t]
 
 ---------------------------------------------------------------------------------------------------
@@ -46,8 +45,7 @@ strengthenBool conf prefix =
   where
     expand t =
       case t of
-        Func FOL.FNot [Func FOL.FEq [a1, a2]] ->
-          FOL.orf [FOL.func FOL.FLt [a1, a2], FOL.func FOL.FGt [a1, a2]]
+        Func FOL.FNot [Func FOL.FEq [a1, a2]] -> FOL.orf [FOL.ltT a1 a2, FOL.gtT a1 a2]
         Func f args -> Func f $ map expand args
         t -> t
     label cnt t =

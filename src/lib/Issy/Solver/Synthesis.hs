@@ -232,7 +232,7 @@ extractTT conf locVar arena mapLoc (loc, cond, pt) = do
           pure $ condStmt $ Sequence $ [Read] ++ assigns ++ [Continue]
 
 isLoc :: Symbol -> Loc -> Term
-isLoc locVar l = FOL.Var locVar FOL.SInt `FOL.equal` toLoc l
+isLoc locVar l = FOL.var locVar FOL.SInt `FOL.equal` toLoc l
 
 toLoc :: Loc -> Term
 toLoc = FOL.Const . FOL.CInt . Locs.toNumber

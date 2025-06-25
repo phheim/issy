@@ -75,17 +75,13 @@ encTerm upd =
       | n == FAnd -> encOp (encTerm upd) "/\\" "true" args
       | n == FNot -> "(not " ++ encTerm upd (head args) ++ ")"
       | n == FAdd -> encOp (encTerm upd) "+" "0" args
-      | n == FSub && length args == 1 -> "(- " ++ encTerm upd (head args) ++ ")"
       | n == FDivReal ->
         case args of
           [Const (CInt c1), Const (CInt c2)] -> encConst upd (CReal (c1 % c2))
           _ -> error "'/' only supported for constants"
-      | n == FSub -> binOp "-" args
       | n == FEq -> binOp "=" args
       | n == FLt -> binOp "<" args
       | n == FLte -> binOp "<=" args
-      | n == FGt -> binOp ">" args
-      | n == FGte -> binOp ">=" args
       | n == FMul -> binOp "*" args
       | otherwise -> error (show n ++ " not supported yet")
     Quant {} -> error "Not supported"

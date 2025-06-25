@@ -75,16 +75,12 @@ encTerm fpPred (qpref, qdepth, bvars) funarg =
         FOL.FAnd -> encOp rec "/\\" "true" args
         FOL.FNot -> "(not " ++ rec (head args) ++ ")"
         FOL.FAdd -> encOp rec "+" "0" args
-        FOL.FSub
-          | length args == 1 -> "(- " ++ rec (head args) ++ ")"
-          | otherwise -> binOp "-" args
         FOL.FDivReal ->
           case args of
             [Const (CInt c1), Const (CInt c2)] -> encConst funarg (CReal (c1 % c2))
             _ -> error "'/' only supported for constants"
         f
-          | f `elem` [FOL.FMul, FOL.FEq, FOL.FLt, FOL.FGt, FOL.FLte, FOL.FGte] ->
-            binOp (funcToString f) args
+          | f `elem` [FOL.FMul, FOL.FEq, FOL.FLt, FOL.FLte] -> binOp (funcToString f) args
           | otherwise -> error (funcToString f ++ " not supported yet")
     Quant Exists sort term ->
       "(exists ( "

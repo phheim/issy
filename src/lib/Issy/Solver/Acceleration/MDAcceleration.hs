@@ -269,13 +269,13 @@ mkOptBox conf heur vars reach = do
   if null boxScheme
     then pure Nothing
     else do
-      let impCond = Vars.forallX vars $ boxTerm (uncurry FOL.Var) boxScheme `FOL.impl` reach
-      let exCond = Vars.existsX vars $ boxTerm (uncurry FOL.Var) boxScheme
+      let impCond = Vars.forallX vars $ boxTerm (uncurry FOL.var) boxScheme `FOL.impl` reach
+      let exCond = Vars.existsX vars $ boxTerm (uncurry FOL.var) boxScheme
       cond <- SMT.simplify conf $ FOL.andf [impCond, exCond]
       model <- SMT.tryOptPareto conf (H.boxOptSmtTO heur) cond maxTerms
       case model of
         Just (Just model) ->
-          let toInteger = fmap $ assertConst . FOL.setModel model . uncurry FOL.Var
+          let toInteger = fmap $ assertConst . FOL.setModel model . uncurry FOL.var
            in pure $ Just $ map (second toInteger) boxScheme
         _ -> pure Nothing
   where
@@ -291,7 +291,7 @@ completeBox conf reach = do
     Just model -> pure $ Just $ concatMap (modelCons model) $ Map.toList $ FOL.bindings reach
   where
     modelCons model (var, sort) =
-      let varTerm = FOL.Var var sort
+      let varTerm = FOL.var var sort
           bound = FOL.setModel model varTerm
        in [(varTerm, (True, bound)), (varTerm, (False, bound))]
 
@@ -309,7 +309,7 @@ prepareBox conf reach boxTerms = go [] [] boxTerms
           let newname upper
                 | upper = FOL.uniqueName "upper" syms
                 | otherwise = FOL.uniqueName "lower" syms
-          let newvar upper = FOL.Var (newname upper) sort
+          let newvar upper = FOL.var (newname upper) sort
           let newbox upper = (boxTerm, (upper, (newname upper, sort)))
           up <- boundIn conf True boxTerm reach
           lo <- boundIn conf False boxTerm reach
@@ -394,7 +394,7 @@ usefullTargetVar conf player arena var =
 varPlayerControlled :: Config -> Player -> Arena -> Symbol -> IO Bool
 varPlayerControlled conf player arena var = do
   let cVarName = FOL.uniqueName ("copy_" ++ var) $ usedSymbols arena
-  let cvar = FOL.Var cVarName (sortOf arena var)
+  let cvar = FOL.var cVarName (sortOf arena var)
   let st = SymSt.symSt (locations arena) $ const $ cvar `FOL.equal` Vars.mk (vars arena) var
   SMT.unsat conf
     $ FOL.orfL (locationL arena)
@@ -406,9 +406,9 @@ varProgress conf arena var
   | otherwise = do
     let bVarName = FOL.uniqueName ("bound_" ++ var) $ usedSymbols arena
     let prefix = FOL.uniquePrefix "prefix_" $ usedSymbols arena
-    let varBound = FOL.Var bVarName (sortOf arena var)
-    let varAbs = FOL.func FOL.FAbs [Vars.mk (vars arena) var]
-    let varAbsCopy = FOL.func FOL.FAbs [FOL.Var (prefix ++ var) (sortOf arena var)]
+    let varBound = FOL.var bVarName (sortOf arena var)
+    let varAbs = FOL.absT $ Vars.mk (vars arena) var
+    let varAbsCopy = FOL.absT $ FOL.var (prefix ++ var) (sortOf arena var)
     let st =
           SymSt.symSt (locations arena)
             $ const

@@ -19,7 +19,7 @@ import qualified TSL (Specification(assumptions, guarantees))
 
 import Issy.Base.Variables (Type(..), Variables)
 import qualified Issy.Base.Variables as Vars
-import Issy.Logic.FOL (Constant(..), Function(..), Sort(..), Symbol, Term(..))
+import Issy.Logic.FOL (Constant(..), Sort(..), Symbol, Term(..))
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.TSLMT as TSLMT
 import qualified Issy.Logic.Temporal as TL
@@ -71,26 +71,33 @@ translateSignalTerm typ toStr =
     FunctionTerm ft -> translateFuncTerm typ toStr ft
     PredicateTerm pt -> translatePredTerm typ toStr pt
 
-parseFunc :: String -> Function
-parseFunc =
-  \case
-    "and" -> FAnd
-    "or" -> FOr
-    "not" -> FNot
-    "ite" -> FIte
-    "add" -> FAdd
-    "sub" -> FSub
-    "mul" -> FMul
-    "div" -> FDivReal
-    "mod" -> FMod
-    "abs" -> FAbs
-    "to_real" -> FToReal
-    "eq" -> FEq
-    "lt" -> FLt
-    "gt" -> FGt
-    "lte" -> FLte
-    "gte" -> FGte
+parseFunc :: String -> [Term] -> Term
+parseFunc name =
+  case name of
+    "and" -> FOL.andf
+    "or" -> FOL.orf
+    "not" -> uop FOL.neg
+    "ite" -> top FOL.ite
+    "add" -> FOL.addT
+    "sub" -> FOL.minusT
+    "mul" -> FOL.multT
+    "div" -> bop FOL.intdivT
+    "mod" -> bop FOL.modT
+    "abs" -> uop FOL.absT
+    "to_real" -> uop FOL.toRealT
+    "eq" -> bop FOL.equal
+    "lt" -> bop FOL.ltT
+    "gt" -> bop FOL.gtT
+    "lte" -> bop FOL.leqT
+    "gte" -> bop FOL.geqT
     str -> error $ "found unkown function : " ++ str
+  where
+    uop op [a] = op a
+    uop _ _ = error $ "found \'" ++ name ++ "\' with not one argument"
+    bop op [a, b] = op a b
+    bop _ _ = error $ "found \'" ++ name ++ "\' with not two arguments"
+    top op [a, b, c] = op a b c
+    top _ _ = error $ "found \'" ++ name ++ "\' with not three arguments"
 
 parseConst :: String -> Constant
 parseConst =
@@ -113,7 +120,9 @@ translateFuncTerm typ toStr ft =
         -- here we have a constant
     FunctionSymbol constf -> Const $ parseConst (toStr constf)
         -- here we have a proper function
-    _ -> uncurry Func (go ft)
+    _ ->
+      let (func, args) = go ft
+       in func args
   where
     go =
       \case
@@ -131,7 +140,9 @@ translatePredTerm typ toStr =
       | typ a == SBool -> Var (toStr a) SBool
       | otherwise -> error "found boolean input with non-boolean sort"
     PredicateSymbol constp -> Const $ parseConst (toStr constp)
-    term -> uncurry Func $ go term
+    term ->
+      let (func, args) = go term
+       in func args
   where
     go =
       \case

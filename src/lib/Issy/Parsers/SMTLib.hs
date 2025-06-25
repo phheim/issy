@@ -11,7 +11,7 @@ import Data.Map.Strict ((!?))
 import Data.Ratio ((%))
 import Data.Set (Set)
 
-import Issy.Logic.FOL (Function(..), Model, Sort(..), Symbol, Term)
+import Issy.Logic.FOL (Function(CustomF), Model, Sort(..), Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
 import Issy.Parsers.SMTLibLexer (Token(..), tokenize)
 
@@ -77,7 +77,7 @@ exprToTerm ty =
     EList (EVar n:r) -> do
       args <- mapM (exprToTerm ty) r
       case parseFuncName n of
-        Just f -> Right $ FOL.func f args
+        Just pfunc -> pfunc args
         Nothing ->
           case ty n of
             Just (SFunc argT retT) -> Right $ FOL.Func (CustomF n argT retT) args
@@ -86,29 +86,36 @@ exprToTerm ty =
     EList [t] -> exprToTerm ty t
     _ -> perr "exprToTerm" "Unknown pattern"
 
-parseFuncName :: String -> Maybe Function
-parseFuncName =
-  \case
-    "and" -> Just FAnd
-    "or" -> Just FOr
-    "not" -> Just FNot
-    "distinct" -> Just FDistinct
-    "=>" -> Just FImply
-    "ite" -> Just FIte
-    "+" -> Just FAdd
-    "-" -> Just FSub
-    "*" -> Just FMul
-    "/" -> Just FDivReal
-    "=" -> Just FEq
-    "<" -> Just FLt
-    ">" -> Just FGt
-    "<=" -> Just FLte
-    ">=" -> Just FGte
-    "abs" -> Just FAbs
-    "to_real" -> Just FToReal
-    "mod" -> Just FMod
-    "div" -> Just FDivInt
+parseFuncName :: String -> Maybe ([Term] -> PRes Term)
+parseFuncName fname =
+  case fname of
+    "and" -> Just $ Right . FOL.andf
+    "or" -> Just $ Right . FOL.orf
+    "not" -> Just $ liftUOp FOL.neg
+    "distinct" -> Just $ Right . FOL.distinct
+    "=>" -> Just $ liftBOp FOL.implyT
+    "ite" -> Just $ liftTOp FOL.ite
+    "+" -> Just $ Right . FOL.addT
+    "-" -> Just $ Right . FOL.minusT
+    "*" -> Just $ Right . FOL.multT
+    "/" -> Just $ liftBOp FOL.realdivT
+    "=" -> Just $ liftBOp FOL.equal
+    "<" -> Just $ liftBOp FOL.ltT
+    ">" -> Just $ liftBOp FOL.gtT
+    "<=" -> Just $ liftBOp FOL.leqT
+    ">=" -> Just $ liftBOp FOL.geqT
+    "abs" -> Just $ liftUOp FOL.absT
+    "to_real" -> Just $ liftUOp FOL.toRealT
+    "mod" -> Just $ liftBOp FOL.modT
+    "div" -> Just $ liftBOp FOL.intdivT
     _ -> Nothing
+  where
+    liftUOp op [t] = Right $ op t
+    liftUOp _ _ = perr "parseFuncName" $ "\'" ++ fname ++ "\' expects only one argument"
+    liftBOp op [t1, t2] = Right $ op t1 t2
+    liftBOp _ _ = perr "parseFuncName" $ "\'" ++ fname ++ "\' expects exactly two arguments"
+    liftTOp op [t1, t2, t3] = Right $ op t1 t2 t3
+    liftTOp _ _ = perr "parseFuncName" $ "\'" ++ fname ++ "\' expects exactly three arguments"
 
 parseConstTerm :: (String -> Maybe Sort) -> String -> PRes Term
 parseConstTerm types =

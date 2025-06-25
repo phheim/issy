@@ -80,7 +80,7 @@ typeOf vars var
 mk :: Variables -> Symbol -> Term
 mk vars name
   | name `notElem` allSymbols vars = error $ "assert: " ++ name ++ " not found"
-  | otherwise = FOL.Var name (sortOf vars name)
+  | otherwise = FOL.var name (sortOf vars name)
 
 isInput :: Variables -> Symbol -> Bool
 isInput vars var = var `elem` inputs vars
