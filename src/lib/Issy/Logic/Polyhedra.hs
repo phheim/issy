@@ -9,13 +9,22 @@
 {-# LANGUAGE LambdaCase #-}
 
 ---------------------------------------------------------------------------------------------------
-module Issy.Logic.Polyhedra where
+-- TODO export more!
+module Issy.Logic.Polyhedra
+  ( Polyhedron
+  , normalize
+  , projectPolyhedra
+  ) where
 
 ---------------------------------------------------------------------------------------------------
 import Data.Map.Strict (Map, (!?))
 import qualified Data.Map.Strict as Map
+import Data.Set (Set)
+import qualified Data.Set as Set
 
 import Issy.Logic.FOL (Symbol, Term)
+import qualified Issy.Logic.FOL as FOL
+import Issy.Logic.Propositional (DNF(..), toDNF)
 
 ---------------------------------------------------------------------------------------------------
 -- Interval and Bounds
@@ -25,6 +34,21 @@ data Interval = Interval
   { upper :: UBound
   , lower :: LBound
   } deriving (Eq, Ord, Show)
+
+fullInterval :: Interval
+fullInterval = Interval {upper = PlusInfinity, lower = MinusInfinity}
+
+ltInterval :: Real a => a -> Interval
+ltInterval r = fullInterval {upper = LTVal False (toRational r)}
+
+lteInterval :: Real a => a -> Interval
+lteInterval r = fullInterval {upper = LTVal True (toRational r)}
+
+gtInterval :: Real a => a -> Interval
+gtInterval r = fullInterval {lower = GTVal False (toRational r)}
+
+gteInterval :: Real a => a -> Interval
+gteInterval r = fullInterval {lower = GTVal True (toRational r)}
 
 -- | 'UBound' is a type for optional inclusive/exclusive upper rational bounds 
 data UBound
@@ -75,11 +99,13 @@ included :: Interval -> Interval -> Bool
 included b1 b2 = upper b1 >= upper b2 && lower b1 >= lower b2
 
 isEmpty :: Interval -> Bool
-isEmpty = error "TODO IMPLEMENT"
+isEmpty intv =
+  case (lower intv, upper intv) of
+    (GTVal leq lval, LTVal ueq uval) -> uval < lval || (uval == lval && (not leq || not ueq))
+    _ -> False
 
 ---------------------------------------------------------------------------------------------------
 -- Efficent Maps for Lists
---      TODO: Move to own module?? => No, does not make sense
 ---------------------------------------------------------------------------------------------------
 data RListMap k a = RListMap
   { neutral :: k
@@ -90,13 +116,14 @@ empty :: k -> RListMap k a
 empty neut = RListMap {neutral = neut, tree = LTLeaf}
 
 lookup :: Ord k => [k] -> RListMap k a -> Maybe a
-lookup ks mp = lookupT (reduce (neutral mp) ks) $ tree mp
+lookup ks mp = lookupT (removeTrailing (neutral mp) ks) $ tree mp
 
 insertWith :: Ord k => (a -> a -> a) -> [k] -> a -> RListMap k a -> RListMap k a
-insertWith comb ks val mp = mp {tree = insertWithT comb (reduce (neutral mp) ks) val (tree mp)}
+insertWith comb ks val mp =
+  mp {tree = insertWithT comb (removeTrailing (neutral mp) ks) val (tree mp)}
 
-reduce :: Eq k => k -> [k] -> [k]
-reduce neutral = go
+removeTrailing :: Eq a => a -> [a] -> [a]
+removeTrailing neutral = go
   where
     go =
       \case
@@ -155,28 +182,80 @@ includedLT includedElems = go
        in labelInc && succInc
 
 ---------------------------------------------------------------------------------------------------
--- Linear Combinations
+-- Polyhedra
 ---------------------------------------------------------------------------------------------------
-data WannabePolyhedron = WannabePolyhedron
-  { linConstr :: RListMap Rational Interval
+data Polyhedron = Polyhedron
+  { varOrder :: [Symbol]
+  , linearConstraints :: RListMap Rational Interval
     -- | TODO: this FOR SURE needs a semantic definition
-  , otherConstr :: [Term]
   }
 
-addLinearConstr :: [Rational] -> Interval -> WannabePolyhedron -> WannabePolyhedron
+fullP :: [Symbol] -> Polyhedron
+fullP = error "TODO IMPLEMENT"
+
+isFullP :: Polyhedron -> Bool
+isFullP = error "TODO IMPLEMENT"
+
+includedP :: Polyhedron -> Polyhedron -> Bool
+includedP = error "TODO IMPLEMENT"
+
+addLinearConstr :: [Rational] -> Interval -> Polyhedron -> Polyhedron
 addLinearConstr = error "TODO IMPLEMENT; ADD INFESABILITY CHECK!"
 
-includedWP :: WannabePolyhedron -> WannabePolyhedron -> Bool
-includedWP = error "TODO IMPLEMENT"
+polyToTerms :: Polyhedron -> [Term]
+polyToTerms = error "TODO"
 
-data PolyhedraContr = PolyhedraContr
-  { variableOrder :: [Symbol]
-  , constrs :: [WannabePolyhedron]
-  }
+addConstr :: Polyhedron -> Term -> Maybe Polyhedron
+addConstr = error "TODO IMPLEMENT CONTRAINT DETECTION"
 
-fromFOL :: Term -> PolyhedraContr
-fromFOL = error "TODO IMPLEMENT"
+---------------------------------------------------------------------------------------------------
+-- Linear Combinations
+---------------------------------------------------------------------------------------------------
+-- | TODO Condition all have same variable order!; disjunctions
+newtype PolyhedraConstr =
+  PolyhedraConstr [(Polyhedron, Set Term)]
 
-toFOL :: PolyhedraContr -> Term
-toFOL = error "TODO IMPLEMENT"
+-- | TODO get non-trivial polyhedra
+nonTrivialPolyhedra :: PolyhedraConstr -> [Polyhedron]
+nonTrivialPolyhedra (PolyhedraConstr constrs) = filter (not . isFullP) $ map fst constrs
+
+-- | TODO
+fromFOL :: Term -> PolyhedraConstr
+fromFOL term =
+  let DNF dnf = toDNF term
+   in PolyhedraConstr $ go [] dnf
+  where
+    varOrder = map fst $ filter (FOL.isNumber . snd) $ Map.toList $ FOL.bindings term
+        --
+    go acc [] = reverse acc
+    go acc (c:cr) =
+      let (poly, others) = fromClause (fullP varOrder, Set.empty) c
+       in if supersumed (poly, others) acc
+            then go acc cr
+            else go ((poly, others) : acc) cr
+        --
+    supersumed (poly, others) = all $ \(p, o) -> o == others && includedP poly p
+        --
+    fromClause (poly, others) [] = (poly, others)
+    fromClause (poly, others) (l:lr) =
+      case addConstr poly (fromLit l) of
+        Just poly -> fromClause (poly, others) lr
+        Nothing -> fromClause (poly, Set.insert (fromLit l) others) lr
+        --
+    fromLit (pol, lit)
+      | pol = lit
+      | otherwise = FOL.neg lit
+
+-- | TODO
+toFOL :: PolyhedraConstr -> Term
+toFOL (PolyhedraConstr disjuncts) =
+  FOL.orf $ flip map disjuncts $ \(poly, others) -> FOL.andf $ polyToTerms poly ++ Set.toList others
+
+-- | TODO
+normalize :: Term -> Term
+normalize = toFOL . fromFOL
+
+-- | TODO
+projectPolyhedra :: Term -> [Polyhedron]
+projectPolyhedra = nonTrivialPolyhedra . fromFOL
 --------------------------------------------------------------------------------------------------
