@@ -50,6 +50,7 @@ module Issy.Logic.FOL
   , exactlyOne
   , atMostOne
   , var
+  , numberT
   , constT
   , boolConst
   , intConst
@@ -102,6 +103,7 @@ module Issy.Logic.FOL
 import Data.List (isPrefixOf)
 import Data.Map (Map, (!?))
 import qualified Data.Map as Map
+import Data.Ratio (denominator, numerator)
 import Data.Set (Set)
 import qualified Data.Set as Set
 
@@ -559,6 +561,13 @@ removePref pref =
 -------------------------------------------------------------------------------
 var :: Symbol -> Sort -> Term
 var = Var
+
+numberT :: Real a => a -> Term
+numberT num =
+  let r = toRational num
+   in if denominator r == 1
+        then Const (CInt (numerator r))
+        else Const (CReal r)
 
 constT :: Constant -> Term
 constT = Const
