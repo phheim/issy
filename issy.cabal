@@ -35,6 +35,7 @@ library
     , Issy.Extractors.TSLT
     , Issy.Logic.CHC
     , Issy.Logic.FOL 
+    , Issy.Logic.Propositional
     , Issy.Logic.RPLTL
     , Issy.Logic.SMT
     , Issy.Logic.Temporal

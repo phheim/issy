@@ -6,8 +6,6 @@
 -- License     : The Unlicense
 --
 ---------------------------------------------------------------------------------------------------
-{-# LANGUAGE LambdaCase #-}
-
 ---------------------------------------------------------------------------------------------------
 module Issy.Solver.Acceleration.PolyhedraGeometricAccel
   ( accelReach

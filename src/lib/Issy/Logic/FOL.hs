@@ -105,6 +105,8 @@ import qualified Data.Map as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
 
+import Issy.Logic.Propositional
+
 -------------------------------------------------------------------------------
 type Symbol = String
 
@@ -186,7 +188,29 @@ data Term
   -- ^ 'Lambda' is a de-Bruijn indexed lambda-term
   deriving (Eq, Ord, Show)
 
--------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
+-- Propositional Implementation
+---------------------------------------------------------------------------------------------------
+instance Propositional Term where
+  toProp =
+    \case
+      Func FAnd fs -> PAnd $ map toProp fs
+      Func FOr fs -> POr $ map toProp fs
+      Func FNot [f] -> PNot $ toProp f
+            -- TODO: multi imply?
+      Func FImply [f, g] -> POr [PNot (toProp f), toProp g]
+      t -> PLit t
+    --
+  fromProp =
+    \case
+      PAnd fs -> andf $ map fromProp fs
+      POr fs -> orf $ map fromProp fs
+      PNot f -> neg (fromProp f)
+      PLit f -> f
+
+---------------------------------------------------------------------------------------------------
+-- Models
+---------------------------------------------------------------------------------------------------
 newtype Model =
   Model (Map Symbol Term)
   deriving (Eq, Ord, Show)
