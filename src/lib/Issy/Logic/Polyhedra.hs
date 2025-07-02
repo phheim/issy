@@ -14,6 +14,7 @@ module Issy.Logic.Polyhedra
   , Interval(..)
   , UBound(..)
   , LBound(..)
+  , Ineq
   , toIneqs
   , normalize
   , projectPolyhedra
@@ -54,12 +55,6 @@ ltInterval r = fullInterval {upper = LTVal False (toRational r)}
 
 lteInterval :: Real a => a -> Interval
 lteInterval r = fullInterval {upper = LTVal True (toRational r)}
-
-gtInterval :: Real a => a -> Interval
-gtInterval r = fullInterval {lower = GTVal False (toRational r)}
-
-gteInterval :: Real a => a -> Interval
-gteInterval r = fullInterval {lower = GTVal True (toRational r)}
 
 eqInterval :: Real a => a -> Interval
 eqInterval r = Interval {upper = LTVal True (toRational r), lower = GTVal True (toRational r)}
@@ -177,6 +172,7 @@ data ListTree k a
   -- ^ 'LTNode' is a leaf in the prefix tree. For 'LTNode melem subs' 
   -- - if (melem == Just elem) then [] is mapped to elem
   -- - for every '(x, tree)' in 'subs', this node maps 'x:xr' to 'e' if 'tree' maps 'xr' to 'e'
+  deriving (Show)
 
 -- | TODO document
 toListT :: ListTree k a -> [([k], a)]
@@ -232,9 +228,9 @@ data Polyhedron = Polyhedron
     -- | TODO use map instead, this is more usable
   , linearConstraints :: ListTree Integer Interval
     -- | TODO: this FOR SURE needs a semantic definition
-  }
+  } deriving (Show)
 
--- | TODO document
+-- | 'fullP' generate the 'Polyhedron' that includes the entire space of
 fullP :: [(Symbol, Sort)] -> Polyhedron
 fullP vorder = Polyhedron {varOrder = vorder, linearConstraints = LTLeaf}
 
@@ -284,6 +280,9 @@ addLinearConstr coefs intv poly =
       | isEmpty (i1 `intersect` i2) = Nothing
       | otherwise = Just $ i1 `intersect` i2
 
+---------------------------------------------------------------------------------------------------
+-- (In)equalities
+---------------------------------------------------------------------------------------------------
 -- TODO make this to additional interface between terms and polyhedra!
 type Ineq a = ([((Symbol, Sort), a)], Interval)
 
@@ -292,6 +291,12 @@ toIneqs poly = map toIneq $ toListT $ linearConstraints poly
   where
     toIneq = first (filter ((/= 0) . snd) . zip (varOrder poly))
 
+addIneq :: Ineq Rational -> Polyhedron -> Maybe Polyhedron
+addIneq (linComb, intv) poly =
+  let linCombM = Map.fromList linComb
+      coefList = (\v -> Map.findWithDefault 0 v linCombM) <$> varOrder poly
+   in addLinearConstr coefList intv poly
+
 polyToTerms :: Polyhedron -> [Term]
 polyToTerms = map ineqToTerm . toIneqs
   where
@@ -299,12 +304,6 @@ polyToTerms = map ineqToTerm . toIneqs
       flip isInside intv
         $ FOL.addT
         $ map (\((v, s), c) -> FOL.multT [FOL.numberT c, FOL.var v s]) linComb
-
-addIneq :: Ineq Rational -> Polyhedron -> Maybe Polyhedron
-addIneq (linComb, intv) poly =
-  let linCombM = Map.fromList linComb
-      coefList = (\v -> Map.findWithDefault 0 v linCombM) <$> varOrder poly
-   in addLinearConstr coefList intv poly
 
 data IncPoly
   = NewPoly Polyhedron
@@ -320,28 +319,18 @@ addConstr poly term =
 termToIneq :: Term -> Maybe (Ineq Rational)
 termToIneq =
   \case
-    Func FLt [Func FAdd ts, Const (CReal r)] -> second (ltInterval . (r -)) <$> sumToLinComb ts
-    Func FLte [Func FAdd ts, Const (CReal r)] -> second (lteInterval . (r -)) <$> sumToLinComb ts
-    Func FLt [Const (CReal r), Func FAdd ts] -> second (gtInterval . (r -)) <$> sumToLinComb ts
-    Func FLte [Const (CReal r), Func FAdd ts] -> second (gteInterval . (r -)) <$> sumToLinComb ts
-    Func FEq [Func FAdd ts, Const (CReal r)] -> second (eqInterval . (r -)) <$> sumToLinComb ts
-        -- Reduction of inverted equality
-    Func FEq [Const (CReal r), Func FAdd ts] ->
-      termToIneq $ Func FEq [Func FAdd ts, Const (CReal r)]
-        -- Reduction of integer constants to reals
-    Func FLt [t, Const (CInt n)] -> termToIneq $ Func FLt [t, Const (CReal (n % 1))]
-    Func FLte [t, Const (CInt n)] -> termToIneq $ Func FLte [t, Const (CReal (n % 1))]
-    Func FLt [Const (CInt n), t] -> termToIneq $ Func FLt [Const (CReal (n % 1)), t]
-    Func FLte [Const (CInt n), t] -> termToIneq $ Func FLte [Const (CReal (n % 1)), t]
-    Func FEq [t, Const (CInt n)] -> termToIneq $ Func FEq [t, Const (CReal (n % 1))]
-    Func FEq [Const (CInt n), t] -> termToIneq $ Func FEq [t, Const (CReal (n % 1))]
-        -- Reduction of non-additions to additions (i.e. for single variables/constants)
-    Func FLt [t, Const (FOL.CReal r)] -> termToIneq $ Func FLt [Func FAdd [t], Const (CReal r)]
-    Func FLte [t, Const (FOL.CReal r)] -> termToIneq $ Func FLte [Func FAdd [t], Const (CReal r)]
-    Func FLt [Const (FOL.CReal r), t] -> termToIneq $ Func FLt [Const (CReal r), Func FAdd [t]]
-    Func FLte [Const (FOL.CReal r), t] -> termToIneq $ Func FLte [Const (CReal r), Func FAdd [t]]
-    Func FEq [t, Const (CReal r)] -> termToIneq $ Func FEq [Func FAdd [t], Const (CReal r)]
-    Func FEq [Const (CReal r), t] -> termToIneq $ Func FEq [Func FAdd [t], Const (CReal r)]
+    Func comp [a, b] ->
+      let sum
+            -- In order to be meaningfull, this assumes that FOL.addT is flattening 
+           =
+            case FOL.addT [a, FOL.invT b] of
+              Func FAdd ts -> ts
+              t -> [t]
+       in case comp of
+            FLt -> second (ltInterval . (0 -)) <$> sumToLinComb sum
+            FLte -> second (lteInterval . (0 -)) <$> sumToLinComb sum
+            FEq -> second (eqInterval . (0 -)) <$> sumToLinComb sum
+            _ -> Nothing
     _ -> Nothing
 
 sumToLinComb :: [Term] -> Maybe ([((Symbol, Sort), Rational)], Rational)
@@ -351,6 +340,7 @@ sumToLinComb =
     x:xr -> do
       (cr, r) <- sumToLinComb xr
       case x of
+        Var v t -> Just (((v, t), 1) : cr, r)
         Func FMul [Var v t, Const (CInt n)] -> Just (((v, t), n % 1) : cr, r)
         Func FMul [Const (CInt n), Var v t] -> Just (((v, t), n % 1) : cr, r)
         Func FMul [Var v t, Const (CReal n)] -> Just (((v, t), n) : cr, r)
@@ -365,6 +355,7 @@ sumToLinComb =
 -- | TODO Condition all have same variable order!; disjunctions
 newtype PTerm =
   PTerm [(Polyhedron, Set Term)]
+  deriving (Show)
 
 -- | TODO get non-trivial polyhedra
 nonTrivialPolyhedra :: PTerm -> [Polyhedron]
@@ -386,7 +377,7 @@ fromFOL term =
           | otherwise -> go ((poly, others) : acc) cr
         Nothing -> go acc cr
         --
-    supersumed (poly, others) = all $ \(p, o) -> o == others && includedP poly p
+    supersumed (poly, others) = any $ \(p, o) -> o == others && includedP poly p
         --
     fromClause (poly, others) [] = Just (poly, others)
     fromClause (poly, others) (l:lr) =

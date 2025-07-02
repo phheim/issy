@@ -201,10 +201,14 @@ instance Propositional Term where
       Func FNot [f] -> PNot $ toProp f
             -- TODO: multi imply?
       Func FImply [f, g] -> POr [PNot (toProp f), toProp g]
+      Const (CBool c) -> PConst c
       t -> PLit t
     --
   fromProp =
     \case
+      PConst c
+        | c -> true
+        | otherwise -> false
       PAnd fs -> andf $ map fromProp fs
       POr fs -> orf $ map fromProp fs
       PNot f -> neg (fromProp f)
@@ -643,6 +647,8 @@ multT :: [Term] -> Term
 multT =
   \case
     [] -> oneT
+    Const (CInt 1):ts -> multT ts
+    Const (CReal 1):ts -> multT ts
     [t] -> t
     ts -> func FMul ts
 
@@ -652,7 +658,11 @@ addT =
   \case
     [] -> zeroT
     [t] -> t
-    ts -> func FAdd ts
+    ts -> func FAdd $ flatten ts
+  where
+    flatten [] = []
+    flatten (Func FAdd sts:tr) = flatten $ sts ++ tr
+    flatten (t:tr) = t : flatten tr
 
 minusT :: [Term] -> Term
 minusT =

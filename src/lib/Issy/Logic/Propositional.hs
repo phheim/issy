@@ -23,7 +23,8 @@ module Issy.Logic.Propositional
 ---------------------------------------------------------------------------------------------------
 -- | 'Prop' represents a propositional formula of propositions of some arbitrary type
 data Prop a
-  = PLit a
+  = PConst Bool
+  | PLit a
   | PAnd [Prop a]
   | POr [Prop a]
   | PNot (Prop a)
@@ -34,12 +35,14 @@ data Prop a
 -- a negated literal.
 newtype DNF a =
   DNF [[(Bool, a)]]
+  deriving (Eq, Ord, Show)
 
 -- | 'CNF' represents a formula in conjunctive normal form over propositions, as 
 -- list (conjunction) of lists (disjunctions) of literals. A negative boolean value represents
 -- a negated literal.
 newtype CNF a =
   CNF [[(Bool, a)]]
+  deriving (Eq, Ord, Show)
 
 -- | The 'Propositional' class represent types that can have a top-level propositional logic
 -- structure, i.e. are semantically Boolean combinations of their own type.
@@ -65,6 +68,7 @@ toCNF = nnfToCNF . toNNF . toProp
 instance Functor Prop where
   fmap m =
     \case
+      PConst c -> PConst c
       PLit a -> PLit (m a)
       PAnd fs -> PAnd $ map (fmap m) fs
       POr fs -> POr $ map (fmap m) fs
@@ -82,9 +86,12 @@ data NNFComb a
 toNNF :: Prop a -> NNFComb a
 toNNF =
   \case
+    PConst True -> NNFAnd []
+    PConst False -> NNFOr []
     PLit a -> NNFLit True a
     PAnd fs -> NNFAnd $ map toNNF fs
     POr fs -> NNFOr $ map toNNF fs
+    PNot (PConst c) -> toNNF $ PConst $ not c
     PNot (PLit a) -> NNFLit False a
     PNot (PNot f) -> toNNF f
     PNot (PAnd fs) -> NNFOr $ map (toNNF . PNot) fs
@@ -111,7 +118,7 @@ nnfToCNF = CNF . go
 distribute :: [[a]] -> [[a]]
 distribute =
   \case
-    [] -> []
+    [] -> [[]]
     [xs] -> [[x] | x <- xs]
     x:xr -> map (uncurry (:)) $ listProduct x $ distribute xr
 
