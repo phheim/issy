@@ -6,7 +6,7 @@
 -- License     : The Unlicense
 --
 ---------------------------------------------------------------------------------------------------
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE LambdaCase, MultiWayIf #-}
 
 ---------------------------------------------------------------------------------------------------
 module Issy.Logic.Polyhedra
@@ -20,20 +20,27 @@ module Issy.Logic.Polyhedra
   ) where
 
 ---------------------------------------------------------------------------------------------------
-import Data.Bifunctor (first)
+import Data.Bifunctor (first, second)
 import Data.Map.Strict (Map, (!?))
 import qualified Data.Map.Strict as Map
+import Data.Ratio ((%), denominator, numerator)
 import Data.Set (Set)
 import qualified Data.Set as Set
 
-import Issy.Logic.FOL (Sort, Symbol, Term)
+import Issy.Logic.FOL
+  ( Constant(CInt, CReal)
+  , Function(FAdd, FEq, FLt, FLte, FMul)
+  , Sort
+  , Symbol
+  , Term(Const, Func, Var)
+  )
 import qualified Issy.Logic.FOL as FOL
 import Issy.Logic.Propositional (DNF(..), toDNF)
 
 ---------------------------------------------------------------------------------------------------
 -- Interval and Bounds
 ---------------------------------------------------------------------------------------------------
--- 'Interval' represents an interval 
+-- | 'Interval' represents an interval 
 data Interval = Interval
   { upper :: UBound
   , lower :: LBound
@@ -54,6 +61,9 @@ gtInterval r = fullInterval {lower = GTVal False (toRational r)}
 gteInterval :: Real a => a -> Interval
 gteInterval r = fullInterval {lower = GTVal True (toRational r)}
 
+eqInterval :: Real a => a -> Interval
+eqInterval r = Interval {upper = LTVal True (toRational r), lower = GTVal True (toRational r)}
+
 -- | 'UBound' is a type for optional inclusive/exclusive upper rational bounds 
 data UBound
   = PlusInfinity
@@ -70,6 +80,7 @@ data LBound
  -- ^ 'LTVal' is a >/>= C bound. The Boolean flag indicates if is included
   deriving (Eq, Show)
 
+-- 'Ord' on 'UBound' is defined as larger means more inclusive, i.e larger upper bound
 instance Ord UBound where
   compare b1 b2 =
     case (b1, b2) of
@@ -77,30 +88,31 @@ instance Ord UBound where
       (_, PlusInfinity) -> LT
       (PlusInfinity, _) -> GT
       (LTVal eq1 v1, LTVal eq2 v2)
-        | v1 < v2 -> LT
         | v1 > v2 -> GT
+        | v1 < v2 -> LT
         | eq1 && not eq2 -> GT
         | eq2 && not eq1 -> LT
         | otherwise -> EQ
 
+-- 'Ord' on 'BBound' is defined as larger means more inclusive, i.e. smaller lower bound
 instance Ord LBound where
   compare b1 b2 =
     case (b1, b2) of
       (MinusInfinity, MinusInfinity) -> EQ
-      (_, MinusInfinity) -> GT
-      (MinusInfinity, _) -> LT
+      (_, MinusInfinity) -> LT
+      (MinusInfinity, _) -> GT
       (GTVal eq1 v1, GTVal eq2 v2)
         | v1 < v2 -> GT
         | v1 > v2 -> LT
-        | eq1 && not eq2 -> LT
-        | eq2 && not eq1 -> GT
+        | eq1 && not eq2 -> GT
+        | eq2 && not eq1 -> LT
         | otherwise -> EQ
 
 intersect :: Interval -> Interval -> Interval
-intersect b1 b2 = Interval {upper = max (upper b1) (upper b2), lower = max (lower b1) (lower b2)}
+intersect b1 b2 = Interval {upper = min (upper b1) (upper b2), lower = min (lower b1) (lower b2)}
 
 includedI :: Interval -> Interval -> Bool
-includedI b1 b2 = upper b1 >= upper b2 && lower b1 >= lower b2
+includedI b1 b2 = upper b1 <= upper b2 && lower b1 <= lower b2
 
 isEmpty :: Interval -> Bool
 isEmpty intv =
@@ -108,6 +120,7 @@ isEmpty intv =
     (GTVal leq lval, LTVal ueq uval) -> uval < lval || (uval == lval && (not leq || not ueq))
     _ -> False
 
+-- | 'isInside' generates the 'Term' that a given 'Term' is inside the 'Interval'
 isInside :: Term -> Interval -> Term
 isInside t intv =
   let lowT =
@@ -122,26 +135,50 @@ isInside t intv =
           LTVal False r -> FOL.ltT t $ FOL.numberT r
    in FOL.andf [lowT, upT]
 
----------------------------------------------------------------------------------------------------
--- Efficent Maps for Lists
----------------------------------------------------------------------------------------------------
-removeTrailing :: Eq a => a -> [a] -> [a]
-removeTrailing neutral = go
-  where
-    go =
-      \case
-        [] -> []
-        x:xr ->
-          case x : go xr of
-            [x]
-              | x == neutral -> []
-              | otherwise -> [x]
-            xs -> xs
+-- | 'multI' applies to the interval, if interpreted as inequality constraint, the
+-- | equivalence operation "multiply be the given factor"
+multI :: Rational -> Interval -> Interval
+multI scale intv
+  | scale < 0 = multI (-scale) $ multMinusOne intv
+  | otherwise =
+    let lw =
+          case lower intv of
+            MinusInfinity -> MinusInfinity
+            GTVal incl r -> GTVal incl (scale * r)
+        up =
+          case upper intv of
+            PlusInfinity -> PlusInfinity
+            LTVal incl r -> LTVal incl (scale * r)
+     in Interval {upper = up, lower = lw}
 
+-- | 'multMinusOne' applies to the interval, if interpreted as inequality constraint, the
+-- equivalence operation "multiply with minus one",  i.e swap upper and lower bounds 
+-- and multiply their value by -1
+multMinusOne :: Interval -> Interval
+multMinusOne intv =
+  let up =
+        case lower intv of
+          MinusInfinity -> PlusInfinity
+          GTVal incl r -> LTVal incl (-r)
+      lw =
+        case upper intv of
+          PlusInfinity -> MinusInfinity
+          LTVal incl r -> GTVal incl (-r)
+   in Interval {upper = up, lower = lw}
+
+---------------------------------------------------------------------------------------------------
+-- Efficient Maps for Lists
+---------------------------------------------------------------------------------------------------
+-- | 'ListTree' is a prefix tree to efficiently use lists as keys of a map
 data ListTree k a
   = LTLeaf
+  -- ^ 'LTLeaf' is a dead end and corresponds to Map.empty  
   | LTNode (Maybe a) (Map k (ListTree k a))
+  -- ^ 'LTNode' is a leaf in the prefix tree. For 'LTNode melem subs' 
+  -- - if (melem == Just elem) then [] is mapped to elem
+  -- - for every '(x, tree)' in 'subs', this node maps 'x:xr' to 'e' if 'tree' maps 'xr' to 'e'
 
+-- | TODO document
 toListT :: ListTree k a -> [([k], a)]
 toListT = go []
   where
@@ -152,6 +189,7 @@ toListT = go []
             Nothing -> rec
             Just val -> (reverse acc, val) : rec
 
+-- | TODO document
 insertWithT :: Ord k => (a -> a -> Maybe a) -> [k] -> a -> ListTree k a -> Maybe (ListTree k a)
 insertWithT comb ks val tree = go tree ks
   where
@@ -164,6 +202,7 @@ insertWithT comb ks val tree = go tree ks
         Nothing -> LTNode label . flip (Map.insert k) succs <$> go LTLeaf kr
         Just tree -> LTNode label . flip (Map.insert k) succs <$> go tree kr
 
+-- | TODO document
 includedLT :: Ord k => (a -> a -> Bool) -> ListTree k a -> ListTree k a -> Bool
 includedLT includedElems = go
   where
@@ -187,16 +226,19 @@ includedLT includedElems = go
 ---------------------------------------------------------------------------------------------------
 -- Polyhedra
 ---------------------------------------------------------------------------------------------------
+-- | TODO document
 data Polyhedron = Polyhedron
   { varOrder :: [(Symbol, Sort)]
     -- | TODO use map instead, this is more usable
-  , linearConstraints :: ListTree Rational Interval
+  , linearConstraints :: ListTree Integer Interval
     -- | TODO: this FOR SURE needs a semantic definition
   }
 
+-- | TODO document
 fullP :: [(Symbol, Sort)] -> Polyhedron
 fullP vorder = Polyhedron {varOrder = vorder, linearConstraints = LTLeaf}
 
+-- | TODO document
 isFullP :: Polyhedron -> Bool
 isFullP poly =
   case linearConstraints poly of
@@ -207,23 +249,45 @@ isFullP poly =
 includedP :: Polyhedron -> Polyhedron -> Bool
 includedP p1 p2 = includedLT includedI (linearConstraints p1) (linearConstraints p2)
 
+-- | TODO document
+rescale :: [Rational] -> ([Integer], Rational)
+rescale [] = ([], 1)
+rescale (x:xr) =
+  let norm = 1 : map (/ x) xr
+      (upscaled, factor) = upscale norm
+   in (upscaled, toRational factor / x)
+  where
+    upscale :: [Rational] -> ([Integer], Integer)
+    upscale rs =
+      let factor = lcms (map denominator rs)
+       in (map (numerator . (* toRational factor)) rs, factor)
+    --
+    lcms [] = 1
+    lcms [x] = x
+    lcms (1:xr) = lcms xr
+    lcms (x:xr) = lcm x $ lcms xr
+
+-- | TODO document
 addLinearConstr :: [Rational] -> Interval -> Polyhedron -> Maybe Polyhedron
-addLinearConstr coefs intv poly
-  | null (removeTrailing 0 coefs) = Just poly
-  | intv == fullInterval = Just poly
-  | isEmpty intv = Nothing
-  | otherwise =
-    case insertWithT intersectAndCheck (removeTrailing 0 coefs) intv (linearConstraints poly) of
-      Just constr -> Just $ poly {linearConstraints = constr}
-      Nothing -> Nothing
+addLinearConstr coefs intv poly =
+  let (scaledCoefs, factor) = rescale $ removeTrailing 0 coefs
+      scaledIntv = multI factor intv
+   in if | null scaledCoefs -> Just poly
+         | scaledIntv == fullInterval -> Just poly
+         | isEmpty scaledIntv -> Nothing
+         | otherwise ->
+           case insertWithT intersectAndCheck scaledCoefs scaledIntv (linearConstraints poly) of
+             Just constr -> Just $ poly {linearConstraints = constr}
+             Nothing -> Nothing
   where
     intersectAndCheck i1 i2
       | isEmpty (i1 `intersect` i2) = Nothing
       | otherwise = Just $ i1 `intersect` i2
 
-type Ineq = ([((Symbol, Sort), Rational)], Interval)
+-- TODO make this to additional interface between terms and polyhedra!
+type Ineq a = ([((Symbol, Sort), a)], Interval)
 
-toIneqs :: Polyhedron -> [Ineq]
+toIneqs :: Polyhedron -> [Ineq Integer]
 toIneqs poly = map toIneq $ toListT $ linearConstraints poly
   where
     toIneq = first (filter ((/= 0) . snd) . zip (varOrder poly))
@@ -236,18 +300,64 @@ polyToTerms = map ineqToTerm . toIneqs
         $ FOL.addT
         $ map (\((v, s), c) -> FOL.multT [FOL.numberT c, FOL.var v s]) linComb
 
+addIneq :: Ineq Rational -> Polyhedron -> Maybe Polyhedron
+addIneq (linComb, intv) poly =
+  let linCombM = Map.fromList linComb
+      coefList = (\v -> Map.findWithDefault 0 v linCombM) <$> varOrder poly
+   in addLinearConstr coefList intv poly
+
 data IncPoly
   = NewPoly Polyhedron
   | NotLinear
   | Infeasible
 
 addConstr :: Polyhedron -> Term -> IncPoly
-addConstr poly =
+addConstr poly term =
+  case termToIneq term of
+    Nothing -> NotLinear
+    Just ineq -> maybe Infeasible NewPoly (addIneq ineq poly)
+
+termToIneq :: Term -> Maybe (Ineq Rational)
+termToIneq =
   \case
-    FOL.Func FOL.FLt [t, FOL.Const (FOL.CInt _)] ->
-      let (linComb, intv) = error "TODO IMPLEMENT" t
-       in maybe Infeasible NewPoly (addLinearConstr linComb intv poly)
-    _ -> NotLinear
+    Func FLt [Func FAdd ts, Const (CReal r)] -> second (ltInterval . (r -)) <$> sumToLinComb ts
+    Func FLte [Func FAdd ts, Const (CReal r)] -> second (lteInterval . (r -)) <$> sumToLinComb ts
+    Func FLt [Const (CReal r), Func FAdd ts] -> second (gtInterval . (r -)) <$> sumToLinComb ts
+    Func FLte [Const (CReal r), Func FAdd ts] -> second (gteInterval . (r -)) <$> sumToLinComb ts
+    Func FEq [Func FAdd ts, Const (CReal r)] -> second (eqInterval . (r -)) <$> sumToLinComb ts
+        -- Reduction of inverted equality
+    Func FEq [Const (CReal r), Func FAdd ts] ->
+      termToIneq $ Func FEq [Func FAdd ts, Const (CReal r)]
+        -- Reduction of integer constants to reals
+    Func FLt [t, Const (CInt n)] -> termToIneq $ Func FLt [t, Const (CReal (n % 1))]
+    Func FLte [t, Const (CInt n)] -> termToIneq $ Func FLte [t, Const (CReal (n % 1))]
+    Func FLt [Const (CInt n), t] -> termToIneq $ Func FLt [Const (CReal (n % 1)), t]
+    Func FLte [Const (CInt n), t] -> termToIneq $ Func FLte [Const (CReal (n % 1)), t]
+    Func FEq [t, Const (CInt n)] -> termToIneq $ Func FEq [t, Const (CReal (n % 1))]
+    Func FEq [Const (CInt n), t] -> termToIneq $ Func FEq [t, Const (CReal (n % 1))]
+        -- Reduction of non-additions to additions (i.e. for single variables/constants)
+    Func FLt [t, Const (FOL.CReal r)] -> termToIneq $ Func FLt [Func FAdd [t], Const (CReal r)]
+    Func FLte [t, Const (FOL.CReal r)] -> termToIneq $ Func FLte [Func FAdd [t], Const (CReal r)]
+    Func FLt [Const (FOL.CReal r), t] -> termToIneq $ Func FLt [Const (CReal r), Func FAdd [t]]
+    Func FLte [Const (FOL.CReal r), t] -> termToIneq $ Func FLte [Const (CReal r), Func FAdd [t]]
+    Func FEq [t, Const (CReal r)] -> termToIneq $ Func FEq [Func FAdd [t], Const (CReal r)]
+    Func FEq [Const (CReal r), t] -> termToIneq $ Func FEq [Func FAdd [t], Const (CReal r)]
+    _ -> Nothing
+
+sumToLinComb :: [Term] -> Maybe ([((Symbol, Sort), Rational)], Rational)
+sumToLinComb =
+  \case
+    [] -> Just ([], 0)
+    x:xr -> do
+      (cr, r) <- sumToLinComb xr
+      case x of
+        Func FMul [Var v t, Const (CInt n)] -> Just (((v, t), n % 1) : cr, r)
+        Func FMul [Const (CInt n), Var v t] -> Just (((v, t), n % 1) : cr, r)
+        Func FMul [Var v t, Const (CReal n)] -> Just (((v, t), n) : cr, r)
+        Func FMul [Const (CReal n), Var v t] -> Just (((v, t), n) : cr, r)
+        Const (CReal n) -> Just (cr, n + r)
+        Const (CInt n) -> Just (cr, (n % 1) + r)
+        _ -> Nothing
 
 ---------------------------------------------------------------------------------------------------
 -- Linear Combinations
@@ -301,4 +411,21 @@ normalize = toFOL . fromFOL
 -- | TODO
 projectPolyhedra :: Term -> [Polyhedron]
 projectPolyhedra = nonTrivialPolyhedra . fromFOL
+
+--------------------------------------------------------------------------------------------------
+-- Helper functions
+--------------------------------------------------------------------------------------------------
+-- | 'removeTrailing' x xs removes all occurrences of x at the end of xs
+removeTrailing :: Eq a => a -> [a] -> [a]
+removeTrailing neutral = go
+  where
+    go =
+      \case
+        [] -> []
+        x:xr ->
+          case x : go xr of
+            [x]
+              | x == neutral -> []
+              | otherwise -> [x]
+            xs -> xs
 --------------------------------------------------------------------------------------------------

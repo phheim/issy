@@ -646,6 +646,7 @@ multT =
     [t] -> t
     ts -> func FMul ts
 
+-- TODO: flatten?
 addT :: [Term] -> Term
 addT =
   \case
