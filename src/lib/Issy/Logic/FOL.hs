@@ -632,6 +632,8 @@ leqT :: Term -> Term -> Term
 leqT a b = func FLte [a, b]
 
 ltT :: Term -> Term -> Term
+ltT (Const (CInt n)) (Var v SInt) = leqT (Const (CInt (n + 1))) (Var v SInt)
+ltT (Var v SInt) (Const (CInt n)) = leqT (Var v SInt) (Const (CInt (n - 1)))
 ltT a b = func FLt [a, b]
 
 geqT :: Term -> Term -> Term

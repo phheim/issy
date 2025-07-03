@@ -108,7 +108,7 @@ defaultConfig =
     , ufAcceleration = False
     , extendAcceleration = False
     , accelerationLevel = 1
-    , enforcementSummaries = True
+    , enforcementSummaries = False
     -- Synthesis
     , generateProgram = False
     -- External tools

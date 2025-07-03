@@ -115,6 +115,12 @@ isEmpty intv =
     (GTVal leq lval, LTVal ueq uval) -> uval < lval || (uval == lval && (not leq || not ueq))
     _ -> False
 
+tryDisjunctI :: Interval -> Interval -> Maybe Interval
+tryDisjunctI i1 i2
+  | isEmpty (i1 `intersect` i2) = Nothing
+  | otherwise =
+    Just $ Interval {upper = max (upper i1) (upper i1), lower = max (lower i1) (lower i2)}
+
 -- | 'isInside' generates the 'Term' that a given 'Term' is inside the 'Interval'
 isInside :: Term -> Interval -> Term
 isInside t intv =
@@ -172,7 +178,7 @@ data ListTree k a
   -- ^ 'LTNode' is a leaf in the prefix tree. For 'LTNode melem subs' 
   -- - if (melem == Just elem) then [] is mapped to elem
   -- - for every '(x, tree)' in 'subs', this node maps 'x:xr' to 'e' if 'tree' maps 'xr' to 'e'
-  deriving (Show)
+  deriving (Eq, Show)
 
 -- | TODO document
 toListT :: ListTree k a -> [([k], a)]
@@ -219,6 +225,50 @@ includedLT includedElems = go
               $ Map.toList succ1
        in labelInc && succInc
 
+data MergeRes a
+  = MergeFail
+  | MergeId
+  | Merged a
+
+instance Functor MergeRes where
+  fmap _ MergeFail = MergeFail
+  fmap _ MergeId = MergeId
+  fmap m (Merged a) = Merged (m a)
+
+mergeOnceT ::
+     (Ord k, Eq a) => (a -> a -> Maybe a) -> ListTree k a -> ListTree k a -> Maybe (ListTree k a)
+mergeOnceT merge t1 t2 =
+  case goT t1 t2 of
+    MergeFail -> Nothing
+    MergeId -> Just t1
+    Merged t -> Just t
+  where
+    goT LTLeaf LTLeaf = MergeId
+    goT (LTNode Nothing sc1) (LTNode Nothing sc2) = LTNode Nothing <$> goSM sc1 sc2
+    goT (LTNode (Just l1) sc1) (LTNode (Just l2) sc2) =
+      if l1 == l2
+        then LTNode (Just l1) <$> goSM sc1 sc2
+        else case merge l1 l2 of
+               Nothing -> MergeFail
+               Just lm
+                 | sc1 == sc2 -> Merged $ LTNode (Just lm) sc1
+                 | otherwise -> MergeFail
+    goT _ _ = MergeFail
+        --
+    goSM s1 s2 = Map.fromList <$> goS (Map.toList s1) (Map.toList s2)
+        -- 
+    goS [] [] = MergeId
+    goS ((k1, lt1):sr1) ((k2, lt2):sr2)
+      | k1 == k2 =
+        case goT lt1 lt2 of
+          MergeFail -> MergeFail
+          MergeId -> ((k1, lt1) :) <$> goS sr1 sr2
+          Merged lt
+            | sr1 == sr2 -> Merged $ (k1, lt) : sr1
+            | otherwise -> MergeFail
+      | otherwise = MergeFail
+    goS _ _ = MergeFail
+
 ---------------------------------------------------------------------------------------------------
 -- Polyhedra
 ---------------------------------------------------------------------------------------------------
@@ -248,6 +298,7 @@ includedP p1 p2 = includedLT includedI (linearConstraints p1) (linearConstraints
 -- | TODO document
 rescale :: [Rational] -> ([Integer], Rational)
 rescale [] = ([], 1)
+rescale (0:xr) = first (0 :) $ rescale xr
 rescale (x:xr) =
   let norm = 1 : map (/ x) xr
       (upscaled, factor) = upscale norm
@@ -279,6 +330,13 @@ addLinearConstr coefs intv poly =
     intersectAndCheck i1 i2
       | isEmpty (i1 `intersect` i2) = Nothing
       | otherwise = Just $ i1 `intersect` i2
+
+-- | TODO assumption same varOrder!
+tryDisjunctP :: Polyhedron -> Polyhedron -> Maybe Polyhedron
+tryDisjunctP p1 p2 =
+  case mergeOnceT tryDisjunctI (linearConstraints p1) (linearConstraints p2) of
+    Nothing -> Nothing
+    Just lc -> Just $ Polyhedron {varOrder = varOrder p1, linearConstraints = lc}
 
 ---------------------------------------------------------------------------------------------------
 -- (In)equalities
@@ -369,21 +427,31 @@ fromFOL term =
   where
     varOrder = filter (FOL.isNumber . snd) $ Map.toList $ FOL.bindings term
         --
-    go acc [] = reverse acc
+    go acc [] = acc
     go acc (c:cr) =
       case fromClause (fullP varOrder, Set.empty) c of
-        Just (poly, others)
-          | supersumed (poly, others) acc -> go acc cr
-          | otherwise -> go ((poly, others) : acc) cr
+        Just (poly, others) -> go (insertDisjunct (poly, others) acc) cr
         Nothing -> go acc cr
         --
-    supersumed (poly, others) = any $ \(p, o) -> o == others && includedP poly p
+    insertDisjunct new [] = [new]
+    insertDisjunct (newP, newO) ((oldP, oldO):acc)
+        -- TODO: order counter-intuitive
+      | Set.isSubsetOf oldO newO && includedP newP oldP = (oldP, oldO) : acc
+      | Set.isSubsetOf newO oldO && includedP oldP newP = insertDisjunct (newP, newO) acc
+      | newO == oldO =
+        case tryDisjunctP oldP newP of
+          Just disP -> insertDisjunct (disP, newO) acc
+          Nothing -> (oldP, oldO) : insertDisjunct (newP, newO) acc
+      | otherwise = (oldP, oldO) : insertDisjunct (newP, newO) acc
         --
     fromClause (poly, others) [] = Just (poly, others)
     fromClause (poly, others) (l:lr) =
       case addConstr poly (fromLit l) of
         NewPoly poly -> fromClause (poly, others) lr
-        NotLinear -> fromClause (poly, Set.insert (fromLit l) others) lr
+        NotLinear
+          | FOL.neg (fromLit l) `elem` others -> Nothing
+          | otherwise -> fromClause (poly, Set.insert (fromLit l) others) lr
+            -- TODO: this should have alredy been caught in to DNF!
         Infeasible -> Nothing
         --
     fromLit (pol, lit)
