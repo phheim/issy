@@ -17,6 +17,7 @@ module Issy.Logic.Polyhedra
   , Ineq
   , toIneqs
   , normalize
+  , toTerms
   , projectPolyhedra
   ) where
 
@@ -355,8 +356,8 @@ addIneq (linComb, intv) poly =
       coefList = (\v -> Map.findWithDefault 0 v linCombM) <$> varOrder poly
    in addLinearConstr coefList intv poly
 
-polyToTerms :: Polyhedron -> [Term]
-polyToTerms = map ineqToTerm . toIneqs
+toTerms :: Polyhedron -> [Term]
+toTerms = map ineqToTerm . toIneqs
   where
     ineqToTerm (linComb, intv) =
       flip isInside intv
@@ -461,7 +462,7 @@ fromFOL term =
 -- | TODO
 toFOL :: PTerm -> Term
 toFOL (PTerm disjuncts) =
-  FOL.orf $ flip map disjuncts $ \(poly, others) -> FOL.andf $ polyToTerms poly ++ Set.toList others
+  FOL.orf $ flip map disjuncts $ \(poly, others) -> FOL.andf $ toTerms poly ++ Set.toList others
 
 -- | TODO
 normalize :: Term -> Term
