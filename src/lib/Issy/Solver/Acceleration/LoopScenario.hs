@@ -1,5 +1,6 @@
 module Issy.Solver.Acceleration.LoopScenario
   ( loopScenario
+  , reducedLoopArena
   ) where
 
 -------------------------------------------------------------------------------
@@ -29,32 +30,42 @@ import Issy.Utils.Logging
 loopScenario ::
      Config -> Heur -> Arena -> Loc -> SymSt -> Symbol -> IO (Arena, Loc, Loc, SymSt, Term, SyBo)
 loopScenario conf heur arena loc target prime = do
-  let (loopAr, loc') = loopArena arena loc
-  let subs = subArena heur loopAr (loc, loc')
+  (loopAr, loc, loc', subs, loopTarget, loopProg) <-
+    pure $ reducedLoopArena conf heur arena loc target prime
   lg conf ["Loop Scenario on", strS (locName loopAr) subs]
-  (loopAr, oldToNew) <- pure $ inducedSubArena loopAr subs
-  loc <- pure $ oldToNew loc
-  loc' <- pure $ oldToNew loc'
-  let loopTarget = SymSt.symSt (locations loopAr) (const FOL.false)
-  loopTarget <-
-    pure
-      $ foldl
-          (\st oldloc ->
-             if oldToNew oldloc == loc'
-               then st
-               else set st (oldToNew oldloc) (target `get` oldloc))
-          loopTarget
-          subs
   indeps <- independentProgVars conf loopAr
   lg conf ["Independent state variables", strS id indeps]
   (loopTarget, fixedInv) <- accTarget conf loopAr loc indeps loopTarget
-  let newToOld =
+  let prog = Synt.returnOn loopTarget loopProg
+  pure (loopAr, loc, loc', loopTarget, fixedInv, prog)
+
+-- | 'reduceLoopArena' compute a heuristically reduced sub-arena to be limited on a
+-- potentially smaller part of the game. Note that you still need to
+--  - set the start value in loc'
+--  - return upon reaching the loop target
+reducedLoopArena ::
+     Config -> Heur -> Arena -> Loc -> SymSt -> Symbol -> (Arena, Loc, Loc, Set Loc, SymSt, SyBo)
+reducedLoopArena conf heur arena loc target prime =
+  let (rawLoopAr, rawLoc') = loopArena arena loc
+      subs = subArena heur loopAr (loc, rawLoc')
+      (loopAr, oldToNew) = inducedSubArena rawLoopAr subs
+      newLoc = oldToNew loc
+      newLoc' = oldToNew rawLoc'
+      loopTarget =
+        foldl
+          (\st oldloc ->
+             if oldToNew oldloc == newLoc'
+               then st
+               else set st (oldToNew oldloc) (target `get` oldloc))
+          (SymSt.symSt (locations loopAr) (const FOL.false))
+          subs
+      newToOld =
         Map.fromList
           $ mapMaybe (\old -> justOn (old `elem` subs) (oldToNew old, old))
           $ Set.toList
           $ locations arena
-  let prog = Synt.returnOn loopTarget $ Synt.loopSyBo conf loopAr loc loc' prime newToOld
-  pure (loopAr, loc, loc', loopTarget, fixedInv, prog)
+      loopProg = Synt.loopSyBo conf loopAr newLoc newLoc' prime newToOld
+   in (loopAr, newLoc, newLoc', Set.map oldToNew subs, loopTarget, loopProg)
 
 accTarget :: Config -> Arena -> Loc -> Set Symbol -> SymSt -> IO (SymSt, Term)
 accTarget conf arena loc indeps st = do

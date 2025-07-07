@@ -4,6 +4,7 @@
 -------------------------------------------------------------------------------
 module Issy.Solver.Acceleration.MDAcceleration
   ( accelReach
+  , iterA
   ) where
 
 -------------------------------------------------------------------------------
@@ -169,6 +170,7 @@ checkInv conf heur prime player arena (base, step, conc) (loc, loc') fixInv reac
             pure $ Right (accelValue, prog)
           _ -> pure $ Left res
 
+-- TODO: Move somewhere else
 iterA :: Heur -> Player -> Arena -> SymSt -> Loc -> SyBo -> (SymSt, SyBo)
 iterA heur player arena attr shadow = go (noVisits arena) (OL.fromSet (preds arena shadow)) attr
   where
