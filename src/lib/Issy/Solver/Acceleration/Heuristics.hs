@@ -9,6 +9,8 @@ module Issy.Solver.Acceleration.Heuristics
   , invariantIterations
   , manhattenTermCount
   , boxOptSmtTO
+  , ggaIters
+  , ggaDepth
   , invSatModelTO
   , lemmaResolveTO
   , templatePattern
@@ -73,6 +75,15 @@ manhattenTermCount _ = 2
 
 invSatModelTO :: Heur -> Maybe Int
 invSatModelTO _ = Just 20
+
+---
+-- Geometric Acceleration
+---
+ggaIters :: Heur -> Int
+ggaIters _ = 2
+
+ggaDepth :: Heur -> Int
+ggaDepth _ = 2
 
 ---
 -- UF Acceleration

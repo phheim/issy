@@ -44,12 +44,15 @@ accelReach :: Config -> Heur -> Player -> Arena -> Loc -> SymSt -> IO (Term, SyB
 accelReach conf heur player arena loc reach = do
   conf <- pure $ setName "GGeoA" conf
   lg conf ["Accelerate in", locName arena loc, "on", strSt arena reach]
-  let prime = error "TODO"
+  let prime = FOL.uniquePrefix "init_" $ usedSymbols arena
   res <- accelGAL conf heur player arena prime loc reach FOL.true FOL.true
   case res of
-        -- TODO Log 
-    Just (conc, prog) -> pure (conc, prog)
-    Nothing -> pure (FOL.false, Synt.empty)
+    Just (conc, prog) -> do
+      lg conf ["Suceeded with", SMTLib.toString conc]
+      pure (conc, prog)
+    Nothing -> do
+      lg conf ["Failed"]
+      pure (FOL.false, Synt.empty)
 
 accelGAL ::
      Config
@@ -62,29 +65,39 @@ accelGAL ::
   -> Term
   -> Term
   -> IO (Maybe (Term, SyBo))
-accelGAL conf heur player arena prime loc = go (0 :: Integer) (0 :: Integer)
+accelGAL conf heur player arena prime loc = go 0
   where
-    -- TODO: split recursion between depth and iter to be able to reuse loop-game!
-    go icnt dcnt reach maintain inv = do
+    -- TODO: split recursion between depth and iter to be able to reuse loop-game and others!
+    go depth reach maintain inv = do
       let gal = lemmaGuess heur (vars arena) prime (reach `get` loc)
       case gal of
         Nothing -> pure Nothing
-        Just gal -> do
-              --TODO: preCond does not find invariant on base, this has to be taken care of like in the loop sceneration or so, maybe we could use the additional info of the polyhera! Maybe build up new projection function?
-          let al = addMaintain maintain $ addInv (vars arena) prime inv $ galToAl gal
+        Just gal -> iter 0 inv gal
+      where
+        iter cnt inv gal = do
+          let al = addInv (vars arena) prime inv $ addMaintain maintain $ galToAl gal
           pre <- preCond conf heur player arena loc reach prime al
           case pre of
             Right res -> pure $ Just res
             Left pre
               | pre == FOL.false -> pure Nothing
-              | error "TODO: do iteration" -> do
+              | H.ggaIters heur > cnt -> pure Nothing
+              | otherwise -> do
                 pre <-
-                  if error "TODO do nesting"
-                    then error
-                           "TODO go 0 (dcnt + 1) (SymSt.set (emptySt arena) loc pre) (FOL.andf [maintain, gstay gal]) inv"
+                  if depth < H.ggaDepth heur
+                    then nest inv gal pre
                     else pure pre
-                go (icnt + 1) dcnt reach maintain pre
-              | otherwise -> pure Nothing
+                iter (cnt + 1) pre gal
+        -- Operation called when the precondition is nested
+        nest inv gal pre = do
+          let subGoal = set (emptySt arena) loc pre
+          let subMaintain = FOL.andf [maintain, gstay gal]
+          res <- go (depth + 1) subGoal subMaintain inv
+          case res of
+            Nothing -> pure pre
+            Just (res, subProg) -> do
+              error "TODO: what do I actually do with this program?"
+              pure res
 
 ---------------------------------------------------------------------------------------------------
 -- Attractor through loop arena
@@ -96,6 +109,7 @@ data AccelLemma = AccelLemma
   , conc :: Term
   }
 
+--TODO: preCond does not find invariant on base, this has to be taken care of like in the loop sceneration or so, maybe we could use the additional info of the polyhera! Maybe build up new projection function?
 galToAl :: GenAccelLemma -> AccelLemma
 galToAl gal = AccelLemma {base = gbase gal, step = gstep gal, conc = gconc gal}
 
@@ -125,7 +139,6 @@ preCond conf heur player arena loc target prime lemma = do
   (arena, loc, loc', subs, target, prog) <- pure $ reducedLoopArena conf heur arena loc target prime
   lg conf ["Loop Scenario on", strS (locName arena) subs]
   prog <- pure $ Synt.returnOn target prog
-  -- TODO Log lemma
   target <-
     pure
       $ set target loc'
