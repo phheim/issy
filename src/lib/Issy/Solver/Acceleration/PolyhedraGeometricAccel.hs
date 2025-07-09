@@ -13,7 +13,9 @@ module Issy.Solver.Acceleration.PolyhedraGeometricAccel
   ( accelReach
   ) where
 
+import Data.Functor (($>))
 ---------------------------------------------------------------------------------------------------
+import Data.Set (Set)
 import qualified Data.Set as Set
 
 import Issy.Base.SymbolicState (SymSt, get, set)
@@ -47,12 +49,8 @@ accelReach conf heur player arena loc reach = do
   let prime = FOL.uniquePrefix "init_" $ usedSymbols arena
   res <- accelGAL conf heur player arena prime loc reach FOL.true FOL.true
   case res of
-    Just (conc, prog) -> do
-      lg conf ["Suceeded with", SMTLib.toString conc]
-      pure (conc, prog)
-    Nothing -> do
-      lg conf ["Failed"]
-      pure (FOL.false, Synt.empty)
+    Just (conc, prog) -> lg conf ["Suceeded with", SMTLib.toString conc] $> (conc, prog)
+    Nothing -> lg conf ["Failed"] $> (FOL.false, Synt.empty)
 
 accelGAL ::
      Config
@@ -109,7 +107,6 @@ data AccelLemma = AccelLemma
   , conc :: Term
   }
 
---TODO: preCond does not find invariant on base, this has to be taken care of like in the loop sceneration or so, maybe we could use the additional info of the polyhera! Maybe build up new projection function?
 galToAl :: GenAccelLemma -> AccelLemma
 galToAl gal = AccelLemma {base = gbase gal, step = gstep gal, conc = gconc gal}
 
@@ -124,7 +121,6 @@ addInv vars prime inv al =
     , step = FOL.andf [step al, primeT vars prime inv]
     }
 
--- TODO? use indpendent variables somewhere??? Maybe this is something that is autodicsoverd (TODO at least a detailed comment)
 preCond ::
      Config
   -> Heur
@@ -139,30 +135,29 @@ preCond conf heur player arena loc target prime lemma = do
   (arena, loc, loc', subs, target, prog) <- pure $ reducedLoopArena conf heur arena loc target prime
   lg conf ["Loop Scenario on", strS (locName arena) subs]
   prog <- pure $ Synt.returnOn target prog
-  target <-
-    pure
-      $ set target loc'
-      $ FOL.orf [target `get` loc, error "TODO: Invert primes or not?" (step lemma)]
+  target <- pure $ set target loc' $ FOL.orf [target `get` loc, step lemma]
+  -- Remark: we do not use independent variables, as their constrains are expected to be 
+  -- found otherwise in the invariant generation iteration. This is beneficial as
+  -- otherwise we usually do an underapproximating projection
   (stAcc, prog) <- pure $ iterA heur player arena target loc' prog
-  let res = FOL.removePref prime $ stAcc `get` loc -- TODO check prime handeling!
+  let res = FOL.removePref prime $ stAcc `get` loc
   res <- SMT.simplify conf res
   let accelValue = FOL.andf [dom arena loc, conc lemma]
   let stepCond = accelValue `FOL.impl` res
   let baseCond = FOL.andf [dom arena loc, base lemma] `FOL.impl` (target `get` loc)
   -- TODO maybe make smt query, or extend shortcut or so!!
-  if res == FOL.false
-    then pure $ Left res
+  sat <- SMT.sat conf res
+  if not sat
+    then lg conf ["Precondition trivially false"] $> Left res
     else do
       holds <- SMT.valid conf stepCond
-      if holds
-        then do
+      if not holds
+        then lg conf ["Step condition failed"] $> Left res
+        else do
           holds <- SMT.valid conf baseCond
-          if holds
-            then pure $ Right (accelValue, prog)
-            else do
-              lg conf ["Base condition failed"]
-              pure $ Left res
-        else pure $ Left res
+          if not holds
+            then lg conf ["Base condition failed"] $> Left res
+            else pure $ Right (accelValue, prog)
 
 ---------------------------------------------------------------------------------------------------
 -- Lemma Guessing based on polyhedra
@@ -177,7 +172,7 @@ data GenAccelLemma = GenAccelLemma
 -- TODO use heuristic better
 lemmaGuess :: Heur -> Variables -> Symbol -> Term -> Maybe GenAccelLemma
 lemmaGuess heur vars prime trg = do
-  case fromPolyhedron vars prime (H.minEpsilon heur) <$> projectPolyhedra trg of
+  case fromPolyhedron vars prime (H.minEpsilon heur) <$> nontrivialPolyhedra trg of
     [] -> Nothing
     gals -> Just $ galUnion gals
 
@@ -192,16 +187,18 @@ galUnion subs =
         FOL.orfL (singleOut subs) $ \(poly, others) -> FOL.andf $ gstep poly : map gstay others
     }
 
-fromPolyhedron :: Variables -> Symbol -> Rational -> Polyhedron -> GenAccelLemma
-fromPolyhedron vars prime epsilon poly =
+fromPolyhedron :: Variables -> Symbol -> Rational -> (Polyhedron, Set Term) -> GenAccelLemma
+fromPolyhedron vars prime epsilon (poly, sideConstr) =
   let ineqs = toIneqs poly
+      inv = FOL.andf $ Set.toList sideConstr -- Remark: this is fairly simplistic, and could be enhnaced
    in GenAccelLemma
-        { gbase = FOL.andfL ineqs ineqGoal
-        , gconc = FOL.true
-        , gstay = FOL.andfL ineqs $ ineqStay vars prime
+        { gbase = FOL.andf [inv, FOL.andfL ineqs ineqGoal]
+        , gconc = inv
+        , gstay = FOL.andf [inv, FOL.andfL ineqs $ ineqStay vars prime]
         , gstep =
             FOL.orfL (singleOut ineqs) $ \(ineq, others) ->
-              FOL.andf [ineqStep vars prime epsilon ineq, FOL.andfL others (ineqStay vars prime)]
+              FOL.andf
+                [inv, ineqStep vars prime epsilon ineq, FOL.andfL others (ineqStay vars prime)]
         }
 
 ineqGoal :: Ineq Integer -> Term
@@ -221,20 +218,24 @@ ineqStay :: Variables -> Symbol -> Ineq Integer -> Term
 ineqStay vars prime (linComb, bounds) =
   let sum = sumTerm linComb
       sum' = primeT vars prime sum
+        -- Remark: Note that priming is "inverted" (previous part is primed)
+        -- as we do a backward computation
    in FOL.orf
         [ ineqGoal (linComb, bounds)
-        , FOL.andf [ltLow bounds sum, sum' `FOL.geqT` sum, inUpp bounds sum']
-        , FOL.andf [gtUpp bounds sum, sum' `FOL.leqT` sum, inLow bounds sum']
+        , FOL.andf [ltLow bounds sum, sum `FOL.geqT` sum', inUpp bounds sum']
+        , FOL.andf [gtUpp bounds sum, sum `FOL.leqT` sum', inLow bounds sum']
         ]
 
 ineqStep :: Variables -> Symbol -> Rational -> Ineq Integer -> Term
 ineqStep vars prime epsilon (linComb, bounds) =
   let sum = sumTerm linComb
       sum' = primeT vars prime sum
+        -- Remark: Note that priming is "inverted" (previous part is primed)
+        -- as we do a backward computation
    in FOL.orf
         [ ineqGoal (linComb, bounds)
-        , FOL.andf [ltLow bounds sum, sum `ltEpsilon` sum', inUpp bounds sum']
-        , FOL.andf [gtUpp bounds sum, sum' `ltEpsilon` sum, inLow bounds sum']
+        , FOL.andf [ltLow bounds sum, sum' `ltEpsilon` sum, inUpp bounds sum']
+        , FOL.andf [gtUpp bounds sum, sum `ltEpsilon` sum', inLow bounds sum']
         ]
   where
     ltEpsilon t1 t2

@@ -29,6 +29,9 @@ ifMP b t f = ifM b (pure t) (pure f)
 ifMC :: Monad m => m Bool -> a -> m a -> m a
 ifMC b t = ifM b $ pure t
 
+ifMD :: Monad m => m Bool -> m a -> a -> m a
+ifMD b t = ifM b t . pure
+
 ifQuery :: Monad m => m (Bool, a) -> b -> b -> m (b, a)
 ifQuery c t f = do
   (res, a) <- c

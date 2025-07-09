@@ -10,6 +10,7 @@ module Issy.Solver.Acceleration.MDAcceleration
 -------------------------------------------------------------------------------
 import Control.Monad (filterM)
 import Data.Bifunctor (second)
+import Data.Functor (($>))
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 
@@ -45,9 +46,7 @@ accelReach conf heur player arena loc reach = do
   -- 1. Guess lemma
   lemma <- lemmaGuess conf heur prime player arena (reach `get` loc)
   case lemma of
-    Nothing -> do
-      lg conf ["Lemma guessing failed"]
-      pure (FOL.false, Synt.empty)
+    Nothing -> lg conf ["Lemma guessing failed"] $> (FOL.false, Synt.empty)
     Just (base, step, conc, invar) -> do
       lg
         conf
@@ -73,12 +72,9 @@ accelReach conf heur player arena loc reach = do
           prog
           invar
       case invRes of
-        Just (conc, prog) -> do
-          lg conf ["Invariant  search resulted in", SMTLib.toString conc]
-          pure (conc, prog)
-        Nothing -> do
-          lg conf ["Invariant search failed"]
-          pure (FOL.false, Synt.empty)
+        Just (conc, prog) ->
+          lg conf ["Invariant  search resulted in", SMTLib.toString conc] $> (conc, prog)
+        Nothing -> lg conf ["Invariant search failed"] $> (FOL.false, Synt.empty)
 
 -------------------------------------------------------------------------------
 -- Invariant Iteration

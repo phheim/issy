@@ -18,7 +18,7 @@ module Issy.Logic.Polyhedra
   , toIneqs
   , normalize
   , toTerms
-  , projectPolyhedra
+  , nontrivialPolyhedra
   ) where
 
 ---------------------------------------------------------------------------------------------------
@@ -416,10 +416,6 @@ newtype PTerm =
   PTerm [(Polyhedron, Set Term)]
   deriving (Show)
 
--- | TODO get non-trivial polyhedra
-nonTrivialPolyhedra :: PTerm -> [Polyhedron]
-nonTrivialPolyhedra (PTerm constrs) = filter (not . isFullP) $ map fst constrs
-
 -- | TODO
 fromFOL :: Term -> PTerm
 fromFOL term =
@@ -468,9 +464,11 @@ toFOL (PTerm disjuncts) =
 normalize :: Term -> Term
 normalize = toFOL . fromFOL
 
--- | TODO
-projectPolyhedra :: Term -> [Polyhedron]
-projectPolyhedra = nonTrivialPolyhedra . fromFOL
+-- | TODO get non-trivial polyhedra constraints, TODO. rename!
+nontrivialPolyhedra :: Term -> [(Polyhedron, Set Term)]
+nontrivialPolyhedra term =
+  let PTerm constr = fromFOL term
+   in filter (not . isFullP . fst) constr
 
 --------------------------------------------------------------------------------------------------
 -- Helper functions
