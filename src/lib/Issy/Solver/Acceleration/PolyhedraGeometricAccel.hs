@@ -13,16 +13,15 @@ module Issy.Solver.Acceleration.PolyhedraGeometricAccel
   ( accelReach
   ) where
 
-import Data.Functor (($>))
 ---------------------------------------------------------------------------------------------------
+import Data.Functor (($>))
 import Data.Set (Set)
 import qualified Data.Set as Set
 
 import Issy.Base.SymbolicState (SymSt, get, set)
 import Issy.Base.Variables (Variables)
-import qualified Issy.Base.Variables as Vars
 import Issy.Config (Config, setName)
-import Issy.Logic.FOL (Sort, Symbol, Term)
+import Issy.Logic.FOL (Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.SMT as SMT
 import qualified Issy.Printers.SMTLib as SMTLib (toString)
@@ -34,10 +33,13 @@ import Issy.Solver.Synthesis (SyBo)
 import qualified Issy.Solver.Synthesis as Synt
 import Issy.Utils.Logging
 
+import Issy.Logic.Interval (gtUpp, inLow, inUpp, ltLow)
 import Issy.Logic.Polyhedra
 
 --TODO stuff like that is the first step to spaghettic code, move somewhere else!
 import Issy.Solver.Acceleration.MDAcceleration (iterA)
+
+import Issy.Solver.Acceleration.Base
 
 ---------------------------------------------------------------------------------------------------
 -- Top-level acceleration
@@ -73,8 +75,8 @@ accelGAL conf heur player arena prime loc = go 0
         Just gal -> iter 0 inv gal
       where
         iter cnt inv gal = do
-          let al = addInv (vars arena) prime inv $ addMaintain maintain $ galToAl gal
-          pre <- preCond conf heur player arena loc reach prime al
+          let al = addInv (vars arena) inv $ addMaintain maintain $ galToAl gal
+          pre <- preCond conf heur player arena loc reach al
           case pre of
             Right res -> pure $ Just res
             Left pre
@@ -94,32 +96,18 @@ accelGAL conf heur player arena prime loc = go 0
           case res of
             Nothing -> pure pre
             Just (res, subProg) -> do
-              error "TODO: what do I actually do with this program?"
+              _ <- error "TODO: what do I actually do with this program?" subProg
               pure res
 
 ---------------------------------------------------------------------------------------------------
 -- Attractor through loop arena
 ---------------------------------------------------------------------------------------------------
 -- TODO: can this be generalized module wise?
-data AccelLemma = AccelLemma
-  { base :: Term
-  , step :: Term
-  , conc :: Term
-  }
-
 galToAl :: GenAccelLemma -> AccelLemma
-galToAl gal = AccelLemma {base = gbase gal, step = gstep gal, conc = gconc gal}
+galToAl gal = AccelLemma {base = gbase gal, step = gstep gal, conc = gconc gal, prime = gprime gal}
 
 addMaintain :: Term -> AccelLemma -> AccelLemma
 addMaintain maintain al = al {step = FOL.andf [step al, maintain]}
-
-addInv :: Variables -> Symbol -> Term -> AccelLemma -> AccelLemma
-addInv vars prime inv al =
-  AccelLemma
-    { base = FOL.andf [base al, inv]
-    , conc = FOL.andf [conc al, inv]
-    , step = FOL.andf [step al, primeT vars prime inv]
-    }
 
 preCond ::
      Config
@@ -128,11 +116,11 @@ preCond ::
   -> Arena
   -> Loc
   -> SymSt
-  -> Symbol
   -> AccelLemma
   -> IO (Either Term (Term, SyBo))
-preCond conf heur player arena loc target prime lemma = do
-  (arena, loc, loc', subs, target, prog) <- pure $ reducedLoopArena conf heur arena loc target prime
+preCond conf heur player arena loc target lemma = do
+  (arena, loc, loc', subs, target, prog) <-
+    pure $ reducedLoopArena conf heur arena loc target (prime lemma)
   lg conf ["Loop Scenario on", strS (locName arena) subs]
   prog <- pure $ Synt.returnOn target prog
   target <- pure $ set target loc' $ FOL.orf [target `get` loc, step lemma]
@@ -140,7 +128,7 @@ preCond conf heur player arena loc target prime lemma = do
   -- found otherwise in the invariant generation iteration. This is beneficial as
   -- otherwise we usually do an underapproximating projection
   (stAcc, prog) <- pure $ iterA heur player arena target loc' prog
-  let res = FOL.removePref prime $ stAcc `get` loc
+  let res = unprime lemma $ stAcc `get` loc
   res <- SMT.simplify conf res
   let accelValue = FOL.andf [dom arena loc, conc lemma]
   let stepCond = accelValue `FOL.impl` res
@@ -167,6 +155,7 @@ data GenAccelLemma = GenAccelLemma
   , gstep :: Term
   , gstay :: Term
   , gconc :: Term
+  , gprime :: Symbol
   }
 
 -- TODO use heuristic better
@@ -176,7 +165,7 @@ lemmaGuess heur vars prime trg = do
     [] -> Nothing
     gals -> Just $ galUnion gals
 
--- condition: all priming is the same!
+-- condition: all priming is the same!, list not empty
 galUnion :: [GenAccelLemma] -> GenAccelLemma
 galUnion subs =
   GenAccelLemma
@@ -185,6 +174,7 @@ galUnion subs =
     , gconc = FOL.orfL subs gconc
     , gstep =
         FOL.orfL (singleOut subs) $ \(poly, others) -> FOL.andf $ gstep poly : map gstay others
+    , gprime = gprime (head subs)
     }
 
 fromPolyhedron :: Variables -> Symbol -> Rational -> (Polyhedron, Set Term) -> GenAccelLemma
@@ -199,6 +189,7 @@ fromPolyhedron vars prime epsilon (poly, sideConstr) =
             FOL.orfL (singleOut ineqs) $ \(ineq, others) ->
               FOL.andf
                 [inv, ineqStep vars prime epsilon ineq, FOL.andfL others (ineqStay vars prime)]
+        , gprime = prime
         }
 
 ineqGoal :: Ineq Integer -> Term
@@ -241,53 +232,4 @@ ineqStep vars prime epsilon (linComb, bounds) =
     ltEpsilon t1 t2
       | (FOL.sorts t1 `Set.union` FOL.sorts t2) == Set.singleton FOL.SInt = t1 `FOL.ltT` t2
       | otherwise = t1 `FOL.ltT` FOL.addT [FOL.numberT epsilon, t2]
-
--- TODO: duplicate in UFLAcceleration!
-primeT :: Variables -> Symbol -> Term -> Term
-primeT vars prim =
-  FOL.mapSymbol
-    (\s ->
-       if Vars.isStateVar vars s
-         then prim ++ s
-         else s)
-
--- TODO: move to polyhedra!
-sumTerm :: [((Symbol, Sort), Integer)] -> Term
-sumTerm = FOL.addT . map (\((v, s), c) -> FOL.multT [FOL.numberT c, FOL.var v s])
-
--- TODO: move to polyhedra!
-inLow :: Interval -> Term -> Term
-inLow intv term =
-  case lower intv of
-    MinusInfinity -> FOL.true
-    GTVal eq bound
-      | eq -> term `FOL.geqT` FOL.numberT bound
-      | otherwise -> term `FOL.gtT` FOL.numberT bound
-
--- TODO: move to polyhedra!
-ltLow :: Interval -> Term -> Term
-ltLow intv term =
-  case lower intv of
-    MinusInfinity -> FOL.false
-    GTVal eq bound
-      | eq -> term `FOL.ltT` FOL.numberT bound
-      | otherwise -> term `FOL.leqT` FOL.numberT bound
-
--- TODO: move to polyhedra!
-inUpp :: Interval -> Term -> Term
-inUpp intv term =
-  case upper intv of
-    PlusInfinity -> FOL.true
-    LTVal eq bound
-      | eq -> term `FOL.leqT` FOL.numberT bound
-      | otherwise -> term `FOL.ltT` FOL.numberT bound
-
--- TODO: move to polyhedra!
-gtUpp :: Interval -> Term -> Term
-gtUpp intv term =
-  case upper intv of
-    PlusInfinity -> FOL.false
-    LTVal eq bound
-      | eq -> term `FOL.gtT` FOL.numberT bound
-      | otherwise -> term `FOL.geqT` FOL.numberT bound
 ---------------------------------------------------------------------------------------------------

@@ -6,6 +6,9 @@
 -- License     : The Unlicense
 --
 ---------------------------------------------------------------------------------------------------
+{-# LANGUAGE MultiWayIf #-}
+
+---------------------------------------------------------------------------------------------------
 module Issy.Solver.Acceleration
   ( accelReach
   , canAccel
@@ -28,11 +31,9 @@ import Issy.Solver.Synthesis (SyBo)
 accelReach :: Config -> Int -> Player -> Arena -> Loc -> SymSt -> IO (Term, SyBo)
 accelReach conf visits player arena =
   let heur = H.forVisits conf arena visits
-   in if ufAcceleration conf
-        then UFLAcc.accelReach conf heur player arena
-        else if genGeomAccel conf
-               then PoGeoA.accelReach conf heur player arena
-               else MDAcc.accelReach conf heur player arena
+   in if | ufAcceleration conf -> UFLAcc.accelReach conf heur player arena
+         | genGeomAccel conf -> PoGeoA.accelReach conf heur player arena
+         | otherwise -> MDAcc.accelReach conf heur player arena
 
 ---------------------------------------------------------------------------------------------------
 -- | 'canAccel' check if in a given location attractor acceleration even makes sense

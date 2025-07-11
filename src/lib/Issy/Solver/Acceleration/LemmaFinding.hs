@@ -17,6 +17,7 @@ import Issy.Logic.FOL
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.SMT as SMT
 import qualified Issy.Printers.SMTLib as SMTLib (toString)
+import Issy.Solver.Acceleration.Base (primeT)
 import Issy.Solver.Acceleration.Heuristics (Heur)
 import qualified Issy.Solver.Acceleration.Heuristics as H
 import Issy.Utils.Logging
@@ -47,14 +48,6 @@ data LemInst =
 -------------------------------------------------------------------------------
 -- Instantiation
 -------------------------------------------------------------------------------
-primeT :: Variables -> Symbol -> Term -> Term
-primeT vars prim =
-  mapSymbol
-    (\s ->
-       if Vars.isStateVar vars s
-         then prim ++ s
-         else s)
-
 extInt :: Symbol -> Integer -> Symbol
 extInt prefix i = prefix ++ "_" ++ show i ++ "_"
 

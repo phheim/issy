@@ -11,10 +11,8 @@
 ---------------------------------------------------------------------------------------------------
 module Issy.Logic.Polyhedra
   ( Polyhedron
-  , Interval(..)
-  , UBound(..)
-  , LBound(..)
   , Ineq
+  , sumTerm
   , toIneqs
   , normalize
   , toTerms
@@ -37,136 +35,8 @@ import Issy.Logic.FOL
   , Term(Const, Func, Var)
   )
 import qualified Issy.Logic.FOL as FOL
+import Issy.Logic.Interval
 import Issy.Logic.Propositional (DNF(..), toDNF)
-
----------------------------------------------------------------------------------------------------
--- Interval and Bounds
----------------------------------------------------------------------------------------------------
--- | 'Interval' represents an interval 
-data Interval = Interval
-  { upper :: UBound
-  , lower :: LBound
-  } deriving (Eq, Ord, Show)
-
-fullInterval :: Interval
-fullInterval = Interval {upper = PlusInfinity, lower = MinusInfinity}
-
-ltInterval :: Real a => a -> Interval
-ltInterval r = fullInterval {upper = LTVal False (toRational r)}
-
-lteInterval :: Real a => a -> Interval
-lteInterval r = fullInterval {upper = LTVal True (toRational r)}
-
-eqInterval :: Real a => a -> Interval
-eqInterval r = Interval {upper = LTVal True (toRational r), lower = GTVal True (toRational r)}
-
--- | 'UBound' is a type for optional inclusive/exclusive upper rational bounds 
-data UBound
-  = PlusInfinity
- -- ^ 'PlusInfinity' means that there is no upper bound
-  | LTVal Bool Rational
- -- ^ 'LTVal' is a </<= C bound. The Boolean flag indicates if is included
-  deriving (Eq, Show)
-
--- | 'LBound' is a type for optional inclusive/exclusive lower rational bounds 
-data LBound
-  = MinusInfinity
- -- ^ 'MinusInfinity' means that there is no lower bound
-  | GTVal Bool Rational
- -- ^ 'LTVal' is a >/>= C bound. The Boolean flag indicates if is included
-  deriving (Eq, Show)
-
--- 'Ord' on 'UBound' is defined as larger means more inclusive, i.e larger upper bound
-instance Ord UBound where
-  compare b1 b2 =
-    case (b1, b2) of
-      (PlusInfinity, PlusInfinity) -> EQ
-      (_, PlusInfinity) -> LT
-      (PlusInfinity, _) -> GT
-      (LTVal eq1 v1, LTVal eq2 v2)
-        | v1 > v2 -> GT
-        | v1 < v2 -> LT
-        | eq1 && not eq2 -> GT
-        | eq2 && not eq1 -> LT
-        | otherwise -> EQ
-
--- 'Ord' on 'BBound' is defined as larger means more inclusive, i.e. smaller lower bound
-instance Ord LBound where
-  compare b1 b2 =
-    case (b1, b2) of
-      (MinusInfinity, MinusInfinity) -> EQ
-      (_, MinusInfinity) -> LT
-      (MinusInfinity, _) -> GT
-      (GTVal eq1 v1, GTVal eq2 v2)
-        | v1 < v2 -> GT
-        | v1 > v2 -> LT
-        | eq1 && not eq2 -> GT
-        | eq2 && not eq1 -> LT
-        | otherwise -> EQ
-
-intersect :: Interval -> Interval -> Interval
-intersect b1 b2 = Interval {upper = min (upper b1) (upper b2), lower = min (lower b1) (lower b2)}
-
-includedI :: Interval -> Interval -> Bool
-includedI b1 b2 = upper b1 <= upper b2 && lower b1 <= lower b2
-
-isEmpty :: Interval -> Bool
-isEmpty intv =
-  case (lower intv, upper intv) of
-    (GTVal leq lval, LTVal ueq uval) -> uval < lval || (uval == lval && (not leq || not ueq))
-    _ -> False
-
-tryDisjunctI :: Interval -> Interval -> Maybe Interval
-tryDisjunctI i1 i2
-  | isEmpty (i1 `intersect` i2) = Nothing
-  | otherwise =
-    Just $ Interval {upper = max (upper i1) (upper i1), lower = max (lower i1) (lower i2)}
-
--- | 'isInside' generates the 'Term' that a given 'Term' is inside the 'Interval'
-isInside :: Term -> Interval -> Term
-isInside t intv =
-  let lowT =
-        case lower intv of
-          MinusInfinity -> FOL.true
-          GTVal True r -> FOL.geqT t $ FOL.numberT r
-          GTVal False r -> FOL.gtT t $ FOL.numberT r
-      upT =
-        case upper intv of
-          PlusInfinity -> FOL.true
-          LTVal True r -> FOL.leqT t $ FOL.numberT r
-          LTVal False r -> FOL.ltT t $ FOL.numberT r
-   in FOL.andf [lowT, upT]
-
--- | 'multI' applies to the interval, if interpreted as inequality constraint, the
--- | equivalence operation "multiply be the given factor"
-multI :: Rational -> Interval -> Interval
-multI scale intv
-  | scale < 0 = multI (-scale) $ multMinusOne intv
-  | otherwise =
-    let lw =
-          case lower intv of
-            MinusInfinity -> MinusInfinity
-            GTVal incl r -> GTVal incl (scale * r)
-        up =
-          case upper intv of
-            PlusInfinity -> PlusInfinity
-            LTVal incl r -> LTVal incl (scale * r)
-     in Interval {upper = up, lower = lw}
-
--- | 'multMinusOne' applies to the interval, if interpreted as inequality constraint, the
--- equivalence operation "multiply with minus one",  i.e swap upper and lower bounds 
--- and multiply their value by -1
-multMinusOne :: Interval -> Interval
-multMinusOne intv =
-  let up =
-        case lower intv of
-          MinusInfinity -> PlusInfinity
-          GTVal incl r -> LTVal incl (-r)
-      lw =
-        case upper intv of
-          PlusInfinity -> MinusInfinity
-          LTVal incl r -> GTVal incl (-r)
-   in Interval {upper = up, lower = lw}
 
 ---------------------------------------------------------------------------------------------------
 -- Efficient Maps for Lists
@@ -294,7 +164,7 @@ isFullP poly =
 
 -- | TODO assumption same varOrder!
 includedP :: Polyhedron -> Polyhedron -> Bool
-includedP p1 p2 = includedLT includedI (linearConstraints p1) (linearConstraints p2)
+includedP p1 p2 = includedLT included (linearConstraints p1) (linearConstraints p2)
 
 -- | TODO document
 rescale :: [Rational] -> ([Integer], Rational)
@@ -319,7 +189,7 @@ rescale (x:xr) =
 addLinearConstr :: [Rational] -> Interval -> Polyhedron -> Maybe Polyhedron
 addLinearConstr coefs intv poly =
   let (scaledCoefs, factor) = rescale $ removeTrailing 0 coefs
-      scaledIntv = multI factor intv
+      scaledIntv = scale factor intv
    in if | null scaledCoefs -> Just poly
          | scaledIntv == fullInterval -> Just poly
          | isEmpty scaledIntv -> Nothing
@@ -335,7 +205,7 @@ addLinearConstr coefs intv poly =
 -- | TODO assumption same varOrder!
 tryDisjunctP :: Polyhedron -> Polyhedron -> Maybe Polyhedron
 tryDisjunctP p1 p2 =
-  case mergeOnceT tryDisjunctI (linearConstraints p1) (linearConstraints p2) of
+  case mergeOnceT tryDisjunct (linearConstraints p1) (linearConstraints p2) of
     Nothing -> Nothing
     Just lc -> Just $ Polyhedron {varOrder = varOrder p1, linearConstraints = lc}
 
@@ -356,13 +226,11 @@ addIneq (linComb, intv) poly =
       coefList = (\v -> Map.findWithDefault 0 v linCombM) <$> varOrder poly
    in addLinearConstr coefList intv poly
 
+sumTerm :: [((Symbol, Sort), Integer)] -> Term
+sumTerm = FOL.addT . map (\((v, s), c) -> FOL.multT [FOL.numberT c, FOL.var v s])
+
 toTerms :: Polyhedron -> [Term]
-toTerms = map ineqToTerm . toIneqs
-  where
-    ineqToTerm (linComb, intv) =
-      flip isInside intv
-        $ FOL.addT
-        $ map (\((v, s), c) -> FOL.multT [FOL.numberT c, FOL.var v s]) linComb
+toTerms = map (\(linc, intv) -> isInside (sumTerm linc) intv) . toIneqs
 
 data IncPoly
   = NewPoly Polyhedron
