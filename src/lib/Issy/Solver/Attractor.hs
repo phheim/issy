@@ -121,7 +121,10 @@ attractorFull cfg solst player arena stopCheck target = do
          SolSt -> VisitCounter -> OpenList Loc -> SymSt -> SyBo -> Loc -> IO (SymSt, SolSt, SyBo)
     accelSum solst vcnt open reach prog l
       | enforcementSummaries cfg = do
-        (enfst', msum) <- trySummary cfg player arena l (enfst solst) reach
+        let callAttr =
+              error
+                "TODO: this function icslef but with timeout or soitself, maybe a structure change (low-level vs. high level is need)"
+        (enfst', msum) <- trySummary cfg callAttr player arena l (enfst solst) reach
         solst <- pure $ solst {enfst = enfst'}
         case msum of
                 -- Summary was not found and could not be computed either

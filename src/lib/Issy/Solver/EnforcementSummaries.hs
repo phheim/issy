@@ -14,13 +14,16 @@ module Issy.Solver.EnforcementSummaries
 
 ---------------------------------------------------------------------------------------------------
 import Data.List (find)
+import qualified Data.Map.Strict as Map
 
 import Issy.Base.SymbolicState (SymSt, get)
+import qualified Issy.Base.SymbolicState as SymSt
 import qualified Issy.Base.Variables as Vars
 import Issy.Base.Variables (Variables)
 import Issy.Config (Config, setName)
-import Issy.Logic.FOL (Symbol, Term)
+import Issy.Logic.FOL (Sort, Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
+import qualified Issy.Logic.SMT as SMT
 import Issy.Solver.GameInterface
 import Issy.Solver.Synthesis (SyBo)
 import Issy.Utils.Logging
@@ -49,20 +52,26 @@ data SummaryKey = SummaryKey
 -- | 'SummaryContent' is the actual summary. To be sound a 'SummaryContent' need a matching 
 -- 'SummaryKey'
 data SummaryContent = SummaryContent
-  { metaVars :: [Symbol]
+  { metaVars :: [(Symbol, Sort)]
   , enforcable :: Term
     -- ^ 'enforcable' is the main formula part!
-  , targets :: [(Loc, Term)] -- ALTERNATIVE SymbolicState?
+  , targets :: SymSt
   , sybo :: SyBo
     -- ^ 'sybo' is the book-kept strategy with meta variables
   }
+
+-- This is needed to get Haskell to accept the cylic dependencies
+-- TODO: type Attr = Config -> SolSt -> Player -> Arena -> StopCheck -> SymSt -> IO (SymSt, SolSt, SyBo) lift SolSt
+-- TODO: preliminary version
+type Attr = Config -> Player -> Arena -> SymSt -> IO (SymSt, SyBo)
 
 --------------------------------------------------------------------------------------------------- 
 -- High Level Procedure
 --------------------------------------------------------------------------------------------------- 
 -- TODO: document, do not QELIM result, that is resposibility of caller
-trySummary :: Config -> Player -> Arena -> Loc -> EnfSt -> SymSt -> IO (EnfSt, Maybe (Term, SyBo))
-trySummary conf player arena loc enfst reach = do
+trySummary ::
+     Config -> Attr -> Player -> Arena -> Loc -> EnfSt -> SymSt -> IO (EnfSt, Maybe (Term, SyBo))
+trySummary conf attr player arena loc enfst reach = do
   conf <- pure $ setName "Summaries" conf
   lgd conf ["Try to apply summary"] -- TODO: details
   case find (matchKey player arena loc . fst) (summaries enfst) of
@@ -78,7 +87,7 @@ trySummary conf player arena loc enfst reach = do
           pure (enfst, Nothing)
         Nothing -> do
           lg conf ["Compute summary"] -- TODO: details
-          (key, content) <- computeSum conf player arena loc
+          (key, content) <- computeSum conf attr player arena loc
           case content of
             Nothing -> do
               lg conf ["Summary computation failed"]
@@ -108,9 +117,10 @@ matchKey player arena loc key
 applyIn :: Config -> Variables -> SummaryContent -> SymSt -> IO (Term, SyBo)
 applyIn conf vars summary reach =
   let condImpl =
-        FOL.andfL (targets summary) $ \(l, next) -> Vars.forallX vars $ FOL.impl (get reach l) next
+        FOL.andfL (SymSt.toList (targets summary)) $ \(l, next) ->
+          Vars.forallX vars $ FOL.impl (get reach l) next
      -- ^ condition that the current target 'reach' is part of the symbolic target
-      constr = FOL.exists (metaVars summary) $ FOL.andf [condImpl, enforcable summary]
+      constr = FOL.exists (map fst (metaVars summary)) $ FOL.andf [condImpl, enforcable summary]
      -- ^ overall summary
       prog = error "TODO IMPLEMENT: needs Skolem function computation :("
      -- ^ programm computation
@@ -119,10 +129,40 @@ applyIn conf vars summary reach =
 ---------------------------------------------------------------------------------------------------
 -- Computation
 --------------------------------------------------------------------------------------------------- 
-computeSum :: Config -> Player -> Arena -> Loc -> IO (SummaryKey, Maybe SummaryContent)
-computeSum =
-  error
-    "TODO IMPLEMENT: build sub-game with additional variables, and equality contraints! attractor computation + acceleration with new computation (cyclic dependency!)"
+computeSum :: Config -> Attr -> Player -> Arena -> Loc -> IO (SummaryKey, Maybe SummaryContent)
+computeSum conf attr player arena loc = do
+  conf <- pure $ setName "SummaryGen" conf
+    -- TODO: check with dublicates in loop game
+  let subs = error "TODO: induced substutff" loc
+  (arena, oldToNew) <- pure $ inducedSubArena arena subs
+  loc <- pure $ oldToNew loc
+  let key = SummaryKey {sumPlayer = player, sumArena = arena, sumLoc = loc}
+  template <- computeTemplate conf arena subs
+  let metas =
+        Map.toList
+          $ Map.filterWithKey (\var _ -> var `notElem` stateVars arena)
+          $ FOL.bindings
+          $ FOL.orf
+          $ map snd
+          $ SymSt.toList template
+  arena <- pure $ addConstants metas arena
+    -- TODO: underapproximation restriction?
+  (attrRes, templProg) <- attr conf player arena template
+    -- This program somehow needs the backmapping as wall as the summary content, no?
+  enforce <- SMT.simplify conf $ attrRes `get` loc
+  sat <- SMT.sat conf enforce
+  if not sat
+    then pure (key, Nothing)
+    else do
+      let content =
+            SummaryContent
+              {metaVars = metas, enforcable = enforce, targets = template, sybo = templProg}
+      pure (key, Just content)
+
+computeTemplate :: Config -> Arena -> Loc -> IO SymSt
+computeTemplate conf arena loc = do
+  indeps <- independentProgVars conf arena
+  error "TODO"
 
 ---------------------------------------------------------------------------------------------------
 -- Per Game Things
@@ -130,6 +170,6 @@ computeSum =
 isSubarenaFrom :: (Loc, Arena) -> (Loc, Arena) -> Maybe (Loc -> Loc)
 isSubarenaFrom (lSub, arenaSub) (l, arena) = error "TODO IMPLEMENT: implement per game type"
 
-constructSubarena :: Arena -> Loc -> (Arena, Loc, Loc -> Loc)
-constructSubarena = error "TODO IMPLEMENT: per game type"
+addConstants :: [(Symbol, Sort)] -> Arena -> Arena
+addConstants = error "TODO IMPLEMENT"
 ---------------------------------------------------------------------------------------------------
