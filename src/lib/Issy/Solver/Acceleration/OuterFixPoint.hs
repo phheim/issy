@@ -4,7 +4,6 @@ module Issy.Solver.Acceleration.OuterFixPoint
   ( accelCoBuechi
   ) where
 
-import Control.Monad (unless)
 import qualified Data.Map.Strict as Map
 
 import Issy.Base.SymbolicState (SymSt, get)
@@ -21,6 +20,7 @@ import Issy.Solver.GameInterface
 import Issy.Solver.Synthesis (SyBo)
 import qualified Issy.Solver.Synthesis as Synt
 import Issy.Utils.Logging
+import Issy.Utils.Extra
 
 accelCoBuechi :: Config -> Player -> Arena -> Loc -> SymSt -> SymSt -> IO (Term, SyBo)
 accelCoBuechi conf player arena loc fset wopp = do

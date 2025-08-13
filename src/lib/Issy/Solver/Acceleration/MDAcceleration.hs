@@ -8,9 +8,6 @@ module Issy.Solver.Acceleration.MDAcceleration
   ) where
 
 -------------------------------------------------------------------------------
-import Control.Monad (filterM)
-import Data.Bifunctor (second)
-import Data.Functor (($>))
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 
@@ -30,7 +27,7 @@ import Issy.Solver.Acceleration.Strengthening (strengthenBool)
 import Issy.Solver.GameInterface
 import Issy.Solver.Synthesis (SyBo)
 import qualified Issy.Solver.Synthesis as Synt
-import Issy.Utils.Extra (andM, orM)
+import Issy.Utils.Extra
 import Issy.Utils.Logging
 import qualified Issy.Utils.OpenList as OL (fromSet, pop, push)
 

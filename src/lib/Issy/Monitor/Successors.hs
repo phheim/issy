@@ -4,7 +4,6 @@ module Issy.Monitor.Successors
   ( generateSuccessor
   ) where
 
-import Data.Bifunctor (first, second)
 import Data.Map.Strict ((!?))
 import qualified Data.Map.Strict as Map
 import Data.Set (Set)

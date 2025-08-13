@@ -4,7 +4,6 @@ module Issy.Solver.Acceleration.UFLAcceleration
   ( accelReach
   ) where
 
-import Control.Monad (unless)
 import Data.Set (Set)
 import qualified Data.Set as Set
 
@@ -24,6 +23,7 @@ import Issy.Solver.GameInterface
 import Issy.Solver.Synthesis (SyBo)
 import qualified Issy.Solver.Synthesis as Synt
 import Issy.Utils.Logging
+import Issy.Utils.Extra
 import qualified Issy.Utils.OpenList as OL (fromSet, pop, push)
 
 -------------------------------------------------------------------------------

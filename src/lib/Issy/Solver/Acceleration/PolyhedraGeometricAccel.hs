@@ -14,7 +14,6 @@ module Issy.Solver.Acceleration.PolyhedraGeometricAccel
   ) where
 
 ---------------------------------------------------------------------------------------------------
-import Data.Functor (($>))
 import Data.Set (Set)
 import qualified Data.Set as Set
 
@@ -32,6 +31,7 @@ import Issy.Solver.GameInterface
 import Issy.Solver.Synthesis (SyBo)
 import qualified Issy.Solver.Synthesis as Synt
 import Issy.Utils.Logging
+import Issy.Utils.Extra
 
 import Issy.Logic.Interval (gtUpp, inLow, inUpp, ltLow)
 import Issy.Logic.Polyhedra

@@ -51,7 +51,6 @@ module Issy.Solver.GameInterface
   ) where
 
 ---------------------------------------------------------------------------------------------------
-import Data.Bifunctor (first)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Set (Set)
@@ -66,6 +65,7 @@ import Issy.Logic.FOL (Sort, Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.RPG as RPG
 import qualified Issy.SymbolicArena as Sym
+import Issy.Utils.Extra
 
 ---------------------------------------------------------------------------------------------------
 -- Data Structure

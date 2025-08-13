@@ -28,7 +28,6 @@ module Issy.Solver.Synthesis
   ) where
 
 ---------------------------------------------------------------------------------------------------
-import Control.Monad (unless)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Ratio (denominator, numerator)
@@ -47,6 +46,7 @@ import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.SMT as SMT
 import qualified Issy.Printers.SMTLib as SMTLib
 import Issy.Solver.GameInterface
+import Issy.Utils.Extra
 
 ---------------------------------------------------------------------------------------------------
 -- Bookkeeping

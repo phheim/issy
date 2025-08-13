@@ -18,9 +18,9 @@ module Issy.Solver.Acceleration.Heuristics
   ) where
 
 import Data.List (genericReplicate)
-import Data.Ratio ((%))
 import qualified Data.Set as Set
 
+import Issy.Utils.Extra
 import Issy.Config (Config, accelerationLevel)
 import Issy.Solver.GameInterface
 

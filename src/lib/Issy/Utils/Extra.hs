@@ -1,14 +1,48 @@
 {-# LANGUAGE LambdaCase #-}
 
-module Issy.Utils.Extra where
+module Issy.Utils.Extra
+  ( justOn
+  , ifM
+  , ifMC
+  , ifMD
+  , ifQuery
+  , allM
+  , orM
+  , andM
+  , rightToMaybe
+  , predecessorRelation
+  , reachables
+  , firstLine
+  , intmapSet
+  , mapFromSet
+  , mapFromSetWith
+  , runTO
+  , noTimeout
+  , first
+  , second
+  , filterM
+  , foldM
+  , unless
+  , (%)
+  , (<&>)
+  , ($>)
+  , (<=<)
+  , fromMaybe
+  , mapMaybe
+  ) where
 
+import Control.Monad (filterM, foldM, unless, (<=<))
+import Data.Bifunctor (first, second)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
 import System.Process (readProcessWithExitCode)
 import qualified System.Timeout as Sys (timeout)
+import Data.Ratio((%))
 
+import Data.Functor ((<&>), ($>))
+import Data.Maybe (fromMaybe, mapMaybe)
 import qualified Issy.Utils.OpenList as OL
 
 justOn :: Bool -> a -> Maybe a
@@ -22,9 +56,6 @@ ifM b t f = do
   if b
     then t
     else f
-
-ifMP :: Monad m => m Bool -> a -> a -> m a
-ifMP b t f = ifM b (pure t) (pure f)
 
 ifMC :: Monad m => m Bool -> a -> m a -> m a
 ifMC b t = ifM b $ pure t

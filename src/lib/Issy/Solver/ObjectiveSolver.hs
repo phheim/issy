@@ -11,7 +11,6 @@ module Issy.Solver.ObjectiveSolver
   ) where
 
 ---------------------------------------------------------------------------------------------------
-import Control.Monad (filterM, foldM)
 import Data.Map.Strict (Map, (!))
 import qualified Data.Map.Strict as Map
 import Data.Set (Set)
@@ -25,12 +24,12 @@ import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.SMT as SMT
 import qualified Issy.Printers.SMTLib as SMTLib (toString)
 import Issy.Solver.Acceleration.OuterFixPoint (accelCoBuechi)
-import Issy.Solver.Attractor (SolSt(..), attractor, attractorEx, noCheck)
-import qualified Issy.Solver.EnforcementSummaries as EnfSt (empty)
+import Issy.Solver.Attractor (SolSt(stats), attractor, attractorEx, emptySolSt, noCheck)
 import Issy.Solver.GameInterface
 import Issy.Solver.Synthesis (SyBo)
 import qualified Issy.Solver.Synthesis as Synt
 import Issy.Statistics (Stats)
+import Issy.Utils.Extra
 import Issy.Utils.Logging
 
 ---------------------------------------------------------------------------------------------------
@@ -40,7 +39,7 @@ solve :: Config -> Stats -> (Arena, Objective) -> IO (Bool, Stats, Maybe (IO Str
 solve conf stat (arena, obj) = do
   conf <- pure $ setName "Solve" conf
   let init = initialLoc obj
-  let solst = SolSt {stats = stat, enfst = EnfSt.empty}
+  let solst = emptySolSt {stats = stat}
   (res, solst, prog) <-
     case winningCond obj of
       Reachability ls -> solveReach conf solst arena ls init

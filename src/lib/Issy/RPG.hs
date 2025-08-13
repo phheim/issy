@@ -54,12 +54,10 @@ module Issy.RPG
   ) where
 
 ---------------------------------------------------------------------------------------------------
-import Control.Monad (foldM, liftM2)
-import Data.Bifunctor (first, second)
+import Control.Monad (liftM2)
 import Data.List (nub)
 import Data.Map.Strict (Map, (!?))
 import qualified Data.Map.Strict as Map
-import Data.Maybe (fromMaybe)
 import Data.Set (Set)
 import qualified Data.Set as Set
 
@@ -75,7 +73,7 @@ import Issy.Config (Config)
 import Issy.Logic.FOL (Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.SMT as SMT
-import Issy.Utils.Extra (ifM, predecessorRelation)
+import Issy.Utils.Extra hiding (reachables)
 import qualified Issy.Utils.OpenList as OL
 
 ---------------------------------------------------------------------------------------------------

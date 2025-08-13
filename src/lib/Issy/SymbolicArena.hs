@@ -46,8 +46,6 @@ module Issy.SymbolicArena
   ) where
 
 ---------------------------------------------------------------------------------------------------
-import Control.Monad (foldM)
-import Data.Bifunctor (second)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Set (Set)
@@ -67,7 +65,7 @@ import Issy.Logic.FOL (Sort, Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.SMT as SMT
 import qualified Issy.Printers.SMTLib as SMTLib
-import Issy.Utils.Extra (justOn)
+import Issy.Utils.Extra hiding (reachables)
 import Issy.Utils.Logging
 import qualified Issy.Utils.OpenList as OL
 

@@ -6,7 +6,6 @@ module Issy.Solver.Acceleration.LoopScenario
 -------------------------------------------------------------------------------
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (mapMaybe)
 import Data.Set (Set)
 import qualified Data.Set as Set
 
@@ -23,7 +22,7 @@ import qualified Issy.Solver.Acceleration.Heuristics as H
 import Issy.Solver.GameInterface
 import Issy.Solver.Synthesis (SyBo)
 import qualified Issy.Solver.Synthesis as Synt
-import Issy.Utils.Extra (allM, justOn)
+import Issy.Utils.Extra
 import Issy.Utils.Logging
 
 -------------------------------------------------------------------------------
@@ -47,7 +46,7 @@ reducedLoopArena ::
      Config -> Heur -> Arena -> Loc -> SymSt -> Symbol -> (Arena, Loc, Loc, Set Loc, SymSt, SyBo)
 reducedLoopArena conf heur arena loc target prime =
   let (rawLoopAr, rawLoc') = loopArena arena loc
-      subs = subArena heur loopAr (loc, rawLoc')
+      subs = subArena heur rawLoopAr (loc, rawLoc')
       (loopAr, oldToNew) = inducedSubArena rawLoopAr subs
       newLoc = oldToNew loc
       newLoc' = oldToNew rawLoc'

@@ -7,17 +7,14 @@
 --
 ---------------------------------------------------------------------------------------------------
 module Issy.Solver.Attractor
-  ( SolSt(..)
+  ( SolSt(stats)
+  , emptySolSt
   , attractor
   , attractorEx
   , noCheck
   ) where
 
 ---------------------------------------------------------------------------------------------------
-import Control.Monad (filterM)
-import Data.Bifunctor (second) -- TODO: maybe add rexport for that
-import Data.Functor ((<&>))
-import Data.Maybe (fromMaybe)
 import Data.Set (Set)
 import qualified Data.Set as Set
 
@@ -51,9 +48,8 @@ data SolSt = SolSt
   , enfst :: EnfSt
   }
 
--- TODO: this could equally be name empty no?
-discardSolSt :: SolSt
-discardSolSt = SolSt {stats = Stats.emptyStats, enfst = EnfSum.empty}
+emptySolSt :: SolSt
+emptySolSt = SolSt {stats = Stats.emptyStats, enfst = EnfSum.empty}
 
 type StopCheck = Maybe (Loc -> SymSt -> IO Bool)
 
@@ -198,7 +194,6 @@ class FixPointSt a =>
   player :: a -> Player
   reach :: a -> SymSt
   prog :: a -> SyBo
-    --
   setIn :: Loc -> Term -> a -> a
   setProg :: SyBo -> a -> a
 
@@ -256,7 +251,7 @@ accelStep conf ast loc = do
 
 accelAttractor :: Config -> Player -> Arena -> SymSt -> IO (SymSt, SyBo)
 accelAttractor conf player arena reach =
-  attrState conf discardSolSt Nothing player arena reach
+  attrState conf emptySolSt Nothing player arena reach
     >>= accelAttr conf
     >>= attrResult conf <&> (\(reach, _, prog) -> (reach, prog))
 

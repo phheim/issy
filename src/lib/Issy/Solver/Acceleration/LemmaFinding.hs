@@ -5,8 +5,6 @@ module Issy.Solver.Acceleration.LemmaFinding
   , resolve
   ) where
 
-import Data.Bifunctor (second)
-import Data.Maybe (fromMaybe)
 import Data.Set (Set)
 import qualified Data.Set as Set
 
@@ -21,6 +19,7 @@ import Issy.Solver.Acceleration.Base (primeT)
 import Issy.Solver.Acceleration.Heuristics (Heur)
 import qualified Issy.Solver.Acceleration.Heuristics as H
 import Issy.Utils.Logging
+import Issy.Utils.Extra
 
 -------------------------------------------------------------------------------
 type Constraint = [Term]

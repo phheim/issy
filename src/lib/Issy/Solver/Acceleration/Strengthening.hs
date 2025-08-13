@@ -12,13 +12,11 @@ module Issy.Solver.Acceleration.Strengthening
   ) where
 
 ---------------------------------------------------------------------------------------------------
-import Control.Monad ((<=<))
-import Data.Bifunctor (first)
-
 import Issy.Config (Config)
 import Issy.Logic.FOL (Symbol, Term(Func))
 import qualified Issy.Logic.FOL as FOL
 import Issy.Logic.SMT as SMT
+import Issy.Utils.Extra
 
 ---------------------------------------------------------------------------------------------------
 -- | 'strengthenSimple' strengthens the given 'Term' in different easy syntactic ways
