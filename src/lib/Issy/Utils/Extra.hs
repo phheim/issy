@@ -31,17 +31,17 @@ module Issy.Utils.Extra
   , mapMaybe
   ) where
 
-import Control.Monad (filterM, foldM, unless, (<=<))
+import Control.Monad ((<=<), filterM, foldM, unless)
 import Data.Bifunctor (first, second)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
+import Data.Ratio ((%))
 import Data.Set (Set)
 import qualified Data.Set as Set
 import System.Process (readProcessWithExitCode)
 import qualified System.Timeout as Sys (timeout)
-import Data.Ratio((%))
 
-import Data.Functor ((<&>), ($>))
+import Data.Functor (($>), (<&>))
 import Data.Maybe (fromMaybe, mapMaybe)
 import qualified Issy.Utils.OpenList as OL
 

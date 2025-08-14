@@ -22,8 +22,8 @@ import Issy.Solver.Acceleration.LoopScenario (loopScenario)
 import Issy.Solver.GameInterface
 import Issy.Solver.Synthesis (SyBo)
 import qualified Issy.Solver.Synthesis as Synt
-import Issy.Utils.Logging
 import Issy.Utils.Extra
+import Issy.Utils.Logging
 import qualified Issy.Utils.OpenList as OL (fromSet, pop, push)
 
 -------------------------------------------------------------------------------

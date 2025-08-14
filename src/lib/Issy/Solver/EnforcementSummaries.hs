@@ -15,6 +15,7 @@ module Issy.Solver.EnforcementSummaries
 ---------------------------------------------------------------------------------------------------
 import Data.List (find)
 import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
 
 import Issy.Base.SymbolicState (SymSt, get)
 import qualified Issy.Base.SymbolicState as SymSt
@@ -61,8 +62,8 @@ data SummaryContent = SummaryContent
   }
 
 -- This is needed to get Haskell to accept the cylic dependencies
--- TODO: type Attr = Config -> SolSt -> Player -> Arena -> StopCheck -> SymSt -> IO (SymSt, SolSt, SyBo) lift SolSt
--- TODO: preliminary version
+-- and makes it also easier to control the attractor computation 
+-- within the attractor module.
 type Attr = Config -> Player -> Arena -> SymSt -> IO (SymSt, SyBo)
 
 --------------------------------------------------------------------------------------------------- 
@@ -146,7 +147,7 @@ computeSum conf attr player arena loc = do
           $ map snd
           $ SymSt.toList template
   arena <- pure $ addConstants metas arena
-    -- TODO: underapproximation restriction?
+    -- TODO: underapproximation restriction!!!
   (attrRes, templProg) <- attr conf player arena template
     -- This program somehow needs the backmapping as wall as the summary content, no?
   enforce <- SMT.simplify conf $ attrRes `get` loc
@@ -162,7 +163,32 @@ computeSum conf attr player arena loc = do
 computeTemplate :: Config -> Arena -> Loc -> IO SymSt
 computeTemplate conf arena loc = do
   indeps <- independentProgVars conf arena
-  error "TODO"
+  let deps = Set.toList $ stateVars arena `Set.difference` indeps
+  pure
+    $ SymSt.symSt (locations arena)
+    $ \loc -> FOL.andf [FOL.andfL (Set.toList indeps) (condIDep loc), FOL.andfL deps (condDep loc)]
+  where
+    prefix = FOL.uniquePrefix "meta_summary_" $ usedSymbols arena
+    condIDep _ var =
+      let s = sortOf arena var
+       in FOL.var var s `FOL.equal` FOL.var (prefix ++ var) s
+    condDep _ var
+      | sortOf arena var `notElem` [FOL.SInt, FOL.SReal] =
+        let s = sortOf arena var
+         in FOL.var var s `FOL.equal` FOL.var (prefix ++ var) s
+      | otherwise =
+        let s = sortOf arena var
+            varT = FOL.var var s
+            up = FOL.var (prefix ++ var ++ "_up_bound") s
+            upOn = FOL.var (prefix ++ var ++ "_up_on") FOL.SBool
+            low = FOL.var (prefix ++ var ++ "_low_bound") s
+            lowOn = FOL.var (prefix ++ var ++ "_low_on") FOL.SBool
+         in FOL.andf
+              [ FOL.orf [upOn, lowOn]
+              , up `FOL.geqT` low
+              , FOL.impl upOn (FOL.leqT varT up)
+              , FOL.impl lowOn (FOL.geqT varT low)
+              ]
 
 ---------------------------------------------------------------------------------------------------
 -- Per Game Things

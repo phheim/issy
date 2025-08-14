@@ -19,8 +19,8 @@ import Issy.Solver.Acceleration.LemmaFinding (LemSyms(..), Lemma(..), resolve)
 import Issy.Solver.GameInterface
 import Issy.Solver.Synthesis (SyBo)
 import qualified Issy.Solver.Synthesis as Synt
-import Issy.Utils.Logging
 import Issy.Utils.Extra
+import Issy.Utils.Logging
 
 accelCoBuechi :: Config -> Player -> Arena -> Loc -> SymSt -> SymSt -> IO (Term, SyBo)
 accelCoBuechi conf player arena loc fset wopp = do
