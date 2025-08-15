@@ -40,6 +40,8 @@ module Issy.Solver.GameInterface
   , extendSt
   , independentProgVars
   , inducedSubArena
+  , addConstants
+  , isSubarenaFrom
   , syntCPre
   , removeAttrSys
   , removeAttrEnv
@@ -138,6 +140,20 @@ inducedSubArena (Sym a) = first Sym . Sym.inducedSubArena a
 independentProgVars :: Config -> Arena -> IO (Set Symbol)
 independentProgVars cfg (RPG g) = RPG.independentProgVars cfg g
 independentProgVars cfg (Sym a) = Sym.independentProgVars cfg a
+
+-- | 'isSubarenaFrom' check if the frist arena is a sub-arena of the second
+-- one starting from the respective locations. If this is the case it returns
+-- a mapping from the sub-arena to the respective locations in the main arena
+isSubarenaFrom :: (Loc, Arena) -> (Loc, Arena) -> Maybe (Loc -> Loc)
+isSubarenaFrom (_, RPG _) (_, RPG _) = error "TODO IMPLEMENT"
+isSubarenaFrom (ls, Sym as) (lm, Sym am) = Sym.isSubarenaFrom (ls, as) (lm, am)
+isSubarenaFrom _ _ = error "assert: arena types have to be matching"
+
+-- | 'addConstants' adds state variables that are guaranteed not to change
+-- to the arena. Note that if a variable is already assigned this will fail!
+addConstants :: [(Symbol, Sort)] -> Arena -> Arena
+addConstants _ (RPG _) = RPG $ error "TODO IMPLEMENT"
+addConstants cvars (Sym a) = Sym $ Sym.addConstants cvars a
 
 syntCPre ::
      Config -> Arena -> Symbol -> (Loc -> Term) -> Loc -> Term -> SymSt -> IO [(Symbol, Term)]

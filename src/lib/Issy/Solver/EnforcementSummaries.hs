@@ -105,8 +105,8 @@ matchKey :: Player -> Arena -> Loc -> SummaryKey -> Bool
 matchKey player arena loc key
   | player == sumPlayer key =
     case isSubarenaFrom (sumLoc key, sumArena key) (loc, arena) of
-      Nothing -> False -- TODO: this has to be used!!!
-      Just _ -> True
+      Nothing -> False
+      Just _ -> True -- TODO: this has to be used!!!
   | otherwise = False
 
 ---------------------------------------------------------------------------------------------------
@@ -133,12 +133,16 @@ applyIn conf vars summary reach =
 computeSum :: Config -> Attr -> Player -> Arena -> Loc -> IO (SummaryKey, Maybe SummaryContent)
 computeSum conf attr player arena loc = do
   conf <- pure $ setName "SummaryGen" conf
-    -- TODO: check with dublicates in loop game
-  let subs = error "TODO: induced substutff" loc
+  -- Remark: This is very crude and restricted as a heuristic, 
+  -- besides that there might be dublicates
+  -- within the computation of loop games/sceneraios!
+  let subs = Set.insert loc $ succs arena loc
   (arena, oldToNew) <- pure $ inducedSubArena arena subs
   loc <- pure $ oldToNew loc
+  -- Remark: For the key we do not add the meta-equality-constraints as this
+  -- would make the isomorphy test even more difficult!
   let key = SummaryKey {sumPlayer = player, sumArena = arena, sumLoc = loc}
-  template <- computeTemplate conf arena subs
+  template <- computeTemplate conf arena
   let metas =
         Map.toList
           $ Map.filterWithKey (\var _ -> var `notElem` stateVars arena)
@@ -147,7 +151,7 @@ computeSum conf attr player arena loc = do
           $ map snd
           $ SymSt.toList template
   arena <- pure $ addConstants metas arena
-    -- TODO: underapproximation restriction!!!
+    -- TODO: add underapproximation restriction!!!
   (attrRes, templProg) <- attr conf player arena template
     -- This program somehow needs the backmapping as wall as the summary content, no?
   enforce <- SMT.simplify conf $ attrRes `get` loc
@@ -160,8 +164,8 @@ computeSum conf attr player arena loc = do
               {metaVars = metas, enforcable = enforce, targets = template, sybo = templProg}
       pure (key, Just content)
 
-computeTemplate :: Config -> Arena -> Loc -> IO SymSt
-computeTemplate conf arena loc = do
+computeTemplate :: Config -> Arena -> IO SymSt
+computeTemplate conf arena = do
   indeps <- independentProgVars conf arena
   let deps = Set.toList $ stateVars arena `Set.difference` indeps
   pure
@@ -189,13 +193,4 @@ computeTemplate conf arena loc = do
               , FOL.impl upOn (FOL.leqT varT up)
               , FOL.impl lowOn (FOL.geqT varT low)
               ]
-
----------------------------------------------------------------------------------------------------
--- Per Game Things
----------------------------------------------------------------------------------------------------
-isSubarenaFrom :: (Loc, Arena) -> (Loc, Arena) -> Maybe (Loc -> Loc)
-isSubarenaFrom (lSub, arenaSub) (l, arena) = error "TODO IMPLEMENT: implement per game type"
-
-addConstants :: [(Symbol, Sort)] -> Arena -> Arena
-addConstants = error "TODO IMPLEMENT"
 ---------------------------------------------------------------------------------------------------

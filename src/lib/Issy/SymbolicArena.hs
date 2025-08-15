@@ -41,12 +41,14 @@ module Issy.SymbolicArena
   , removeAttrEnv
   , independentProgVars
   , inducedSubArena
+  , isSubarenaFrom
+  , addConstants
   , -- Synthesis
     syntCPre
   ) where
 
 ---------------------------------------------------------------------------------------------------
-import Data.Map.Strict (Map)
+import Data.Map.Strict (Map, (!))
 import qualified Data.Map.Strict as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
@@ -386,6 +388,26 @@ independentProgVars cfg arena = do
           $ if res
               then depends
               else Set.insert v depends
+
+isSubarenaFrom :: (Loc, Arena) -> (Loc, Arena) -> Maybe (Loc -> Loc)
+isSubarenaFrom (ls, arenaS) (l, arena) =
+  case go Set.empty (OL.pushOne (ls, l) OL.empty) of
+    Nothing -> Nothing
+    Just mp -> Just (mp !)
+  where
+    go isos ol =
+      case OL.pop ol of
+        Nothing -> Just $ mapFromSet isos
+        Just ((ls, l), ol)
+          | domain arenaS ls /= domain arena l -> Nothing
+          | otherwise -> error "TODO This is not trivial after all!"
+
+addConstants :: [(Symbol, Sort)] -> Arena -> Arena
+addConstants cvars arena =
+  let newVars = foldl (uncurry . Vars.addStateVar) (variables arena) cvars
+      eqCond = FOL.andfL cvars (\(v, s) -> FOL.var v s `FOL.equal` FOL.var (Vars.prime v) s)
+   in arena
+        {variables = newVars, transRel = Map.map (\t -> FOL.andf [t, eqCond]) <$> transRel arena}
 
 ---------------------------------------------------------------------------------------------------
 -- Synthesis
