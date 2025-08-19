@@ -18,6 +18,7 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 
 import Issy.Base.SymbolicState (SymSt, get, set)
+import qualified Issy.Base.SymbolicState as SymSt
 import Issy.Base.Variables (Variables)
 import Issy.Config (Config, setName)
 import Issy.Logic.FOL (Symbol, Term)
@@ -31,13 +32,11 @@ import Issy.Solver.GameInterface
 import Issy.Solver.Synthesis (SyBo)
 import qualified Issy.Solver.Synthesis as Synt
 import Issy.Utils.Extra
+import qualified Issy.Utils.OpenList as OL
 import Issy.Utils.Logging
 
 import Issy.Logic.Interval (gtUpp, inLow, inUpp, ltLow)
 import Issy.Logic.Polyhedra
-
---TODO stuff like that is the first step to spaghettic code, move somewhere else!
-import Issy.Solver.Acceleration.MDAcceleration (iterA)
 
 import Issy.Solver.Acceleration.Base
 
@@ -95,9 +94,7 @@ accelGAL conf heur player arena prime loc = go 0
           res <- go (depth + 1) subGoal subMaintain inv
           case res of
             Nothing -> pure pre
-            Just (res, subProg) -> do
-              _ <- error "TODO: what do I actually do with this program?" subProg
-              pure res
+            Just (res, _) -> pure res -- Double check use of program!
 
 ---------------------------------------------------------------------------------------------------
 -- Attractor through loop arena
@@ -127,7 +124,7 @@ preCond conf heur player arena loc target lemma = do
   -- Remark: we do not use independent variables, as their constrains are expected to be 
   -- found otherwise in the invariant generation iteration. This is beneficial as
   -- otherwise we usually do an underapproximating projection
-  (stAcc, prog) <- pure $ iterA heur player arena target loc' prog
+  (stAcc, prog) <- iterA conf heur player arena target loc' prog
   let res = unprime lemma $ stAcc `get` loc
   res <- SMT.simplify conf res
   let accelValue = FOL.andf [dom arena loc, conc lemma]
@@ -146,6 +143,24 @@ preCond conf heur player arena loc target lemma = do
           if not holds
             then lg conf ["Base condition failed"] $> Left res
             else pure $ Right (accelValue, prog)
+
+-- IO version of iterA, the organisation of those might be done 'a bit' better
+-- TODO integrate summaries in a better way!
+iterA :: Config -> Heur -> Player -> Arena -> SymSt -> Loc -> SyBo -> IO (SymSt, SyBo)
+iterA _ heur player arena attr shadow = go (noVisits arena) (OL.fromSet (preds arena shadow)) attr
+  where
+    go vcnt open attr prog =
+      case OL.pop open of
+        Nothing -> pure (attr, prog)
+        Just (l, open)
+          | visits l vcnt < H.iterAMaxCPres heur ->
+            let new = cpre player arena attr l
+             in go
+                  (visit l vcnt)
+                  (preds arena l `OL.push` open)
+                  (SymSt.disj attr l new)
+                  (Synt.enforceTo l new attr prog)
+          | otherwise -> go vcnt open attr prog
 
 ---------------------------------------------------------------------------------------------------
 -- Lemma Guessing based on polyhedra

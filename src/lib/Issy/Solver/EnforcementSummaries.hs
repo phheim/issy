@@ -27,6 +27,7 @@ import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.SMT as SMT
 import Issy.Solver.GameInterface
 import Issy.Solver.Synthesis (SyBo)
+import qualified Issy.Solver.Synthesis as Synt
 import Issy.Utils.Logging
 
 ---------------------------------------------------------------------------------------------------
@@ -123,7 +124,8 @@ applyIn conf vars summary reach =
      -- ^ condition that the current target 'reach' is part of the symbolic target
       constr = FOL.exists (map fst (metaVars summary)) $ FOL.andf [condImpl, enforcable summary]
      -- ^ overall summary
-      prog = error "TODO IMPLEMENT: needs Skolem function computation :("
+      skolemConstr = error "TODO"
+      prog = Synt.summarySyBo (metaVars summary) (constr, skolemConstr) (sybo summary)
      -- ^ programm computation
    in pure (constr, prog)
 

@@ -81,91 +81,6 @@ attractorFull :: Config -> SolSt -> Player -> Arena -> StopCheck -> SymSt -> IO 
 attractorFull cfg solst player arena stopCheck target =
   attrState cfg solst stopCheck player arena target >>= fullAttr cfg >>= attrResult cfg
 
---  satLocs <- Set.fromList . map fst <$> filterM (SMT.sat cfg . snd) (SymSt.toList target)
---  lg cfg ["Attractor for", show player, "from", strLocs satLocs, "to reach", strStA target]
---  let prog = Synt.returnOn target $ Synt.normSyBo cfg arena
---  (res, solst, prog) <- attr solst (noVisits arena) (OL.fromSet (predSet arena satLocs)) target prog
---  lg cfg ["Result", strStA res]
---  return (res, solst, prog)
---  where
---    attr :: SolSt -> VisitCounter -> OpenList Loc -> SymSt -> SyBo -> IO (SymSt, SolSt, SyBo)
---    attr solst vcnt open reach prog =
---      case OL.pop open of
---        Nothing -> pure (reach, solst, prog)
---        Just (l, open) -> do
---          stop <- fromMaybe (\_ _ -> pure False) stopCheck l reach
---          if stop
---            then pure (reach, solst, prog)
---            else attrStep solst vcnt open reach prog l
---    --
---    attrStep ::
---         SolSt -> VisitCounter -> OpenList Loc -> SymSt -> SyBo -> Loc -> IO (SymSt, SolSt, SyBo)
---    attrStep solst vcnt open reach prog l = do
---      vcnt <- pure $ visit l vcnt
---      let old = reach `get` l
---      lgd cfg ["Step in", locName arena l, "with", SMTLib.toString old]
---          -- Enforcable predecessor step
---      new <- SMT.simplify cfg $ FOL.orf [cpre player arena reach l, old]
---      lgd cfg ["Compute new", SMTLib.toString new]
---          -- Check if this changed something in this location
---      unchanged <- SMT.valid cfg $ new `FOL.impl` old
---      lgd cfg ["which has changed?", show (not unchanged)]
---      if unchanged
---        then attr solst vcnt open reach prog
---        else do
---          prog <- pure $ Synt.enforceTo l new reach prog
---          reach <- pure $ set reach l new
---          open <- pure $ preds arena l `OL.push` open
---              -- Check if we accelerate
---          if accelerate cfg && canAccel arena l && accelNow l old vcnt
---                  -- Acceleration
---            then accelSum solst vcnt open reach prog l
---            else attr solst vcnt open reach prog
---    -- Acceleration or summary application
---    accelSum ::
---         SolSt -> VisitCounter -> OpenList Loc -> SymSt -> SyBo -> Loc -> IO (SymSt, SolSt, SyBo)
---    accelSum solst vcnt open reach prog l
---      | enforcementSummaries cfg = do
---        let callAttr = 
---              error
---                "TODO: this function icslef but with timeout/limit or soitself, maybe a structure change (low-level vs. high level is need)"
---        (enfst', msum) <- trySummary cfg callAttr player arena l (enfst solst) reach
---        solst <- pure $ solst {enfst = enfst'}
---        case msum of
---                -- Summary was not found and could not be computed either
---          Nothing -> accel solst vcnt open reach prog l
---          Just (sum, subProg) -> do
---                        -- TODO: use programm
---                        -- TODO: add QELIM stepp
---                        -- If the summary does not add new stuff we do not accelerate
---            extended <- SMT.sat cfg $ FOL.andf [sum, FOL.neg (get reach l)]
---            if extended
---              then do
---                new <- SMT.simplify cfg $ FOL.orf [get reach l, sum]
---                attr solst vcnt open (set reach l new) prog
---              else accel solst vcnt open reach prog l
---      | otherwise = accel solst vcnt open reach prog l
---    -- Acceleration
---    accel ::
---         SolSt -> VisitCounter -> OpenList Loc -> SymSt -> SyBo -> Loc -> IO (SymSt, SolSt, SyBo)
---    accel solst vcnt open reach prog l = do
---      lg cfg ["Attempt reachability acceleration"]
---      (acc, progSub) <- accelReach cfg (visits l vcnt) player arena l reach
---      solst <- pure $ solst {stats = Stats.accel (stats solst)}
---      lg cfg ["Accleration formula", SMTLib.toString acc]
---      res <- SMT.simplify cfg $ FOL.orf [get reach l, acc]
---      succ <- not <$> SMT.valid cfg (res `FOL.impl` get reach l)
---      lg cfg ["Accelerated:", show succ]
---      if succ
---                      -- Acceleration succeed
---        then do
---          solst <- pure $ solst {stats = Stats.accelSucc (stats solst)}
---          prog <- pure $ Synt.callOn l acc progSub prog
---          attr solst vcnt open (set reach l res) prog
---        else attr solst vcnt open reach prog
---    -- Logging helper
---    strLocs = strS (locName arena)
---    strStA = strSt arena
 ---------------------------------------------------------------------------------------------------
 -- Attractors are computed as chaotic fixpoints
 ---------------------------------------------------------------------------------------------------
@@ -271,15 +186,16 @@ accelSum conf ast l = do
   ast <- pure $ setEnfst enfstRes ast
   case msum of
     Nothing -> pure (ast, False) -- Summary was not found and could not be computed either
-    Just (sum, subProg) -> do
-                    -- TODO: use programm
-                    -- TODO: add QELIM stepp
-                    -- If the summary does not add new stuff we do not accelerate
+    Just (sum, subProg) -> do 
+      sum <- SMT.simplify conf sum -- do QELIM!
       extended <- SMT.sat conf $ FOL.andf [sum, FOL.neg (get (reach ast) l)]
       if extended
         then do
+          subProg <- Synt.skolemize conf subProg
           new <- SMT.simplify conf $ FOL.orf [get (reach ast) l, sum]
-          pure (setIn l new ast, True)
+          -- TODO: maybe add statistics like in accleration
+          ast <- pure $ setProg (Synt.callOn l sum subProg (prog ast)) $ setIn l new ast
+          pure (ast, True)
         else pure (ast, False)
 
 fullAttr :: AccSumAttrSt a => Config -> a -> IO a

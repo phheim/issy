@@ -15,6 +15,7 @@ module Issy.Solver.Synthesis
     empty
   , normSyBo
   , loopSyBo
+  , summarySyBo
   , returnOn
   , enforceTo
   , enforceFromTo
@@ -23,6 +24,7 @@ module Issy.Solver.Synthesis
   , replaceUF
   , mapTerms
   , fromStayIn
+  , skolemize
   , -- Extraction
     extractProg
   ) where
@@ -163,6 +165,15 @@ getVars =
     SyBoNone -> error "assert: unreachable code"
     SyBoNorm arena _ -> vars arena
     SyBoLoop arena _ -> vars arena
+
+-- | DOCUMENT relationship between skolem functions and constraints!
+summarySyBo :: [(Symbol, Sort)] -> (Term, Term) -> SyBo -> SyBo
+summarySyBo _ _ SyBoNone = SyBoNone
+summarySyBo _ _ _ = error "TODO"
+
+skolemize :: Config -> SyBo -> IO SyBo
+skolemize _ SyBoNone = pure SyBoNone 
+skolemize _ _ = error "TODO IMPLEMENT"
 
 ---------------------------------------------------------------------------------------------------
 -- Extraction
