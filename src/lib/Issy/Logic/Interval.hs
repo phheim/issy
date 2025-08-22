@@ -11,6 +11,7 @@ module Issy.Logic.Interval
   , -- Basic operations
     elemOf
   , isEmpty
+  , isFull
   , -- Construction
     fullInterval
   , ltInterval
@@ -112,11 +113,28 @@ isEmpty intv =
     (GTVal leq lval, LTVal ueq uval) -> uval < lval || (uval == lval && (not leq || not ueq))
     _ -> False
 
+isFull :: Interval -> Bool
+isFull intv =
+  case (lower intv, upper intv) of
+    (MinusInfinity, PlusInfinity) -> True
+    _ -> False
+
 tryDisjunct :: Interval -> Interval -> Maybe Interval
 tryDisjunct i1 i2
-  | isEmpty (i1 `intersect` i2) = Nothing
+  | isEmpty i1 = Just i2
+  | isEmpty i2 = Just i1
+  | untouchSmaller (upper i1) (lower i2) = Nothing
+  | untouchSmaller (upper i2) (lower i1) = Nothing
   | otherwise =
-    Just $ Interval {upper = max (upper i1) (upper i1), lower = max (lower i1) (lower i2)}
+    Just $ Interval {upper = max (upper i1) (upper i2), lower = max (lower i1) (lower i2)}
+  where
+    untouchSmaller :: UBound -> LBound -> Bool
+    untouchSmaller PlusInfinity _ = False
+    untouchSmaller _ MinusInfinity = False
+    untouchSmaller (LTVal uinc ur) (GTVal linc lr)
+      | ur < lr = True
+      | lr == ur && not uinc && not linc = True
+      | otherwise = False
 
 -- | 'scale' applies to the interval, if interpreted as inequality constraint, the
 -- | equivalence operation "multiply be the given factor"

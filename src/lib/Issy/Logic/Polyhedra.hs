@@ -52,6 +52,29 @@ data ListTree k a
   deriving (Eq, Show)
 
 -- | TODO document
+filterT :: Ord k => (a -> Bool) -> ListTree k a -> ListTree k a
+filterT p = go
+  where
+    go =
+      \case
+        LTLeaf -> LTLeaf
+        LTNode elem succs -> reduce $ LTNode (goElem elem) (goMP succs)
+  --
+    reduce (LTNode Nothing mp)
+      | Map.null mp = LTLeaf
+      | otherwise = LTNode Nothing mp
+    reduce tree = tree
+    goElem Nothing = Nothing
+    goElem (Just elem)
+      | p elem = Just elem
+      | otherwise = Nothing
+    goMP = Map.fromList . rmLeafs . map (second go) . Map.toList
+  --
+    rmLeafs [] = []
+    rmLeafs ((_, LTLeaf):mr) = rmLeafs mr
+    rmLeafs (st:mr) = st : rmLeafs mr
+
+-- | TODO document
 toListT :: ListTree k a -> [([k], a)]
 toListT = go []
   where
@@ -207,7 +230,8 @@ tryDisjunctP :: Polyhedron -> Polyhedron -> Maybe Polyhedron
 tryDisjunctP p1 p2 =
   case mergeOnceT tryDisjunct (linearConstraints p1) (linearConstraints p2) of
     Nothing -> Nothing
-    Just lc -> Just $ Polyhedron {varOrder = varOrder p1, linearConstraints = lc}
+    Just lc ->
+      Just $ Polyhedron {varOrder = varOrder p1, linearConstraints = filterT (not . isFull) lc}
 
 ---------------------------------------------------------------------------------------------------
 -- (In)equalities

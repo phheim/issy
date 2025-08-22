@@ -186,7 +186,7 @@ accelSum conf ast l = do
   ast <- pure $ setEnfst enfstRes ast
   case msum of
     Nothing -> pure (ast, False) -- Summary was not found and could not be computed either
-    Just (sum, subProg) -> do 
+    Just (sum, subProg) -> do
       sum <- SMT.simplify conf sum -- do QELIM!
       extended <- SMT.sat conf $ FOL.andf [sum, FOL.neg (get (reach ast) l)]
       if extended

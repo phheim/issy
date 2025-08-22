@@ -32,8 +32,8 @@ import Issy.Solver.GameInterface
 import Issy.Solver.Synthesis (SyBo)
 import qualified Issy.Solver.Synthesis as Synt
 import Issy.Utils.Extra
-import qualified Issy.Utils.OpenList as OL
 import Issy.Utils.Logging
+import qualified Issy.Utils.OpenList as OL
 
 import Issy.Logic.Interval (gtUpp, inLow, inUpp, ltLow)
 import Issy.Logic.Polyhedra

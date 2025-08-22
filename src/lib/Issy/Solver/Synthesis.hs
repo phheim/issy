@@ -172,7 +172,7 @@ summarySyBo _ _ SyBoNone = SyBoNone
 summarySyBo _ _ _ = error "TODO"
 
 skolemize :: Config -> SyBo -> IO SyBo
-skolemize _ SyBoNone = pure SyBoNone 
+skolemize _ SyBoNone = pure SyBoNone
 skolemize _ _ = error "TODO IMPLEMENT"
 
 ---------------------------------------------------------------------------------------------------

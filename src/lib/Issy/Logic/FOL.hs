@@ -628,12 +628,28 @@ toRealT a = func FAbs [a]
 unintFunc :: String -> Sort -> [(Symbol, Sort)] -> Term
 unintFunc name resSort args = Func (CustomF name (map snd args) resSort) $ map (uncurry Var) args
 
+isInteger :: Term -> Bool
+isInteger =
+  \case
+    Var _ SInt -> True
+    Const (CInt _) -> True
+    Func FAdd fs -> all isInteger fs
+    Func FMul fs -> all isInteger fs
+    Func FAbs _ -> True
+    Func FMod _ -> True
+    Func FDivInt _ -> True
+    _ -> False
+
 leqT :: Term -> Term -> Term
+leqT t (Const (CInt n))
+  | isInteger t = func FLt [t, Const (CInt (n + 1))]
+  | otherwise = func FLte [t, Const (CInt n)]
 leqT a b = func FLte [a, b]
 
 ltT :: Term -> Term -> Term
-ltT (Const (CInt n)) (Var v SInt) = leqT (Const (CInt (n + 1))) (Var v SInt)
-ltT (Var v SInt) (Const (CInt n)) = leqT (Var v SInt) (Const (CInt (n - 1)))
+ltT (Const (CInt n)) t
+  | isInteger t = func FLte [Const (CInt (n + 1)), t]
+  | otherwise = func FLt [Const (CInt n), t]
 ltT a b = func FLt [a, b]
 
 geqT :: Term -> Term -> Term
