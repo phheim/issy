@@ -7,7 +7,8 @@ default:
 
 clean:
 	stack clean
-	@rm issy
+	@rm -f issy
+	@rm -f issy-static
 
 format:
 	hindent --line-length 100 src/*/*.hs
@@ -20,4 +21,18 @@ lint:
 	${LINTING} src/*/*/*.hs
 	${LINTING} src/*/*/*/*.hs
 	${LINTING} src/*/*/*/*/*.hs
+
+
+STATIC_DIR=containers/static-build
+static:
+	@rm -rf ${STATIC_DIR}/build-files/
+	mkdir ${STATIC_DIR}/build-files/
+	cp -r src/ ${STATIC_DIR}/build-files/
+	cp stack.yaml ${STATIC_DIR}/build-files/
+	cp issy.cabal ${STATIC_DIR}/build-files/
+	cp Makefile ${STATIC_DIR}/build-files/
+	podman build -t issy-static-builder ${STATIC_DIR}/
+	@rm -rf ${STATIC_DIR}/build-files/
+	${STATIC_DIR}/extract-binary.sh
+
 

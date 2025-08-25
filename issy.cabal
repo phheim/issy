@@ -6,7 +6,11 @@ cabal-version:       >=1.10
 library
 
   ghc-options:
-    -Wall -Wno-name-shadowing -fno-ignore-asserts
+    -Wall
+    -Wno-name-shadowing
+    -fno-ignore-asserts
+    -static
+-----optl-static
 
   build-depends:
       base
@@ -19,7 +23,7 @@ library
   exposed-modules:
       Compiler
     , Issy
- 
+
   other-modules:
       Compiler.Base
     , Compiler.Checker
@@ -34,7 +38,7 @@ library
     , Issy.Extractors.MuCLP
     , Issy.Extractors.TSLT
     , Issy.Logic.CHC
-    , Issy.Logic.FOL 
+    , Issy.Logic.FOL
     , Issy.Logic.RPLTL
     , Issy.Logic.SMT
     , Issy.Logic.Temporal
@@ -85,17 +89,19 @@ library
     , Issy.Utils.Extra
     , Issy.Utils.Logging
     , Issy.Utils.OpenList
-  
+
   hs-source-dirs:
       src/lib
-  
+
   default-language:
     Haskell2010
 
 executable issy
 
   ghc-options:
-    -Wall -Wno-name-shadowing
+    -Wall
+    -Wno-name-shadowing
+-----optl-static
 
   main-is:
     Main.hs
