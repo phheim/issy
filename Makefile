@@ -27,7 +27,7 @@ STATIC_DIR=containers/static-build
 static:
 	@rm -rf ${STATIC_DIR}/build-files/
 	mkdir ${STATIC_DIR}/build-files/
-	cp -r src/ ${STATIC_DIR}/build-files/
+	cp -r src ${STATIC_DIR}/build-files/
 	cp stack.yaml ${STATIC_DIR}/build-files/
 	cp issy.cabal ${STATIC_DIR}/build-files/
 	cp Makefile ${STATIC_DIR}/build-files/
