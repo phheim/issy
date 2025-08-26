@@ -1,4 +1,4 @@
 #!/bin/sh 
 
-podman unshare /bin/sh -c 'mnt=$(podman image mount issy-static-builder) && cp "${mnt}/home/user/build/issy" issy-static'
-
+podman run --rm issy-static-builder /bin/sh -c 'cat /home/user/build/issy' > issy-static
+chmod +x issy-static
