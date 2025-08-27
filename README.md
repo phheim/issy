@@ -1,17 +1,17 @@
 # Issy
 
 Issy is a tool for automatically synthesizing infinite-state reactive programs. It accepts specifications in the [Issy format](./docs/ISSYFORMAT.md), reactive program games, TSL-MT, and the low-level [LLissy format](./docs/LLISSYFORMAT.md). 
-You can find small examples, for Issy and LLIssy [here](./docs/sample.issy) and [here](./docs/sample.llissy), respectively. Furthermore, many more examples are available in the [infinite-state synthesis benchmark repository](https://github.com/phheim/infinite-state-reactive-synthesis-benchmarks).
+You can find small examples for Issy and LLIssy [here](./docs/sample.issy) and [here](./docs/sample.llissy), respectively. Furthermore, many more examples are available in the [infinite-state synthesis benchmark repository](https://github.com/phheim/infinite-state-reactive-synthesis-benchmarks).
 
 ## Setup
 
-While building Issy from source is pretty easy, in order to run (with the full functionality) you might need to also install Z3, Spot, and MuVal, depending on the functions use want to use. Hence, if you just *want to try Issy*, we recommend using one of our *container setups*. Those should work on ``x86-64`` machines. If you use an Apple Silicon M1 or M2 chip, you need to build Issy from source.
+While building Issy from source is pretty easy, in order to run (with the full functionality), you might need to also install Z3, Spot, and MuVal, depending on the functions you want to use. Hence, if you just *want to try Issy*, we recommend using one of our *container setups*. Those should work on ``x86-64`` machines. If you use an Apple Silicon M1 or M2 chip, you need to build Issy from source.
 
-For our containers setups, you will need to build and run OCI containers. In our instructions we use [Podman](https://podman.io), which we recommend. However, you should also be able to do the same with other container tools like Docker.
+For our container setups, you will need to build and run OCI containers. In our instructions we use [Podman](https://podman.io), which we recommend. However, you should also be able to do the same with other container tools like Docker.
 
 ### Container Setup (*RECOMMENDED FOR BEGINNERS*)
 
-The first setup is for you if you just want to get Issy quickly. It includes pre-built binaries for Issy, Z3 and Spot but not MuVal. To build the container image run
+The first setup is for you if you just want to get Issy quickly. It includes pre-built binaries for Issy, Z3, and Spot but not MuVal. To build the container image, run
 ```
     podman build -t issy-runner containers/runner-simple
 ```
@@ -25,9 +25,9 @@ or run the container directly
 ```
     podman run -i --rm issy-runner /usr/bin/issy OPTIONS < INPUTFILE
 ```
-The usage and arguments is practically the same as with the Issy binary. The only differences are technical because we run inside a container (The input file is always passed via ``STDIN`` and the ``--caller-...`` options are overwritten in the container). 
+The usage and arguments are practically the same as with the Issy binary. The only differences are technical because we run inside a container (the input file is always passed via ``STDIN`` and the ``--caller-...`` options are overwritten in the container). 
 
-**Restriction** As this container setups is missing MuVal, for ``--pruning`` *only level 0 and 1 work* properly. If you want to include MuVal you can build the full container with
+**Restriction:** As this container setup is missing MuVal, for ``--pruning`` *only levels 0 and 1 work* properly. If you want to include MuVal, you can build the full container with
 ```
     podman build -t issy-runner containers/runner-full
 ```
@@ -35,18 +35,18 @@ Note that this will take **around 1 hour** and will use significantly more disk 
 
 ### Build from Source
 
-To build Issy itself you need the Haskell build tool [Stack](https://www.haskellstack.org/). To get it we recommend [GHCUp](https://www.haskell.org/ghcup/).
+To build Issy itself, you need the Haskell build tool [Stack](https://www.haskellstack.org/). To get it, we recommend [GHCUp](https://www.haskell.org/ghcup/).
 To build Issy, just run
 ```
     make 
 ```
-in the top-level folder. Stack will get the respective source code libraries and the compiler, so you need internet access for that. The ``issy`` binary is placed in the project's top-level folder. To get a clean build run ``make clean``.
+in the top-level folder. Stack will get the respective source code libraries and the compiler, so you need internet access for that. The ``issy`` binary is placed in the project's top-level folder. To get a clean build, run ``make clean``.
 
-To run Issy you also **must** get [Z3] (https://github.com/Z3Prover/z3) with version 4.13.0 or newer. For now we recommend using [version 4.13.3](https://github.com/Z3Prover/z3/releases/tag/z3-4.13.3). If you want to get this specific version of Z3 or your packages manager does only have an older version of Z3, the easiest way got a difeerent version is to download the binary from [Z3 GitHub release](https://github.com/Z3Prover/z3/releases) and *tell Issy to use that* with the ``--caller-z3`` option.
+To run Issy, you also **must** get [Z3](https://github.com/Z3Prover/z3) with **version 4.13.0 or newer**. For now we recommend using [version 4.13.3](https://github.com/Z3Prover/z3/releases/tag/z3-4.13.3). If you want to get this specific version of Z3 or your packages manager does only have an older version of Z3, the easiest way got a difeerent version is to download the binary from its [GitHub releases](https://github.com/Z3Prover/z3/releases) and *tell Issy to use that* with the ``--caller-z3 <PATH_TO_Z3>`` option.
 
-You also **should** get [Spot](https://spot.lre.epita.fr/) as we Issy needs ``ltl2tgba`` from Spots Omega-automata tool suite. To get it just, follow their installation instructions. Using spot will work by default if ``ltl2tgba`` can be found by Issy in your PATH. If you want a different setup check out the ``--caller-aut`` option.
+You also **should** get [Spot](https://spot.lre.epita.fr/) as we Issy needs ``ltl2tgba`` from Spots Omega-automata tool suite. To get it just, follow their installation instructions. Using spot will work by default if ``ltl2tgba`` can be found by Issy in your PATH. If you want a different setup check out the ``--caller-aut <PATH_TO_LTL2TGBA>`` option.
 
-You **can** also get [MuVal of Coar](https://github.com/hiroshi-unno/coar) which is needed if Issy's monitor-based ``--pruning`` option on level 2 or higher is used. To get MuVal you must  build it from source (we strongly recommend commit 1d499999) and use (and adapt to the right locations) the wrapper script in ``scripts/call-muval.sh`` which is called with ``--caller-muval``.
+You **can** also get [MuVal of Coar](https://github.com/hiroshi-unno/coar) which is needed if Issy's monitor-based ``--pruning`` option on level 2 or higher is used. To get MuVal you must  build it from source (we strongly recommend commit 1d499999) and use (and adapt to the right locations) the wrapper script in ``scripts/call-muval.sh`` which is called with ``--caller-muval <PATH_TO_CALLSCRIPT>``.
 
 ## Usage
 
@@ -109,3 +109,4 @@ Other works on which Issy directly builds on are:
 - [*Localized Attractor Computations for Infinite-State Games*](https://doi.org/10.1007/978-3-031-65633-0_7), Anne-Kathrin Schmuck, Philippe Heim, Rayna Dimitrova, Satya Prakash Nayak, CAV2024.
 - [*Solving Infinite-State Games via Acceleration*](https://doi.org/10.1145/3632899), Philippe Heim, Rayna Dimitrova, POPL2024.
 - [POPL24 Talk](https://youtu.be/3G0WaerPZpQ)
+
