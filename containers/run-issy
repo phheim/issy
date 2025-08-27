@@ -1,0 +1,3 @@
+#!/bin/sh
+
+podman run -i --rm issy-runner /usr/bin/issy $@

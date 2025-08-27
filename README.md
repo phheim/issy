@@ -3,26 +3,39 @@
 Issy is a tool for automatically synthesizing infinite-state reactive programs. It accepts specifications in the [Issy format](./docs/ISSYFORMAT.md), reactive program games, TSL-MT, and the low-level [LLissy format](./docs/LLISSYFORMAT.md). 
 You can find small examples, for Issy and LLIssy [here](./docs/sample.issy) and [here](./docs/sample.llissy), respectively. Furthermore, many more examples are available in the [infinite-state synthesis benchmark repository](https://github.com/phheim/infinite-state-reactive-synthesis-benchmarks).
 
-## Installation
+## Setup
 
-### Perquisites
+While building Issy from source is pretty easy, in order to run (with the full functionality) you might need to also install Z3, Spot, and MuVal, depending on the functions use want to use. Hence, if you just *want to try Issy*, we recommend using one of our *container setups*. Those should work on ``x86-64`` machines. If you use an Apple Silicon M1 or M2 chip, you need to build Issy from source.
 
-To build Issy you, need the following: 
-- [Haskell Stack](https://www.haskellstack.org/): Installing Stack can be done either by [GHCUp](https://www.haskell.org/ghcup/) (recommended), the description on Stacks' website, or your systems package manager (not recommended). 
-- [Z3] (https://github.com/Z3Prover/z3/): You can install Z3 with your package manager or by downloading the binary from the project's GitHub releases. We recommend using a newer version of Z3 (e.g., 4.13.3). Note that Issy interacts with Z3 via the textual SMTLib2 interface, so the development version or header files are not needed. Also, Issy allows you to set the path to a specific binary of Z3.
-- [Spot](https://spot.lre.epita.fr/) (*OPTIONAL but HIGHLY RECOMMENDED*): If you want to use temporal logic formulas, you need ``ltl2tgba`` from Spots Omega-automata tool suite.
-- [MuVal/Coar](https://github.com/hiroshi-unno/coar) (*OPTIONAL*): MuVal of Coar is needed if Issy's monitor-based pruning (``--pruning``) is used. We recommend using commit dc094f04 for now. More instructions can be found in the *External Tools* section.
+For our containers setups, you will need to build and run OCI containers. In our instructions we use [Podman](https://podman.io), which we recommend. However, you should also be able to do the same with other container tools like Docker.
 
-### Building
+### Container Setup (*RECOMMENDED FOR BEGINNERS*)
 
-To build Issy, just run
+The first setup is for you if you just want to get Issy quickly. It includes pre-built binaries for Issy, Z3 and Spot but not MuVal. To build the container image run
 ```
-    make 
+    podman build -t issy-runner containers/runner-simple
 ```
-in the top-level folder. Stack will get the respective source code libraries and the compiler, so you need internet access for that. The ``issy`` binary is placed in the project's top-level folder. To get a clean build run
+This should take around **3 minutes**.
+
+If you want to use the container, either use our call script
 ```
-    make clean
+    ./containers/run-issy ARGUMENTS < INPUTFILE
 ```
+or run the container directly
+```
+    podman run -i --rm issy-runner /usr/bin/issy OPTIONS < INPUTFILE
+```
+The usage and arguments is practically the same as with the Issy binary. The only differences are technical because we run inside a container (The input file is always passed via ``STDIN`` and the ``--caller-...`` options are overwritten in the container). 
+
+**Restriction** As this container setups is missing MuVal, for ``--pruning`` *only level 0 and 1 work* properly. If you want to include MuVal you can build the full container with
+```
+    podman build -t issy-runner containers/runner-full
+```
+Note that this will take **around 1 hour** and will use significantly more disk space.
+
+### Building from Source
+
+Please look at [./docs/BUILDING.md](./docs/BUILDING.md)
 
 ## Usage
 
@@ -65,7 +78,7 @@ Attractor acceleration can be controlled further via ``--accel-attr TYPE``.
 - For ``--accel-attr unint-ext``, the former is used with potential nesting of acceleration.
 In addition, ``--accel-difficulty LEVELS`` lets you control the "aggressiveness" of the acceleration. The higher the level, the more likely acceleration is to succeed, but the more time it might take. The levels are ``easy``, ``medium``, and ``hard`` with ``medium`` being the recommended *default*.
 
-### External Tools
+### External Tools (*NOT FOR CONTAINER USERS*)
 
 Issy uses different external tools, which are needed for different operations. Some of them have to be called via a wrapper script. In all cases, by *default*  Issy assumes the used tool or wrapper script to be in the PATH environment. If this is not desired, you can also set the location to the binary/script to the respective tool manually:
 - ``--caller-z3 PATH`` sets the path to the Z3 binary. By default, ``z3`` is assumed to be in the PATH.
@@ -75,6 +88,10 @@ Issy uses different external tools, which are needed for different operations. S
 Examples of those wrapper scripts can be found [here](./scripts).
 
 ## Related Publications and Documents
+
+If you want to cite Issy, please ([cite]('./docs/issy.bib')):
+- [*Issy: A Comprehensive Tool for Specification and Synthesis of Infinite-State Reactive Systems*](https://doi.org/10.1007/978-3-031-98685-7_14), Philippe Heim and Rayna Dimitrova, CAV'25
+
 
 - [*Translation of Temporal Logic for Efficient Infinite-State Reactive Synthesis*](https://doi.org/10.1145/3704888), Philippe Heim, Rayna Dimitrova, POPL2025.
 - [POPL25 Talk](https://youtu.be/Mv0oqdhMfZo)
