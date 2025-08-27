@@ -84,7 +84,7 @@ On ``-- pruning 0``, monitor simplifications are disabled, which is the default.
 For game solving ``--accel TYPE`` controls the type of acceleration that is used. For ``no`` acceleration is disabled, for `` attr`` only attractor acceleration is enabled (which is the recommended *default*), and for ``full`` also the outer fix-point accelerations are enabled, like Büchi acceleration. 
 Attractor acceleration can be controlled further via ``--accel-attr TYPE``.
 - For ``--accel-attr geom`` geometric attractor acceleration is used. This is the *default*.
-- For ``--accel-attr geom`-ext`, the former is used with extended invariant computation techniques.
+- For ``--accel-attr geom-ext``, the former is used with extended invariant computation techniques.
 - For ``--accel-attr unint`` uninterpreted-function-based attractor acceleration is used.
 - For ``--accel-attr unint-ext``, the former is used with potential nesting of acceleration.
 In addition, ``--accel-difficulty LEVELS`` lets you control the "aggressiveness" of the acceleration. The higher the level, the more likely acceleration is to succeed, but the more time it might take. The levels are ``easy``, ``medium``, and ``hard`` with ``medium`` being the recommended *default*.
@@ -93,7 +93,7 @@ In addition, ``--accel-difficulty LEVELS`` lets you control the "aggressiveness"
 
 Issy uses different external tools, which are needed for different operations. Some of them have to be called via a wrapper script. In all cases, by *default*  Issy assumes the used tool or wrapper script to be in the PATH environment. If this is not desired, you can also set the location to the binary/script to the respective tool manually:
 - ``--caller-z3 PATH`` sets the path to the Z3 binary. By default, ``z3`` is assumed to be in the PATH.
-- ``--caller-aut PATH``sets the path to Spot's ``ltl2tgba``. By default, ``ltl2tgba`` is assumed to be in the PATH.
+- ``--caller-aut PATH`` sets the path to Spot's ``ltl2tgba``. By default, ``ltl2tgba`` is assumed to be in the PATH.
 - ``--caller-muval PATH`` sets the path to a script that reads its input on (it's) STDIN and a timeout in seconds as an argument, and calls MuVal on the input with the respective timeout.
 - ``--caller-chcmx  PATH`` sets the path to a script that reads its input on (it's) STDIN and a timeout in seconds as an argument, and calls CHCMax on the input with the respective timeout.
 Examples of those wrapper scripts can be found [here](./scripts).
@@ -101,12 +101,10 @@ Examples of those wrapper scripts can be found [here](./scripts).
 ## Related Publications and Documents
 
 If you want to cite Issy, please [cite](./docs/issy.bib):
-- [*Issy: A Comprehensive Tool for Specification and Synthesis of Infinite-State Reactive Systems*](https://doi.org/10.1007/978-3-031-98685-7_14), Philippe Heim and Rayna Dimitrova, CAV'25
+- [*Issy: A Comprehensive Tool for Specification and Synthesis of Infinite-State Reactive Systems*](https://doi.org/10.1007/978-3-031-98685-7_14), CAV'25
 
 Other works on which Issy directly builds on are:
-- [*Translation of Temporal Logic for Efficient Infinite-State Reactive Synthesis*](https://doi.org/10.1145/3704888), Philippe Heim, Rayna Dimitrova, POPL2025.
-- [POPL25 Talk](https://youtu.be/Mv0oqdhMfZo)
-- [*Localized Attractor Computations for Infinite-State Games*](https://doi.org/10.1007/978-3-031-65633-0_7), Anne-Kathrin Schmuck, Philippe Heim, Rayna Dimitrova, Satya Prakash Nayak, CAV2024.
-- [*Solving Infinite-State Games via Acceleration*](https://doi.org/10.1145/3632899), Philippe Heim, Rayna Dimitrova, POPL2024.
-- [POPL24 Talk](https://youtu.be/3G0WaerPZpQ)
+- [*Translation of Temporal Logic for Efficient Infinite-State Reactive Synthesis*](https://doi.org/10.1145/3704888), POPL'25 ([Talk](https://youtu.be/Mv0oqdhMfZo))
+- [*Localized Attractor Computations for Infinite-State Games*](https://doi.org/10.1007/978-3-031-65633-0_7), CAV'24
+- [*Solving Infinite-State Games via Acceleration*](https://doi.org/10.1145/3632899), POPL'24 ([Talk](https://youtu.be/3G0WaerPZpQ))
 
