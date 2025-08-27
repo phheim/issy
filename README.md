@@ -33,9 +33,20 @@ The usage and arguments is practically the same as with the Issy binary. The onl
 ```
 Note that this will take **around 1 hour** and will use significantly more disk space.
 
-### Building from Source
+### Build from Source
 
-Please look at [./docs/BUILDING.md](./docs/BUILDING.md)
+To build Issy itself you need the Haskell build tool [Stack](https://www.haskellstack.org/). To get it we recommend [GHCUp](https://www.haskell.org/ghcup/).
+To build Issy, just run
+```
+    make 
+```
+in the top-level folder. Stack will get the respective source code libraries and the compiler, so you need internet access for that. The ``issy`` binary is placed in the project's top-level folder. To get a clean build run ``make clean``.
+
+To run Issy you also **must** get [Z3] (https://github.com/Z3Prover/z3) with version 4.13.0 or newer. For now we recommend using [version 4.13.3](https://github.com/Z3Prover/z3/releases/tag/z3-4.13.3). If you want to get this specific version of Z3 or your packages manager does only have an older version of Z3, the easiest way got a difeerent version is to download the binary from [Z3 GitHub release](https://github.com/Z3Prover/z3/releases) and *tell Issy to use that* with the ``--caller-z3`` option.
+
+You also **should** get [Spot](https://spot.lre.epita.fr/) as we Issy needs ``ltl2tgba`` from Spots Omega-automata tool suite. To get it just, follow their installation instructions. Using spot will work by default if ``ltl2tgba`` can be found by Issy in your PATH. If you want a different setup check out the ``--caller-aut`` option.
+
+You **can** also get [MuVal of Coar](https://github.com/hiroshi-unno/coar) which is needed if Issy's monitor-based ``--pruning`` option on level 2 or higher is used. To get MuVal you must  build it from source (we strongly recommend commit 1d499999) and use (and adapt to the right locations) the wrapper script in ``scripts/call-muval.sh`` which is called with ``--caller-muval``.
 
 ## Usage
 
@@ -89,10 +100,10 @@ Examples of those wrapper scripts can be found [here](./scripts).
 
 ## Related Publications and Documents
 
-If you want to cite Issy, please ([cite]('./docs/issy.bib')):
+If you want to cite Issy, please [cite](./docs/issy.bib):
 - [*Issy: A Comprehensive Tool for Specification and Synthesis of Infinite-State Reactive Systems*](https://doi.org/10.1007/978-3-031-98685-7_14), Philippe Heim and Rayna Dimitrova, CAV'25
 
-
+Other works on which Issy directly builds on are:
 - [*Translation of Temporal Logic for Efficient Infinite-State Reactive Synthesis*](https://doi.org/10.1145/3704888), Philippe Heim, Rayna Dimitrova, POPL2025.
 - [POPL25 Talk](https://youtu.be/Mv0oqdhMfZo)
 - [*Localized Attractor Computations for Infinite-State Games*](https://doi.org/10.1007/978-3-031-65633-0_7), Anne-Kathrin Schmuck, Philippe Heim, Rayna Dimitrova, Satya Prakash Nayak, CAV2024.
