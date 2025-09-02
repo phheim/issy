@@ -4,15 +4,13 @@ module Issy.Solver.Acceleration.UFLAcceleration
   ( accelReach
   ) where
 
-import Data.Set (Set)
 import qualified Data.Set as Set
+import Issy.Prelude
 
-import Issy.Base.SymbolicState (SymSt, get, set)
 import qualified Issy.Base.SymbolicState as SymSt
-import Issy.Base.Variables (Variables)
 import qualified Issy.Base.Variables as Vars
-import Issy.Config (Config, extendAcceleration, setName)
-import Issy.Logic.FOL (Function, Symbol, Term(Func, Lambda, Quant, Var))
+import Issy.Config (extendAcceleration)
+import Issy.Logic.FOL (Term(Func, Lambda, Quant, Var))
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Printers.SMTLib as SMTLib (toString)
 import Issy.Solver.Acceleration.Heuristics (Heur)
@@ -22,7 +20,6 @@ import Issy.Solver.Acceleration.LoopScenario (loopScenario)
 import Issy.Solver.GameInterface
 import Issy.Solver.Synthesis (SyBo)
 import qualified Issy.Solver.Synthesis as Synt
-import Issy.Utils.Extra
 import Issy.Utils.Logging
 import qualified Issy.Utils.OpenList as OL (fromSet, pop, push)
 

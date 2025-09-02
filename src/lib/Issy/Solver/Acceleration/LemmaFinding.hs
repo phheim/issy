@@ -5,20 +5,17 @@ module Issy.Solver.Acceleration.LemmaFinding
   , resolve
   ) where
 
-import Data.Set (Set)
 import qualified Data.Set as Set
+import Issy.Prelude
 
-import Issy.Base.Variables (Variables)
 import qualified Issy.Base.Variables as Vars
-import Issy.Config (Config, generateProgram, setName)
-import Issy.Logic.FOL
+import Issy.Config (generateProgram)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.SMT as SMT
 import qualified Issy.Printers.SMTLib as SMTLib (toString)
 import Issy.Solver.Acceleration.Base (primeT)
 import Issy.Solver.Acceleration.Heuristics (Heur)
 import qualified Issy.Solver.Acceleration.Heuristics as H
-import Issy.Utils.Extra
 import Issy.Utils.Logging
 
 -------------------------------------------------------------------------------
@@ -68,81 +65,92 @@ varcn :: Symbol -> Symbol -> Symbol
 varcn prefix subname = prefix ++ "_" ++ subname ++ "_"
 
 numbers :: Variables -> [Symbol]
-numbers vars = filter (isNumber . Vars.sortOf vars) $ Vars.stateVarL vars
+numbers vars = filter (FOL.isNumber . Vars.sortOf vars) $ Vars.stateVarL vars
 
 rankingFunc :: Variables -> Symbol -> (Term, [Term])
 rankingFunc vars prf =
   let constVar =
-        if any ((== SReal) . Vars.sortOf vars) (Vars.stateVars vars)
-          then rvarT (varcn prf "c")
-          else ivarT (varcn prf "c")
+        if any ((== FOL.SReal) . Vars.sortOf vars) (Vars.stateVars vars)
+          then FOL.rvarT (varcn prf "c")
+          else FOL.ivarT (varcn prf "c")
       cellL = filter (not . Vars.isBounded vars) $ numbers vars
-   in ( addT
+   in ( FOL.addT
           (constVar
-             : [br "a" c (br "b" c (Vars.mk vars c) (FOL.invT (Vars.mk vars c))) zeroT | c <- cellL])
-      , [ constVar `leqT` Const (CInt 5)
-        , Const (CInt (-5)) `leqT` constVar
-        , addBools (bvarT . varcl prf "a" <$> cellL) 2 -- Might want to remove again!
-        , orf (bvarT . varcl prf "a" <$> cellL) -- necessary to enforce possible step!
+             : [ br "a" c (br "b" c (Vars.mk vars c) (FOL.invT (Vars.mk vars c))) FOL.zeroT
+               | c <- cellL
+               ])
+      , [ constVar `FOL.leqT` FOL.intConst 5
+        , FOL.intConst (-5) `FOL.leqT` constVar
+        , addBools (FOL.bvarT . varcl prf "a" <$> cellL) 2 -- Might want to remove again!
+        , FOL.orf (FOL.bvarT . varcl prf "a" <$> cellL) -- necessary to enforce possible step!
         ])
   where
-    br n c = ite (bvarT (varcl prf n c))
+    br n c = FOL.ite (FOL.bvarT (varcl prf n c))
 
 rankLemma :: Variables -> Symbol -> Symbol -> (Lemma, [Term])
 rankLemma vars prime prf =
   let (r, conR) = rankingFunc vars prf
       (diff, conD) =
-        if any ((== SReal) . Vars.sortOf vars) (Vars.stateVars vars)
-          then let eps = rvarT (varcn prf "epislon")
-                in (eps, [eps `gtT` zeroT, eps `leqT` oneT])
-          else (oneT, [])
-   in (Lemma (r `leqT` zeroT) (addT [diff, primeT vars prime r] `leqT` r) true, conR ++ conD)
+        if any ((== FOL.SReal) . Vars.sortOf vars) (Vars.stateVars vars)
+          then let eps = FOL.rvarT (varcn prf "epislon")
+                in (eps, [eps `FOL.gtT` FOL.zeroT, eps `FOL.leqT` FOL.oneT])
+          else (FOL.oneT, [])
+   in ( Lemma (r `FOL.leqT` FOL.zeroT) (FOL.addT [diff, primeT vars prime r] `FOL.leqT` r) FOL.true
+      , conR ++ conD)
 
 invc :: Integer -> Variables -> Symbol -> (Term, [Term])
 invc restr vars prf =
-  let constVar = ivarT (varcn prf "c")
+  let constVar = FOL.ivarT (varcn prf "c")
       cellL = numbers vars
-   in ( addT [br "a" c (br "b" c (Vars.mk vars c) (FOL.invT (Vars.mk vars c))) zeroT | c <- cellL]
-          `leqT` constVar
-      , [ addBools (bvarT . varcl prf "a" <$> cellL) restr
-        , constVar `leqT` Const (CInt 5)
-        , Const (CInt (-5)) `leqT` constVar
+   in ( FOL.addT
+          [br "a" c (br "b" c (Vars.mk vars c) (FOL.invT (Vars.mk vars c))) FOL.zeroT | c <- cellL]
+          `FOL.leqT` constVar
+      , [ addBools (FOL.bvarT . varcl prf "a" <$> cellL) restr
+        , constVar `FOL.leqT` FOL.intConst 5
+        , FOL.intConst (-5) `FOL.leqT` constVar
         ])
   where
-    br n c = ite (bvarT (varcl prf n c))
+    br n c = FOL.ite (FOL.bvarT (varcl prf n c))
 
 addBools :: [Term] -> Integer -> Term
-addBools bools bound = addT (map (\b -> ite b oneT zeroT) bools) `leqT` Const (CInt bound)
+addBools bools bound =
+  FOL.addT (map (\b -> FOL.ite b FOL.oneT FOL.zeroT) bools) `FOL.leqT` FOL.Const (FOL.CInt bound)
 
 constCompInv :: Integer -> Variables -> Symbol -> (Term, [Term])
 constCompInv rest vars prf =
   let cellL = numbers vars
-   in ( andf (map comp cellL)
-      , addBools [orf [neg (vara c), neg (varb c)] | c <- cellL] rest
-          : map (geqT oneT . varc) cellL
+   in ( FOL.andf (map comp cellL)
+      , addBools [FOL.orf [FOL.neg (vara c), FOL.neg (varb c)] | c <- cellL] rest
+          : map (FOL.geqT FOL.oneT . varc) cellL
           ++ --THOSE are STRANGE!
-           map (leqT (Const (CInt (-1))) . varc) cellL)
+           map (FOL.leqT (FOL.intConst (-1)) . varc) cellL)
   where
-    vara = bvarT . varcl prf "a"
-    varb = bvarT . varcl prf "b"
-    varc = ivarT . varcl prf "c"
+    vara = FOL.bvarT . varcl prf "a"
+    varb = FOL.bvarT . varcl prf "b"
+    varc = FOL.ivarT . varcl prf "c"
     comp c =
       let cc = varc c
           var = Vars.mk vars c
-          br n = ite (bvarT (varcl prf n c))
-       in br "a" (br "b" true (cc `equal` var)) (br "b" (cc `leqT` var) (var `leqT` cc))
+          br n = FOL.ite (FOL.bvarT (varcl prf n c))
+       in br
+            "a"
+            (br "b" FOL.true (cc `FOL.equal` var))
+            (br "b" (cc `FOL.leqT` var) (var `FOL.leqT` cc))
 
 genInstH :: Heur -> Variables -> Symbol -> Symbol -> LemInst
 genInstH heur vars prime pref =
   let (ccomp, cinvc) = H.templatePattern heur
-      act = bvarT (pref ++ "_act")
+      act = FOL.bvarT (pref ++ "_act")
       (Lemma bi si ci, cnr) = rankLemma vars prime (pref ++ "_r_")
       (invs, cnis) = unzip $ imap (\i l -> invc l vars (extInt pref i)) cinvc
       (inv0, cni0) = constCompInv ccomp vars (pref ++ "_i0_")
-      inv = andf (inv0 : invs)
+      inv = FOL.andf (inv0 : invs)
    in LemInst
         (cnr ++ cni0 ++ concat cnis)
-        (Lemma (andf [act, bi, inv]) (andf [act, si, primeT vars prime inv]) (andf [act, ci, inv]))
+        (Lemma
+           (FOL.andf [act, bi, inv])
+           (FOL.andf [act, si, primeT vars prime inv])
+           (FOL.andf [act, ci, inv]))
 
 genInst :: Heur -> Variables -> Symbol -> LemSyms -> Constraint -> Term -> (Constraint, Term, Lemma)
 genInst heur vars pref l cons f =
@@ -152,7 +160,7 @@ genInst heur vars pref l cons f =
 
 skolemize :: Variables -> Set Symbol -> Term -> Term
 skolemize vars metas =
-  mapTerm
+  FOL.mapTerm
     (\v _ ->
        if v `elem` metas
          then Just $ Vars.unintPredTerm vars v
@@ -161,8 +169,9 @@ skolemize vars metas =
 instantiate ::
      Heur -> Variables -> Constraint -> Term -> [LemSyms] -> (Constraint, Term, [(LemSyms, Lemma)])
 instantiate heur vars cons f ls =
-  let syms = Set.unions $ Vars.stateVars vars : symbols f : map symbols cons ++ map symbolsOf ls
-      pref = uniquePrefix "p" syms
+  let syms =
+        Set.unions $ Vars.stateVars vars : FOL.symbols f : map FOL.symbols cons ++ map symbolsOf ls
+      pref = FOL.uniquePrefix "p" syms
    in foldl
         (\(c, f, col) (l, i) ->
            let (c', f', li) = genInst heur vars (extInt pref i) l c f
@@ -177,8 +186,8 @@ resolveQE ::
      Config -> Heur -> Variables -> Constraint -> Term -> [LemSyms] -> IO (Term, [(LemSyms, Lemma)])
 resolveQE cfg heur vars cons f ls =
   let (cons', f', _) = instantiate heur vars cons f ls
-      meta = Set.toList (frees (andf cons'))
-      query = exists meta (andf (f' : cons'))
+      meta = Set.toList (FOL.frees (FOL.andf cons'))
+      query = FOL.exists meta (FOL.andf (f' : cons'))
    in do
         cfg <- pure $ setName "ResQE" cfg
         lg cfg ["Try qelim on", SMTLib.toString query]
@@ -189,16 +198,16 @@ resolveQE cfg heur vars cons f ls =
             return (res, [])
           Nothing -> do
             lg cfg ["Qelim failed and try later"]
-            return (false, [])
+            return (FOL.false, [])
 
 resolveBoth ::
      Config -> Heur -> Variables -> Constraint -> Term -> [LemSyms] -> IO (Term, [(LemSyms, Lemma)])
 resolveBoth cfg heur vars cons f ls =
   let (cons', f', col) = instantiate heur vars cons f ls
-      meta = frees (andf cons')
-      theta = andf (f' : cons')
+      meta = FOL.frees $ FOL.andf cons'
+      theta = FOL.andf $ f' : cons'
       sk = skolemize vars meta
-      query = exists (Set.toList meta) theta
+      query = FOL.exists (Set.toList meta) theta
    in do
         cfg <- pure $ setName "ResSK" cfg
         lg cfg ["Try Qelim on", SMTLib.toString query]
@@ -208,21 +217,21 @@ resolveBoth cfg heur vars cons f ls =
             lg cfg ["Qelim yielded", SMTLib.toString res]
             thetaSk <-
               fromMaybe (sk theta) <$> SMT.trySimplifyUF cfg (H.lemmaResolveTO heur) (sk theta)
-            let querySk = Vars.forallX vars $ res `impl` thetaSk
+            let querySk = Vars.forallX vars $ res `FOL.impl` thetaSk
             resSAT <- SMT.trySatModel cfg (H.lemmaResolveTO heur) querySk
             case resSAT of
               Nothing -> do
                 lg cfg ["Finding Model", "TO"]
-                return (false, [])
+                return (FOL.false, [])
               Just Nothing -> do
                 lg cfg ["Finding Model", "UNSAT"]
-                return (false, [])
+                return (FOL.false, [])
               Just (Just m) -> do
-                lg cfg ["Finding Model:", strM show SMTLib.toString (modelToMap m)]
-                return (res, map (second (mapL (setModel m . sk))) col)
+                lg cfg ["Finding Model:", strM show SMTLib.toString (FOL.modelToMap m)]
+                return (res, map (second (mapL (FOL.setModel m . sk))) col)
           Nothing -> do
             lg cfg ["Qelim failed and try later"]
-            return (false, [])
+            return (FOL.false, [])
 
 resolve ::
      Config -> Heur -> Variables -> Constraint -> Term -> [LemSyms] -> IO (Term, [(LemSyms, Lemma)])

@@ -53,21 +53,15 @@ module Issy.Solver.GameInterface
   ) where
 
 ---------------------------------------------------------------------------------------------------
-import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
-import Data.Set (Set)
 import qualified Data.Set as Set
+import Issy.Prelude
 
-import Issy.Base.Locations (Loc)
-import Issy.Base.SymbolicState (SymSt)
 import qualified Issy.Base.SymbolicState as SymSt
 import qualified Issy.Base.Variables as Vars
-import Issy.Config (Config)
-import Issy.Logic.FOL (Sort, Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.RPG as RPG
 import qualified Issy.SymbolicArena as Sym
-import Issy.Utils.Extra
 
 ---------------------------------------------------------------------------------------------------
 -- Data Structure

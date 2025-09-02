@@ -12,6 +12,7 @@ module Issy.Statistics
   , emptyStats
   , accel
   , accelSucc
+  , summaryApp
   ) where
 
 ---------------------------------------------------------------------------------------------------
@@ -22,10 +23,11 @@ import Issy.Utils.Logging
 data Stats = Stats
   { accelAttempt :: Int
   , accelSuccess :: Int
+  , summaryApplications :: Int
   }
 
 emptyStats :: Stats
-emptyStats = Stats {accelAttempt = 0, accelSuccess = 0}
+emptyStats = Stats {accelAttempt = 0, accelSuccess = 0, summaryApplications = 0}
 
 ---------------------------------------------------------------------------------------------------
 accel :: Stats -> Stats
@@ -33,6 +35,9 @@ accel stats = stats {accelAttempt = 1 + accelAttempt stats}
 
 accelSucc :: Stats -> Stats
 accelSucc stats = stats {accelSuccess = 1 + accelSuccess stats}
+
+summaryApp :: Stats -> Stats
+summaryApp stats = stats {summaryApplications = 1 + summaryApplications stats}
 
 ---------------------------------------------------------------------------------------------------
 printStats :: Config -> Stats -> IO ()
@@ -47,6 +52,7 @@ statString stats =
   [ "Statistics:"
   , prsh stats "Acceleration Attempts" accelAttempt
   , prsh stats "Acceleration Success" accelSuccess
+  , prsh stats "Summary Applications" summaryApplications
   ]
 
 prsh :: Show a => Stats -> String -> (Stats -> a) -> String

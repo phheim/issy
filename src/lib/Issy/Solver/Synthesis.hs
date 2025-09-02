@@ -30,25 +30,19 @@ module Issy.Solver.Synthesis
   ) where
 
 ---------------------------------------------------------------------------------------------------
-import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
-import Data.Ratio (denominator, numerator)
-import Data.Set (Set)
 import qualified Data.Set as Set
+import Issy.Prelude
 import System.Exit (die)
 
 import qualified Issy.Base.Locations as Locs
-import Issy.Base.SymbolicState (SymSt)
 import qualified Issy.Base.SymbolicState as SymSt
 import qualified Issy.Base.Variables as Vars
-import Issy.Base.Variables (Variables)
-import Issy.Config (Config, generateProgram, setName)
-import Issy.Logic.FOL (Sort, Symbol, Term)
+import Issy.Config (generateProgram)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.SMT as SMT
 import qualified Issy.Printers.SMTLib as SMTLib
 import Issy.Solver.GameInterface
-import Issy.Utils.Extra
 
 ---------------------------------------------------------------------------------------------------
 -- Bookkeeping

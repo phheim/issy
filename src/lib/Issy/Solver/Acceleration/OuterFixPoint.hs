@@ -5,13 +5,10 @@ module Issy.Solver.Acceleration.OuterFixPoint
   ) where
 
 import qualified Data.Map.Strict as Map
+import Issy.Prelude
 
-import Issy.Base.SymbolicState (SymSt, get)
 import qualified Issy.Base.SymbolicState as SymSt
-import Issy.Base.Variables (Variables)
 import qualified Issy.Base.Variables as Vars
-import Issy.Config (Config, setName)
-import Issy.Logic.FOL (Function, Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
 import Issy.Printers.SMTLib as SMTLib
 import qualified Issy.Solver.Acceleration.Heuristics as H
@@ -19,7 +16,6 @@ import Issy.Solver.Acceleration.LemmaFinding (LemSyms(..), Lemma(..), resolve)
 import Issy.Solver.GameInterface
 import Issy.Solver.Synthesis (SyBo)
 import qualified Issy.Solver.Synthesis as Synt
-import Issy.Utils.Extra
 import Issy.Utils.Logging
 
 accelCoBuechi :: Config -> Player -> Arena -> Loc -> SymSt -> SymSt -> IO (Term, SyBo)

@@ -3,17 +3,13 @@ module Issy.Solver.Acceleration.LoopScenario
   , reducedLoopArena
   ) where
 
--------------------------------------------------------------------------------
-import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
-import Data.Set (Set)
 import qualified Data.Set as Set
+-------------------------------------------------------------------------------
+import Issy.Prelude
 
-import Issy.Base.SymbolicState (SymSt, get, set)
 import qualified Issy.Base.SymbolicState as SymSt
 import qualified Issy.Base.Variables as Vars
-import Issy.Config (Config)
-import Issy.Logic.FOL (Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.SMT as SMT
 import qualified Issy.Printers.SMTLib as SMTLib

@@ -56,21 +56,14 @@ module Issy.RPG
 ---------------------------------------------------------------------------------------------------
 import Control.Monad (liftM2)
 import Data.List (nub)
-import Data.Map.Strict (Map, (!?))
 import qualified Data.Map.Strict as Map
-import Data.Set (Set)
 import qualified Data.Set as Set
+import Issy.Prelude
 
-import Issy.Base.Locations (Loc)
 import qualified Issy.Base.Locations as Locs
-import Issy.Base.Objectives (Objective)
 import qualified Issy.Base.Objectives as Obj
-import Issy.Base.SymbolicState (SymSt)
 import qualified Issy.Base.SymbolicState as SymSt
-import Issy.Base.Variables (Variables)
 import qualified Issy.Base.Variables as Vars
-import Issy.Config (Config)
-import Issy.Logic.FOL (Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.SMT as SMT
 import Issy.Utils.Extra hiding (reachables)

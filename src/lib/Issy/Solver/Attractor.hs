@@ -14,14 +14,12 @@ module Issy.Solver.Attractor
   , noCheck
   ) where
 
----------------------------------------------------------------------------------------------------
-import Data.Set (Set)
 import qualified Data.Set as Set
+---------------------------------------------------------------------------------------------------
+import Issy.Prelude
 
-import Issy.Base.SymbolicState (SymSt, get, set)
 import qualified Issy.Base.SymbolicState as SymSt
-import Issy.Config (Config, accelerate, enforcementSummaries, generateProgram, setName)
-import Issy.Logic.FOL (Term)
+import Issy.Config (accelerate, enforcementSummaries, generateProgram)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.SMT as SMT
 import qualified Issy.Printers.SMTLib as SMTLib (toString)
@@ -42,7 +40,6 @@ import qualified Issy.Utils.OpenList as OL
 -- The top level interface
 ---------------------------------------------------------------------------------------------------
 -- | Solver state
---  TODO: maybe move somewhere else, e.g. own module?
 data SolSt = SolSt
   { stats :: Stats
   , enfst :: EnfSt
@@ -178,6 +175,7 @@ class AccAttrSt a =>
   where
   getEnfst :: a -> EnfSt
   setEnfst :: EnfSt -> a -> a
+  markSumApp :: Loc -> a -> a
 
 accelSum :: AccSumAttrSt a => Config -> a -> Loc -> IO (a, Bool)
 accelSum conf ast l = do
@@ -193,8 +191,8 @@ accelSum conf ast l = do
         then do
           subProg <- Synt.skolemize conf subProg
           new <- SMT.simplify conf $ FOL.orf [get (reach ast) l, sum]
-          -- TODO: maybe add statistics like in accleration
-          ast <- pure $ setProg (Synt.callOn l sum subProg (prog ast)) $ setIn l new ast
+          ast <-
+            pure $ markSumApp l $ setProg (Synt.callOn l sum subProg (prog ast)) $ setIn l new ast
           pure (ast, True)
         else pure (ast, False)
 
@@ -258,6 +256,7 @@ instance AccAttrSt AttrState where
 instance AccSumAttrSt AttrState where
   getEnfst = stEnfst
   setEnfst enfst ast = ast {stEnfst = enfst}
+  markSumApp _ ast = ast {stStats = Stats.summaryApp (stStats ast)}
 
 attrState :: Config -> SolSt -> StopCheck -> Player -> Arena -> SymSt -> IO AttrState
 attrState conf solst stopCheck player arena reach = do

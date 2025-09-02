@@ -11,15 +11,13 @@ module Issy.Solver.ObjectiveSolver
   ) where
 
 ---------------------------------------------------------------------------------------------------
-import Data.Map.Strict (Map, (!))
 import qualified Data.Map.Strict as Map
-import Data.Set (Set)
 import qualified Data.Set as Set
+import Issy.Prelude
 
 import Issy.Base.Objectives (Objective(..), WinningCondition(..))
-import Issy.Base.SymbolicState (SymSt, get, set)
 import qualified Issy.Base.SymbolicState as SymSt
-import Issy.Config (Config, accelerateObjective, generateProgram, setName)
+import Issy.Config (accelerateObjective, generateProgram)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.SMT as SMT
 import qualified Issy.Printers.SMTLib as SMTLib (toString)
@@ -29,7 +27,6 @@ import Issy.Solver.GameInterface
 import Issy.Solver.Synthesis (SyBo)
 import qualified Issy.Solver.Synthesis as Synt
 import Issy.Statistics (Stats)
-import Issy.Utils.Extra
 import Issy.Utils.Logging
 
 ---------------------------------------------------------------------------------------------------

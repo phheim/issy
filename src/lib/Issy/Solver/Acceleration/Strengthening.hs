@@ -11,12 +11,11 @@ module Issy.Solver.Acceleration.Strengthening
   , strengthenSimple
   ) where
 
----------------------------------------------------------------------------------------------------
-import Issy.Config (Config)
-import Issy.Logic.FOL (Symbol, Term(Func))
+import Issy.Logic.FOL (Term(Func))
 import qualified Issy.Logic.FOL as FOL
 import Issy.Logic.SMT as SMT
-import Issy.Utils.Extra
+---------------------------------------------------------------------------------------------------
+import Issy.Prelude
 
 ---------------------------------------------------------------------------------------------------
 -- | 'strengthenSimple' strengthens the given 'Term' in different easy syntactic ways

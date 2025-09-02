@@ -57,6 +57,7 @@ library
     , Issy.Parsers.SMTLib
     , Issy.Parsers.SMTLibLexer
     , Issy.Parsers.TSLMT
+    , Issy.Prelude
     , Issy.Printers.LLIssyFormat
     , Issy.Printers.RPG
     , Issy.Printers.SymbolicGame

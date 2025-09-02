@@ -9,9 +9,9 @@
 module Issy.Solver.Acceleration.Base where
 
 ---------------------------------------------------------------------------------------------------
-import Issy.Base.Variables (Variables)
+import Issy.Prelude
+
 import qualified Issy.Base.Variables as Vars
-import Issy.Logic.FOL (Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
 
 ---------------------------------------------------------------------------------------------------

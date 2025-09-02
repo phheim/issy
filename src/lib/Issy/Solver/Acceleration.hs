@@ -15,9 +15,9 @@ module Issy.Solver.Acceleration
   ) where
 
 ---------------------------------------------------------------------------------------------------
-import Issy.Base.SymbolicState (SymSt)
-import Issy.Config (Config, genGeomAccel, ufAcceleration)
-import Issy.Logic.FOL (Term)
+import Issy.Prelude
+
+import Issy.Config (genGeomAccel, ufAcceleration)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Solver.Acceleration.Heuristics as H
 import qualified Issy.Solver.Acceleration.MDAcceleration as MDAcc (accelReach)

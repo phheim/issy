@@ -7,16 +7,14 @@ module Issy.Solver.Acceleration.MDAcceleration
   , iterA
   ) where
 
--------------------------------------------------------------------------------
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
+-------------------------------------------------------------------------------
+import Issy.Prelude
 
-import Issy.Base.SymbolicState (SymSt, get, set)
 import qualified Issy.Base.SymbolicState as SymSt
-import Issy.Base.Variables (Variables)
 import qualified Issy.Base.Variables as Vars
-import Issy.Config (Config, extendAcceleration, setName)
-import Issy.Logic.FOL (Sort, Symbol, Term)
+import Issy.Config (extendAcceleration)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.SMT as SMT
 import qualified Issy.Printers.SMTLib as SMTLib (toString)

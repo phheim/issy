@@ -19,10 +19,10 @@ module Issy.Solver.Acceleration.Heuristics
 
 import Data.List (genericReplicate)
 import qualified Data.Set as Set
+import Issy.Prelude
 
-import Issy.Config (Config, accelerationLevel)
+import Issy.Config (accelerationLevel)
 import Issy.Solver.GameInterface
-import Issy.Utils.Extra
 
 data Heur = Heur
   { visitCnt :: Int

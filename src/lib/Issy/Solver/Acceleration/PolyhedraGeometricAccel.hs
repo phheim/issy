@@ -14,31 +14,24 @@ module Issy.Solver.Acceleration.PolyhedraGeometricAccel
   ) where
 
 ---------------------------------------------------------------------------------------------------
-import Data.Set (Set)
 import qualified Data.Set as Set
+import Issy.Prelude
 
-import Issy.Base.SymbolicState (SymSt, get, set)
 import qualified Issy.Base.SymbolicState as SymSt
-import Issy.Base.Variables (Variables)
-import Issy.Config (Config, setName)
-import Issy.Logic.FOL (Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
+import Issy.Logic.Interval (gtUpp, inLow, inUpp, ltLow)
+import Issy.Logic.Polyhedra
 import qualified Issy.Logic.SMT as SMT
 import qualified Issy.Printers.SMTLib as SMTLib (toString)
+import Issy.Solver.Acceleration.Base
 import Issy.Solver.Acceleration.Heuristics (Heur)
 import qualified Issy.Solver.Acceleration.Heuristics as H
 import Issy.Solver.Acceleration.LoopScenario (reducedLoopArena)
 import Issy.Solver.GameInterface
 import Issy.Solver.Synthesis (SyBo)
 import qualified Issy.Solver.Synthesis as Synt
-import Issy.Utils.Extra
 import Issy.Utils.Logging
 import qualified Issy.Utils.OpenList as OL
-
-import Issy.Logic.Interval (gtUpp, inLow, inUpp, ltLow)
-import Issy.Logic.Polyhedra
-
-import Issy.Solver.Acceleration.Base
 
 ---------------------------------------------------------------------------------------------------
 -- Top-level acceleration

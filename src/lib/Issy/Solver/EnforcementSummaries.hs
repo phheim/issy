@@ -16,13 +16,10 @@ module Issy.Solver.EnforcementSummaries
 import Data.List (find)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
+import Issy.Prelude
 
-import Issy.Base.SymbolicState (SymSt, get)
 import qualified Issy.Base.SymbolicState as SymSt
 import qualified Issy.Base.Variables as Vars
-import Issy.Base.Variables (Variables)
-import Issy.Config (Config, setName)
-import Issy.Logic.FOL (Sort, Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.SMT as SMT
 import Issy.Solver.GameInterface

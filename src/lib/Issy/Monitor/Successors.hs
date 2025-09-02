@@ -4,13 +4,9 @@ module Issy.Monitor.Successors
   ( generateSuccessor
   ) where
 
-import Data.Map.Strict ((!?))
 import qualified Data.Map.Strict as Map
-import Data.Set (Set)
+import Issy.Prelude
 
-import Issy.Base.Variables (Variables)
-import Issy.Config (Config, setName)
-import Issy.Logic.FOL (Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.SMT as SMT
 import Issy.Monitor.Monitor
