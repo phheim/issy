@@ -15,6 +15,7 @@ module Issy.Solver.Attractor
   ) where
 
 import qualified Data.Set as Set
+
 ---------------------------------------------------------------------------------------------------
 import Issy.Prelude
 

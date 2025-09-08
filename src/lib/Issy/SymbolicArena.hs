@@ -392,7 +392,7 @@ isSubarenaFrom (ls, arenaS) (l, arena) =
     go isos ol =
       case OL.pop ol of
         Nothing -> Just $ mapFromSet isos
-        Just ((ls, l), ol)
+        Just ((ls, l), _)
           | domain arenaS ls /= domain arena l -> Nothing
           | otherwise -> error "TODO This is not trivial after all!"
 

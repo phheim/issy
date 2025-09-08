@@ -5,6 +5,7 @@ module Issy.Solver.Acceleration.LoopScenario
 
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
+
 -------------------------------------------------------------------------------
 import Issy.Prelude
 

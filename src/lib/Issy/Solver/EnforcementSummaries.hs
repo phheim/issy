@@ -22,6 +22,7 @@ import qualified Issy.Base.SymbolicState as SymSt
 import qualified Issy.Base.Variables as Vars
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.SMT as SMT
+import qualified Issy.Printers.SMTLib as SMTLib
 import Issy.Solver.GameInterface
 import Issy.Solver.Synthesis (SyBo)
 import qualified Issy.Solver.Synthesis as Synt
@@ -72,20 +73,20 @@ trySummary ::
      Config -> Attr -> Player -> Arena -> Loc -> EnfSt -> SymSt -> IO (EnfSt, Maybe (Term, SyBo))
 trySummary conf attr player arena loc enfst reach = do
   conf <- pure $ setName "Summaries" conf
-  lgd conf ["Try to apply summary"] -- TODO: details
+  lgd conf ["Try to apply summary"]
   case find (matchKey player arena loc . fst) (summaries enfst) of
     Just (key, content) -> do
-      lgd conf ["Apply summary"] -- TODO: details
-      res <- applyIn conf (vars (sumArena key)) content reach
-      lgd conf ["Summary"] -- TODO: details
+      lgd conf ["Use existing summary"] -- TODO: details
+      let res = applyIn (vars (sumArena key)) content reach
+      lgd conf ["Applied summary:", SMTLib.toString (fst res)]
       pure (enfst, Just res)
     Nothing ->
       case find (matchKey player arena loc) (failed enfst) of
         Just _ -> do
-          lgd conf ["No valid summary exists"]
+          lgd conf ["Existence of valid summary already ruled out"]
           pure (enfst, Nothing)
         Nothing -> do
-          lg conf ["Compute summary"] -- TODO: details
+          lg conf ["Compute summary"]
           (key, content) <- computeSum conf attr player arena loc
           case content of
             Nothing -> do
@@ -94,9 +95,8 @@ trySummary conf attr player arena loc enfst reach = do
             Just content -> do
               lg conf ["Summary computation succeeded"] -- TODO: details
               enfst <- pure $ enfst {summaries = summaries enfst ++ [(key, content)]}
-              lgd conf ["Apply summary"] -- TODO: details
-              res <- applyIn conf (vars (sumArena key)) content reach
-              lgd conf ["Summary"] -- TODO: details
+              let res = applyIn (vars (sumArena key)) content reach
+              lgd conf ["Applied summary:", SMTLib.toString (fst res)]
               pure (enfst, Just res)
 
 matchKey :: Player -> Arena -> Loc -> SummaryKey -> Bool
@@ -111,10 +111,9 @@ matchKey player arena loc key
 -- Application
 ---------------------------------------------------------------------------------------------------
 -- TODO: Add correspondence of locations!!!
--- Maybe have no-io verision for accleration attractor
 -- make applicability a DOCUMENTED precondition!!!
-applyIn :: Config -> Variables -> SummaryContent -> SymSt -> IO (Term, SyBo)
-applyIn conf vars summary reach =
+applyIn :: Variables -> SummaryContent -> SymSt -> (Term, SyBo)
+applyIn vars summary reach =
   let condImpl =
         FOL.andfL (SymSt.toList (targets summary)) $ \(l, next) ->
           Vars.forallX vars $ FOL.impl (get reach l) next
@@ -124,7 +123,7 @@ applyIn conf vars summary reach =
       skolemConstr = error "TODO"
       prog = Synt.summarySyBo (metaVars summary) (constr, skolemConstr) (sybo summary)
      -- ^ programm computation
-   in pure (constr, prog)
+   in (constr, prog)
 
 ---------------------------------------------------------------------------------------------------
 -- Computation

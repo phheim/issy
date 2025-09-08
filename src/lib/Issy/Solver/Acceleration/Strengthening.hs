@@ -14,6 +14,7 @@ module Issy.Solver.Acceleration.Strengthening
 import Issy.Logic.FOL (Term(Func))
 import qualified Issy.Logic.FOL as FOL
 import Issy.Logic.SMT as SMT
+
 ---------------------------------------------------------------------------------------------------
 import Issy.Prelude
 

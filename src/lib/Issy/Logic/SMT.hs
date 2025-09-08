@@ -27,6 +27,7 @@ import System.Exit (die)
 import Issy.Config (Config, z3cmd)
 import Issy.Logic.FOL (Model, Sort, Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
+import qualified Issy.Logic.Polyhedra as Poly (normalize)
 import qualified Issy.Parsers.SMTLib as SMTLib
 import qualified Issy.Parsers.SMTLibLexer as SMTLib
 import qualified Issy.Printers.SMTLib as SMTLib
@@ -76,13 +77,14 @@ satCommand f
 ---------------------------------------------------------------------------------------------------
 -- Simplification
 ---------------------------------------------------------------------------------------------------
-z3SimplifyQE :: [String]
-z3SimplifyQE =
-  ["simplify", "qe-light", "propagate-ineqs", "unit-subsume-simplify", "qe2", "simplify"]
-
 z3Simplify :: [String]
 z3Simplify =
   [ "simplify"
+  , "qe-light"
+  , "propagate-ineqs"
+  , "unit-subsume-simplify"
+  , "qe2"
+  , "simplify"
   , "blast-term-ite"
   , "nnf"
   , "ctx-solver-simplify"
@@ -99,15 +101,7 @@ simplify :: Config -> Term -> IO Term
 simplify conf = noTimeout . trySimplify conf Nothing
 
 trySimplify :: Config -> Maybe Int -> Term -> IO (Maybe Term)
-trySimplify conf to term = do
-  term <- simplifyTacs conf to z3SimplifyQE term
-  case term of
-    Nothing -> pure Nothing
-    Just term -> do
-      term <- simplifyTacs conf to z3Simplify $ FOL.toNNF $ FOL.neg term
-      case term of
-        Nothing -> pure Nothing
-        Just term -> simplifyTacs conf to z3Simplify $ FOL.toNNF $ FOL.neg term
+trySimplify conf to term = fmap Poly.normalize <$> simplifyTacs conf to z3Simplify term
 
 simplifyTacs :: Config -> Maybe Int -> [String] -> Term -> IO (Maybe Term)
 simplifyTacs conf to tactics f
@@ -130,7 +124,7 @@ trySimplifyUF conf to f
     let query = SMTLib.toQuery f ++ "(apply " ++ z3TacticList z3SimplifyUF ++ ")"
     callz3 conf to query $ \res ->
       case readTransformZ3 (FOL.bindings f !?) (SMTLib.tokenize res) of
-        Right res -> Just res
+        Right res -> Just $ Poly.normalize res
         _ -> Nothing
 
 z3TacticList :: [String] -> String
