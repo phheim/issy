@@ -1,5 +1,6 @@
 /custom
 /issy
+/issy-static
 /.stack-work/*
 /stack.yaml.lock
 *.swp

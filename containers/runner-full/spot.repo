@@ -1,0 +1,5 @@
+[lrde-stable]
+name=LRDE stable
+baseurl=http://www.lrde.epita.fr/repo/fedora/stable/
+enabled=1
+gpgcheck=0
