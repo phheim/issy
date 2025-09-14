@@ -1,28 +1,52 @@
 # Issy
 
 Issy is a tool for automatically synthesizing infinite-state reactive programs. It accepts specifications in the [Issy format](./docs/ISSYFORMAT.md), reactive program games, TSL-MT, and the low-level [LLissy format](./docs/LLISSYFORMAT.md). 
-You can find small examples, for Issy and LLIssy [here](./docs/sample.issy) and [here](./docs/sample.llissy), respectively. Furthermore, many more examples are available in the [infinite-state synthesis benchmark repository](https://github.com/phheim/infinite-state-reactive-synthesis-benchmarks).
+You can find small examples for Issy and LLIssy [here](./docs/sample.issy) and [here](./docs/sample.llissy), respectively. Furthermore, many more examples are available in the [infinite-state synthesis benchmark repository](https://github.com/phheim/infinite-state-reactive-synthesis-benchmarks).
 
-## Installation
+## Setup
 
-### Perquisites
+While building Issy from source is pretty easy, in order to run (with the full functionality), you might need to also install Z3, Spot, and MuVal, depending on the functions you want to use. Hence, if you just *want to try Issy*, we recommend using one of our *container setups*. Those should work on ``x86-64`` machines. If you use an Apple Silicon M1 or M2 chip, you need to build Issy from source.
 
-To build Issy you, need the following: 
-- [Haskell Stack](https://www.haskellstack.org/): Installing Stack can be done either by [GHCUp](https://www.haskell.org/ghcup/) (recommended), the description on Stacks' website, or your systems package manager (not recommended). 
-- [Z3] (https://github.com/Z3Prover/z3/): You can install Z3 with your package manager or by downloading the binary from the project's GitHub releases. We recommend using a newer version of Z3 (e.g., 4.13.3). Note that Issy interacts with Z3 via the textual SMTLib2 interface, so the development version or header files are not needed. Also, Issy allows you to set the path to a specific binary of Z3.
-- [Spot](https://spot.lre.epita.fr/) (*OPTIONAL but HIGHLY RECOMMENDED*): If you want to use temporal logic formulas, you need ``ltl2tgba`` from Spots Omega-automata tool suite.
-- [MuVal/Coar](https://github.com/hiroshi-unno/coar) (*OPTIONAL*): MuVal of Coar is needed if Issy's monitor-based pruning (``--pruning``) is used. We recommend using commit dc094f04 for now. More instructions can be found in the *External Tools* section.
+For our container setups, you will need to build and run OCI containers. In our instructions we use [Podman](https://podman.io), which we recommend. However, you should also be able to do the same with other container tools like Docker.
 
-### Building
+### Container Setup (*RECOMMENDED FOR BEGINNERS*)
 
+The first setup is for you if you just want to get Issy quickly. It includes pre-built binaries for Issy, Z3, and Spot but not MuVal. To build the container image, run
+```
+    podman build -t issy-runner containers/runner-simple
+```
+This should take around **3 minutes**.
+
+If you want to use the container, either use our call script
+```
+    ./containers/run-issy ARGUMENTS < INPUTFILE
+```
+or run the container directly
+```
+    podman run -i --rm issy-runner /usr/bin/issy OPTIONS < INPUTFILE
+```
+The usage and arguments are practically the same as with the Issy binary. The only differences are technical because we run inside a container (the input file is always passed via ``STDIN`` and the ``--caller-...`` options are overwritten in the container). 
+
+**Restriction:** As this container setup is missing MuVal, for ``--pruning`` *only levels 0 and 1 work* properly. If you want to include MuVal, you can build the full container with
+```
+    podman build -t issy-runner containers/runner-full
+```
+Note that this will take **around 1 hour** and will use significantly more disk space.
+
+### Build from Source
+
+To build Issy itself, you need the Haskell build tool [Stack](https://www.haskellstack.org/). To get it, we recommend [GHCUp](https://www.haskell.org/ghcup/).
 To build Issy, just run
 ```
     make 
 ```
-in the top-level folder. Stack will get the respective source code libraries and the compiler, so you need internet access for that. The ``issy`` binary is placed in the project's top-level folder. To get a clean build run
-```
-    make clean
-```
+in the top-level folder. Stack will get the respective source code libraries and the compiler, so you need internet access for that. The ``issy`` binary is placed in the project's top-level folder. To get a clean build, run ``make clean``.
+
+To run Issy, you also **must** get [Z3](https://github.com/Z3Prover/z3) with **version 4.13.0 or newer**. For now we recommend using [version 4.13.3](https://github.com/Z3Prover/z3/releases/tag/z3-4.13.3). If you want to get this specific version of Z3 or your packages manager does only have an older version of Z3, the easiest way got a difeerent version is to download the binary from its [GitHub releases](https://github.com/Z3Prover/z3/releases) and *tell Issy to use that* with the ``--caller-z3 <PATH_TO_Z3>`` option.
+
+You also **should** get [Spot](https://spot.lre.epita.fr/) as we Issy needs ``ltl2tgba`` from Spots Omega-automata tool suite. To get it just, follow their installation instructions. Using spot will work by default if ``ltl2tgba`` can be found by Issy in your PATH. If you want a different setup check out the ``--caller-aut <PATH_TO_LTL2TGBA>`` option.
+
+You **can** also get [MuVal of Coar](https://github.com/hiroshi-unno/coar) which is needed if Issy's monitor-based ``--pruning`` option on level 2 or higher is used. To get MuVal you must  build it from source (we strongly recommend commit 1d499999) and use (and adapt to the right locations) the wrapper script in ``scripts/call-muval.sh`` which is called with ``--caller-muval <PATH_TO_CALLSCRIPT>``.
 
 ## Usage
 
@@ -60,23 +84,27 @@ On ``-- pruning 0``, monitor simplifications are disabled, which is the default.
 For game solving ``--accel TYPE`` controls the type of acceleration that is used. For ``no`` acceleration is disabled, for `` attr`` only attractor acceleration is enabled (which is the recommended *default*), and for ``full`` also the outer fix-point accelerations are enabled, like Büchi acceleration. 
 Attractor acceleration can be controlled further via ``--accel-attr TYPE``.
 - For ``--accel-attr geom`` geometric attractor acceleration is used. This is the *default*.
-- For ``--accel-attr geom`-ext`, the former is used with extended invariant computation techniques.
+- For ``--accel-attr geom-ext``, the former is used with extended invariant computation techniques.
 - For ``--accel-attr unint`` uninterpreted-function-based attractor acceleration is used.
 - For ``--accel-attr unint-ext``, the former is used with potential nesting of acceleration.
 In addition, ``--accel-difficulty LEVELS`` lets you control the "aggressiveness" of the acceleration. The higher the level, the more likely acceleration is to succeed, but the more time it might take. The levels are ``easy``, ``medium``, and ``hard`` with ``medium`` being the recommended *default*.
 
-### External Tools
+### External Tools (*NOT FOR CONTAINER USERS*)
 
 Issy uses different external tools, which are needed for different operations. Some of them have to be called via a wrapper script. In all cases, by *default*  Issy assumes the used tool or wrapper script to be in the PATH environment. If this is not desired, you can also set the location to the binary/script to the respective tool manually:
 - ``--caller-z3 PATH`` sets the path to the Z3 binary. By default, ``z3`` is assumed to be in the PATH.
-- ``--caller-aut PATH``sets the path to Spot's ``ltl2tgba``. By default, ``ltl2tgba`` is assumed to be in the PATH.
+- ``--caller-aut PATH`` sets the path to Spot's ``ltl2tgba``. By default, ``ltl2tgba`` is assumed to be in the PATH.
 - ``--caller-muval PATH`` sets the path to a script that reads its input on (it's) STDIN and a timeout in seconds as an argument, and calls MuVal on the input with the respective timeout.
 - ``--caller-chcmx  PATH`` sets the path to a script that reads its input on (it's) STDIN and a timeout in seconds as an argument, and calls CHCMax on the input with the respective timeout.
 Examples of those wrapper scripts can be found [here](./scripts).
 
 ## Related Publications and Documents
 
-- [*Translation of Temporal Logic for Efficient Infinite-State Reactive Synthesis*](https://doi.org/10.1145/3704888), Philippe Heim, Rayna Dimitrova, POPL2025.  
-- [*Localized Attractor Computations for Infinite-State Games*](https://doi.org/10.1007/978-3-031-65633-0_7), Anne-Kathrin Schmuck, Philippe Heim, Rayna Dimitrova, Satya Prakash Nayak, CAV2024.
-- [*Solving Infinite-State Games via Acceleration*](https://doi.org/10.1145/3632899), Philippe Heim, Rayna Dimitrova, POPL2024.
-- [POPL24 Talk](https://youtu.be/3G0WaerPZpQ)
+If you want to cite Issy, please [cite](./docs/issy.bib):
+- [*Issy: A Comprehensive Tool for Specification and Synthesis of Infinite-State Reactive Systems*](https://doi.org/10.1007/978-3-031-98685-7_14), CAV'25
+
+Other works on which Issy directly builds on are:
+- [*Translation of Temporal Logic for Efficient Infinite-State Reactive Synthesis*](https://doi.org/10.1145/3704888), POPL'25 ([Talk](https://youtu.be/Mv0oqdhMfZo))
+- [*Localized Attractor Computations for Infinite-State Games*](https://doi.org/10.1007/978-3-031-65633-0_7), CAV'24
+- [*Solving Infinite-State Games via Acceleration*](https://doi.org/10.1145/3632899), POPL'24 ([Talk](https://youtu.be/3G0WaerPZpQ))
+
