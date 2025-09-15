@@ -9,14 +9,10 @@ module Issy.Translation.LTL2DOA
   ( translate
   ) where
 
-import Control.Monad (unless)
-import Data.Bifunctor (first)
 import qualified Data.List as List (sortOn)
-import Data.Map.Strict (Map, (!), (!?))
 import qualified Data.Map.Strict as Map
-import Data.Maybe (fromMaybe)
-import Data.Set (Set)
 import qualified Data.Set as Set
+import Issy.Prelude
 import System.Process (readProcessWithExitCode)
 
 import Finite
@@ -30,7 +26,7 @@ import Hanoi
   )
 import qualified Hanoi as HOA (State, parse, printHOA)
 
-import Issy.Config (Config, ltl2tgba)
+import Issy.Config (ltl2tgba)
 import qualified Issy.Logic.Temporal as TL
 import qualified Issy.Translation.DOA as DOA
 import Issy.Utils.Logging

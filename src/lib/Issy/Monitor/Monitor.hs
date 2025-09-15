@@ -16,13 +16,10 @@ module Issy.Monitor.Monitor
   , inputs
   ) where
 
-import Data.Map.Strict (Map, (!?))
 import qualified Data.Map.Strict as Map
-import Data.Set (Set)
+import Issy.Prelude
 
-import Issy.Base.Variables (Variables)
-import qualified Issy.Base.Variables as Vars (inputs)
-import Issy.Logic.FOL (Symbol, Term)
+import qualified Issy.Base.Variables as Vars
 import qualified Issy.Logic.FOL as FOL
 import Issy.Monitor.Rules (GlobalS)
 import Issy.Monitor.State (ExpansionState)

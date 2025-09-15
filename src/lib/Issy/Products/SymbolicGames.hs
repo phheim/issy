@@ -2,11 +2,10 @@ module Issy.Products.SymbolicGames
   ( intersection
   ) where
 
-import Data.Map.Strict ((!))
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
+import Issy.Prelude
 
-import Issy.Base.Locations (Loc)
 import qualified Issy.Base.Locations as Locs
 import Issy.Base.Objectives (Objective(..), WinningCondition(..))
 import qualified Issy.Base.Objectives as Obj

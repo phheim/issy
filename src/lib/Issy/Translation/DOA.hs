@@ -22,10 +22,9 @@ module Issy.Translation.DOA
   , setAcceptance
   ) where
 
-import Data.Map.Strict (Map, (!?))
 import qualified Data.Map.Strict as Map
-import Data.Set (Set)
 import qualified Data.Set as Set
+import Issy.Prelude
 
 -- Deterministic Omega Automaton
 newtype State =

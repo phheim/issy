@@ -4,15 +4,11 @@ module Issy.Translation.RPG2SG
   ( rpgToSG
   ) where
 
-import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
+import Issy.Prelude
 
-import Issy.Base.Locations (Loc)
-import Issy.Base.Objectives (Objective)
 import qualified Issy.Base.Objectives as Obj
-import Issy.Base.Variables (Variables)
 import qualified Issy.Base.Variables as Vars
-import Issy.Logic.FOL (Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.RPG as RPG
 import qualified Issy.SymbolicArena as SG

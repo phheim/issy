@@ -4,13 +4,10 @@ module Issy.Monitor.Postprocess
   ( finish
   ) where
 
-import Data.Map.Strict (Map, (!?))
 import qualified Data.Map.Strict as Map
-import Data.Maybe (fromMaybe)
-import Data.Set (Set)
 import qualified Data.Set as Set
+import Issy.Prelude
 
-import Issy.Config (Config)
 import Issy.Monitor.Formula (Formula(FAnd, FEventually, FGlobally, FOr))
 import qualified Issy.Monitor.Formula as MF
 import Issy.Monitor.Monitor

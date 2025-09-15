@@ -2,17 +2,12 @@ module Issy.Translation.RPLTL2SG
   ( translate
   ) where
 
-import Data.Bifunctor (bimap)
-import Data.Map.Strict ((!))
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
-import Data.Tuple (swap)
+import Issy.Prelude
 
 import Issy.Base.Objectives (Objective(..))
 import qualified Issy.Base.Objectives as Obj
-import Issy.Base.Variables (Variables)
-import Issy.Config (Config)
-import Issy.Logic.FOL (Term)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.Temporal as TL
 import Issy.SymbolicArena (Arena)

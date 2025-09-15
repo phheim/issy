@@ -4,23 +4,14 @@ module Issy.Translation.TSL2RPG
   ( tsl2rpg
   ) where
 
-import Data.Bifunctor (second)
 import Data.Foldable (find)
-import Data.List (nub)
-import Data.Map.Strict (Map, (!), (!?))
 import qualified Data.Map.Strict as Map
-import Data.Maybe (fromMaybe, mapMaybe)
-import Data.Set (Set)
 import qualified Data.Set as Set
-import Data.Tuple (swap)
+import Issy.Prelude
 
-import Issy.Base.Locations (Loc)
 import Issy.Base.Objectives (Objective(..))
 import qualified Issy.Base.Objectives as Obj
-import Issy.Base.Variables (Variables)
 import qualified Issy.Base.Variables as Vars
-import Issy.Config (Config, setName)
-import Issy.Logic.FOL (Symbol, Term)
 import qualified Issy.Logic.TSLMT as TSL
 import qualified Issy.Logic.Temporal as TL
 import Issy.RPG (Game, Transition(..))

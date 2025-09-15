@@ -39,13 +39,12 @@ module Issy.Monitor.Formula
   , encodeFormula
   ) where
 
--------------------------------------------------------------------------------
-import Data.Set (Set)
 import qualified Data.Set as Set
+-------------------------------------------------------------------------------
+import Issy.Prelude
 
-import Issy.Base.Variables (Variables)
 import qualified Issy.Base.Variables as Vars
-import Issy.Logic.FOL (Constant(..), Symbol, Term(..))
+import Issy.Logic.FOL (Constant(..), Term(..))
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.RPLTL as RPLTL
 import qualified Issy.Logic.TSLMT as TSL

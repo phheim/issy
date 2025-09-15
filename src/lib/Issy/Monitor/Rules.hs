@@ -11,29 +11,20 @@ module Issy.Monitor.Rules
   , derivedEventually
   ) where
 
--------------------------------------------------------------------------------
-import Control.Monad (foldM)
-import Data.Bifunctor (first)
-import Data.List (nub)
-import Data.Map.Strict (Map, (!), (!?))
 import qualified Data.Map.Strict as Map
-import Data.Set (Set, cartesianProduct)
 import qualified Data.Set as Set
-
 -------------------------------------------------------------------------------
-import Issy.Base.Variables (Variables)
+import Issy.Prelude
+
 import qualified Issy.Base.Variables as Vars
 import Issy.Config
-  ( Config
-  , rulesDeduction
+  ( rulesDeduction
   , rulesDeductionPrecise
   , rulesSaturation
   , rulesSubsitution
   , rulesUnsatChecks
-  , setName
   )
 import qualified Issy.Logic.CHC as CHC
-import Issy.Logic.FOL (Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.SMT as SMT
 import Issy.Monitor.Fixpoints
@@ -333,7 +324,7 @@ chainRule cfg gls ((a, b1), (b2, phi))
 newPairs :: Ord a => Set a -> Set a -> Set (a, a)
 newPairs new base =
   Set.filter (\(x, y) -> x `elem` base && y `elem` base && x /= y)
-    $ cartesianProduct new base `Set.union` cartesianProduct base new
+    $ Set.cartesianProduct new base `Set.union` Set.cartesianProduct base new
 
 liftGloballies :: SRule
 liftGloballies cfg gls _ dom st = foldM (liftGlobally cfg dom) (st, gls) (impD dom st)

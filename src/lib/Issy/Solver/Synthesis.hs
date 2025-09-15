@@ -33,7 +33,6 @@ module Issy.Solver.Synthesis
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Issy.Prelude
-import System.Exit (die)
 
 import qualified Issy.Base.Locations as Locs
 import qualified Issy.Base.SymbolicState as SymSt

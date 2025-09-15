@@ -5,16 +5,13 @@ module Issy.Monitor.Fixpoints
   ) where
 
 import Data.Fixed (Nano, showFixed)
-import Data.Maybe (fromMaybe)
-import Data.Ratio ((%))
-import Data.Set (Set)
 import qualified Data.Set as Set
+import Issy.Prelude
 import System.Process (readProcessWithExitCode)
 
-import Issy.Base.Variables (Variables)
 import qualified Issy.Base.Variables as Vars
-import Issy.Config (Config, muvalScript, muvalTimeOut)
-import Issy.Logic.FOL (Constant(..), Quantifier(..), Sort(..), Symbol, Term(..))
+import Issy.Config (muvalScript, muvalTimeOut)
+import Issy.Logic.FOL (Constant(..), Quantifier(..), Sort(..), Term(..))
 import qualified Issy.Logic.FOL as FOL
 import Issy.Printers.SMTLib (funcToString)
 import Issy.Utils.Extra (firstLine)

@@ -4,18 +4,12 @@ module Issy.Products.SGMonitor
   ( onTheFlyProduct
   ) where
 
-import Control.Monad (foldM, when)
-import Data.Bifunctor (first)
-import Data.Map.Strict (Map, (!))
 import qualified Data.Map.Strict as Map
-import Data.Set (Set)
 import qualified Data.Set as Set
+import Issy.Prelude
 
-import Issy.Base.Locations (Loc)
 import Issy.Base.Objectives (Objective(..), WinningCondition(..))
 import qualified Issy.Base.Objectives as Obj
-import Issy.Config (Config, setName)
-import Issy.Logic.FOL (Term)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.SMT as SMT
 import Issy.Monitor (Monitor, State, Trans(..), Verdict(..))

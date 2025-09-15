@@ -21,11 +21,9 @@ module Issy.Specification
   ) where
 
 ---------------------------------------------------------------------------------------------------
-import Issy.Base.Objectives (Objective)
+import Issy.Prelude
+
 import qualified Issy.Base.Objectives as Obj
-import Issy.Base.Variables (Variables)
-import Issy.Config (Config)
-import Issy.Logic.FOL (Term)
 import qualified Issy.Logic.Temporal as TL
 import qualified Issy.SymbolicArena as SG
 

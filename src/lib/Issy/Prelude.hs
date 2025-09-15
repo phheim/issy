@@ -31,15 +31,20 @@ module Issy.Prelude
   , bimap
   , ($>)
   , (<&>)
+  , nub
+  , fromJust
   , fromMaybe
   , mapMaybe
   , (%)
   , denominator
   , numerator
+  , swap
   , (<=<)
   , filterM
   , foldM
   , unless
+  , when
+  , die
   ) where
 
 import Issy.Config (Config, setName)
@@ -56,7 +61,11 @@ import Data.Set (Set)
 
 import Data.Bifunctor (bimap, first, second)
 import Data.Functor (($>), (<&>))
-import Data.Maybe (fromMaybe, mapMaybe)
+import Data.List (nub)
+import Data.Maybe (fromJust, fromMaybe, mapMaybe)
 import Data.Ratio ((%), denominator, numerator)
+import Data.Tuple (swap)
 
-import Control.Monad ((<=<), filterM, foldM, unless)
+import Control.Monad ((<=<), filterM, foldM, unless, when)
+
+import System.Exit (die)

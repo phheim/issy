@@ -25,12 +25,9 @@ module Issy.Monitor
 
 ---------------------------------------------------------------------------------------------------
 import qualified Data.Map.Strict as Map
-import Data.Set (Set)
 import qualified Data.Set as Set
+import Issy.Prelude
 
-import Issy.Base.Variables (Variables)
-import Issy.Config (Config, setName)
-import Issy.Logic.FOL (Term)
 import qualified Issy.Logic.RPLTL as RPLTL
 import qualified Issy.Logic.TSLMT as TSL
 import qualified Issy.Logic.Temporal as TL

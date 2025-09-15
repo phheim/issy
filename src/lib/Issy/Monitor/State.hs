@@ -46,11 +46,9 @@ module Issy.Monitor.State
 
 -------------------------------------------------------------------------------
 import Data.List (partition)
-import Data.Set (Set)
 import qualified Data.Set as Set
+import Issy.Prelude
 
-import Issy.Config (Config)
-import Issy.Logic.FOL (Symbol, Term)
 import Issy.Monitor.Formula (Formula)
 import qualified Issy.Monitor.Formula as MF
 import Issy.Utils.Logging

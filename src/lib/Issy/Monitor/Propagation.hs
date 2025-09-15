@@ -5,15 +5,12 @@ module Issy.Monitor.Propagation
   , propagatedPredicatesRPLTL
   ) where
 
-import Control.Monad (filterM)
 import qualified Data.Map.Strict as Map
-import Data.Set (Set)
 import qualified Data.Set as Set
+import Issy.Prelude
 
-import Issy.Base.Variables (Variables)
 import qualified Issy.Base.Variables as Vars
-import Issy.Config (Config, propagationLevel)
-import Issy.Logic.FOL (Symbol, Term)
+import Issy.Config (propagationLevel)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.SMT as SMT
 

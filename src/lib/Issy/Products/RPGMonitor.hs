@@ -4,19 +4,12 @@ module Issy.Products.RPGMonitor
   ( onTheFlyProduct
   ) where
 
-import Control.Monad (unless)
-import Data.List (nub)
-import Data.Map.Strict (Map, (!), (!?))
 import qualified Data.Map.Strict as Map
-import Data.Maybe (fromJust)
-import Data.Set (Set)
 import qualified Data.Set as Set
+import Issy.Prelude
 import qualified Issy.Utils.OpenList as OL
 
-import Issy.Base.Locations (Loc)
 import Issy.Base.Objectives (Objective(..), WinningCondition(..))
-import Issy.Config (Config, setName)
-import Issy.Logic.FOL (Symbol, Term)
 import Issy.Monitor (Monitor, State, Trans(..), Verdict(..))
 import qualified Issy.Monitor as Mon
 import Issy.RPG (Game, Transition(..))

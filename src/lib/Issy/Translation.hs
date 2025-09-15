@@ -13,11 +13,9 @@ module Issy.Translation
   ) where
 
 ---------------------------------------------------------------------------------------------------
-import System.Exit (die)
+import Issy.Prelude
 
-import Issy.Base.Objectives (Objective)
-import Issy.Config (Config, pruneGame)
-import Issy.Logic.FOL (Term)
+import Issy.Config (pruneGame)
 import qualified Issy.Logic.TSLMT as TSLMT
 import qualified Issy.Logic.Temporal as TL
 import qualified Issy.Monitor as Monitor

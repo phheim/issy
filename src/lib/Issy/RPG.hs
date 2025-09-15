@@ -55,7 +55,6 @@ module Issy.RPG
 
 ---------------------------------------------------------------------------------------------------
 import Control.Monad (liftM2)
-import Data.List (nub)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Issy.Prelude
