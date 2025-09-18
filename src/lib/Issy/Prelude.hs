@@ -10,6 +10,7 @@
 module Issy.Prelude
   ( Config
   , setName
+  , debug
   , Symbol
   , Sort
   , Term
@@ -47,7 +48,7 @@ module Issy.Prelude
   , die
   ) where
 
-import Issy.Config (Config, setName)
+import Issy.Config (Config, debug, setName)
 
 import Issy.Logic.FOL (Function, Model, Sort, Symbol, Term)
 

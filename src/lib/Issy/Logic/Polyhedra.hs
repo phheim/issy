@@ -98,25 +98,25 @@ insertWithT comb ks val tree = go tree ks
         Nothing -> LTNode label . flip (Map.insert k) succs <$> go LTLeaf kr
         Just tree -> LTNode label . flip (Map.insert k) succs <$> go tree kr
 
--- | TODO document
+-- | TODO
 includedLT :: Ord k => (a -> a -> Bool) -> ListTree k a -> ListTree k a -> Bool
 includedLT includedElems = go
   where
-    go LTLeaf _ = True
-    go _ LTLeaf = False
+    go _ LTLeaf = True
+    go LTLeaf _ = False
     go (LTNode l1 succ1) (LTNode l2 succ2) =
       let labelInc =
             case (l1, l2) of
-              (Nothing, _) -> True
-              (_, Nothing) -> False
+              (_, Nothing) -> True
+              (Nothing, _) -> False
               (Just l1, Just l2) -> includedElems l1 l2
           succInc =
             all
-              (\(k, succ1) ->
-                 case succ2 !? k of
+              (\(k, succ2) ->
+                 case succ1 !? k of
                    Nothing -> False
-                   Just succ2 -> go succ1 succ2)
-              $ Map.toList succ1
+                   Just succ1 -> go succ1 succ2)
+              $ Map.toList succ2
        in labelInc && succInc
 
 data MergeRes a

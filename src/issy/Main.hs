@@ -242,7 +242,7 @@ configParser = go defaultConfig
             "medium" -> go (cfg {accelerationLevel = 1}) ar
             "hard" -> go (cfg {accelerationLevel = 2}) ar
             _ -> Left $ "found invalid attractor acceleration difficulty: " ++ arg
-        "--disable-summaries":sr -> go (cfg {enforcementSummaries = False}) sr
+        "--enable-summaries":sr -> go (cfg {enforcementSummaries = True}) sr
         -- Synthesis
         "--synt":sr -> go (cfg {generateProgram = True}) sr
         -- External tools
@@ -250,6 +250,8 @@ configParser = go defaultConfig
         "--caller-aut":arg:ar -> go (cfg {ltl2tgba = arg}) ar
         "--caller-muval":arg:ar -> go (cfg {muvalScript = arg}) ar
         "--caller-chcmx":arg:ar -> go (cfg {chcMaxScript = arg}) ar
+        -- Debug
+        "--debug":ar -> go (cfg {debug = True}) ar
         s:_ -> Left $ "found invalid argument: " ++ s
 
 ---
@@ -326,7 +328,7 @@ help =
   , "       medium : go to elaborated accleration argument over time but stay reasonable (default)"
   , "       hard   : use everything that is possible, this will create signifcant overhead"
   , ""
-  , "   --disable-summaries : disable computation of enforcement summaries"
+  , "   --enable-summaries : enable computation of enforcement summaries"
   , ""
   , " Synthesis:"
   , "   --synt         : generate program if spec is realizable (default: disabled)"

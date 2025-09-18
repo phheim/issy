@@ -40,6 +40,7 @@ module Issy.Monitor.Formula
   ) where
 
 import qualified Data.Set as Set
+
 -------------------------------------------------------------------------------
 import Issy.Prelude
 

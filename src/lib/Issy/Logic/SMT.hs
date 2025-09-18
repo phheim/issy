@@ -24,7 +24,7 @@ import Data.Map ((!?))
 import qualified Data.Set as Set
 import System.Exit (die)
 
-import Issy.Config (Config, z3cmd)
+import Issy.Config (Config, debug, z3cmd)
 import Issy.Logic.FOL (Model, Sort, Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.Polyhedra as Poly (normalize)
@@ -101,7 +101,22 @@ simplify :: Config -> Term -> IO Term
 simplify conf = noTimeout . trySimplify conf Nothing
 
 trySimplify :: Config -> Maybe Int -> Term -> IO (Maybe Term)
-trySimplify conf to term = fmap Poly.normalize <$> simplifyTacs conf to z3Simplify term
+trySimplify conf to term = do
+  simpTerm <- fmap Poly.normalize <$> simplifyTacs conf to z3Simplify term
+        -- TODO: make nicer
+  if not (debug conf)
+    then pure simpTerm
+    else case simpTerm of
+           Nothing -> pure $ Nothing
+           Just simpTerm -> do
+             same <- valid conf $ simpTerm `FOL.iff` term
+             if same
+               then pure $ Just simpTerm
+               else error
+                      $ "assert: "
+                          ++ SMTLib.toString term
+                          ++ " differs to "
+                          ++ SMTLib.toString simpTerm
 
 simplifyTacs :: Config -> Maybe Int -> [String] -> Term -> IO (Maybe Term)
 simplifyTacs conf to tactics f

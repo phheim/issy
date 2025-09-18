@@ -13,6 +13,7 @@ module Issy.Monitor.Rules
 
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
+
 -------------------------------------------------------------------------------
 import Issy.Prelude
 

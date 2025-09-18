@@ -82,6 +82,11 @@ data Config = Config
   -- ^ DOCUMENT
   , chcTimeout :: Int
   -- ^ DOCUMENT
+  --
+  -- Debug
+  --
+  , debug :: Bool
+  -- ^ 'debug' enables different validation techniques and double checks
   }
 
 ---------------------------------------------------------------------------------------------------
@@ -120,6 +125,8 @@ defaultConfig =
     , chcTimeout = 10
     , muvalTimeOut = 5
     , chcMaxTimeOut = 15
+    -- Debug
+    , debug = False
     }
 
 ---------------------------------------------------------------------------------------------------
