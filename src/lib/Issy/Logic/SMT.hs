@@ -107,7 +107,7 @@ trySimplify conf to term = do
   if not (debug conf)
     then pure simpTerm
     else case simpTerm of
-           Nothing -> pure $ Nothing
+           Nothing -> pure Nothing
            Just simpTerm -> do
              same <- valid conf $ simpTerm `FOL.iff` term
              if same

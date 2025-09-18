@@ -59,35 +59,36 @@ accelGAL ::
   -> IO (Maybe (Term, SyBo))
 accelGAL conf heur player arena prime loc = go 0
   where
-    -- TODO: split recursion between depth and iter to be able to reuse loop-game and others!
     go depth reach maintain inv = do
       let gal = lemmaGuess heur (vars arena) prime (reach `get` loc)
       case gal of
         Nothing -> pure Nothing
-        Just gal -> iter 0 inv gal
+        Just gal -> iter (0 :: Integer) inv gal
       where
         iter cnt inv gal = do
           let al = addInv (vars arena) inv $ addMaintain maintain $ galToAl gal
-          pre <- preCond conf heur player arena loc reach al
-          case pre of
-            Right res -> pure $ Just res
-            Left pre
-              | pre == FOL.false -> pure Nothing
-              | H.ggaIters heur > cnt -> pure Nothing
+          -- TODO: Mayb reuse loop-game and so?
+          (pre, preProg) <- preComp conf heur player arena loc reach al
+          check <- lemmaCond conf arena loc reach al pre
+          case check of
+            NotApplicable -> pure Nothing
+            Applicable -> pure $ Just (pre, preProg)
+            Refine
+              | depth >= H.ggaDepth heur -> iter (cnt + 1) pre gal
               | otherwise -> do
-                pre <-
-                  if depth < H.ggaDepth heur
-                    then nest inv gal pre
-                    else pure pre
-                iter (cnt + 1) pre gal
-        -- Operation called when the precondition is nested
-        nest inv gal pre = do
-          let subGoal = set (emptySt arena) loc pre
-          let subMaintain = FOL.andf [maintain, gstay gal]
-          res <- go (depth + 1) subGoal subMaintain inv
-          case res of
-            Nothing -> pure pre
-            Just (res, _) -> pure res -- Double check use of program!
+                  -- Nesting
+                let subGoal = set (emptySt arena) loc pre
+                let subMaintain = FOL.andf [maintain, gstay gal]
+                subRes <- go (depth + 1) subGoal subMaintain FOL.true
+                case subRes of
+                  Nothing -> iter (cnt + 1) pre gal
+                  Just (ext, extProg) -> do
+                    preExt <- SMT.simplify conf $ FOL.orf [ext, pre]
+                    let prog = Synt.callOn loc ext extProg preProg
+                    check <- lemmaCond conf arena loc reach al preExt
+                    case check of
+                      Applicable -> pure $ Just (preExt, prog)
+                      _ -> iter (cnt + 1) pre gal
 
 ---------------------------------------------------------------------------------------------------
 -- Attractor through loop arena
@@ -99,16 +100,8 @@ galToAl gal = AccelLemma {base = gbase gal, step = gstep gal, conc = gconc gal, 
 addMaintain :: Term -> AccelLemma -> AccelLemma
 addMaintain maintain al = al {step = FOL.andf [step al, maintain]}
 
-preCond ::
-     Config
-  -> Heur
-  -> Player
-  -> Arena
-  -> Loc
-  -> SymSt
-  -> AccelLemma
-  -> IO (Either Term (Term, SyBo))
-preCond conf heur player arena loc target lemma = do
+preComp :: Config -> Heur -> Player -> Arena -> Loc -> SymSt -> AccelLemma -> IO (Term, SyBo)
+preComp conf heur player arena loc target lemma = do
   (arena, loc, loc', subs, target, prog) <-
     pure $ reducedLoopArena conf heur arena loc target (prime lemma)
   lg conf ["Loop Scenario on", strS (locName arena) subs]
@@ -120,22 +113,36 @@ preCond conf heur player arena loc target lemma = do
   (stAcc, prog) <- iterA conf heur player arena target loc' prog
   let res = unprime lemma $ stAcc `get` loc
   res <- SMT.simplify conf res
+  pure (res, prog)
+
+-- | small three-valued data structure to indicate the resulf of checking the
+-- conditions for acceleration lemma
+data LemmaStatus
+  = Applicable
+ -- ^ all conditions hold
+  | Refine
+ -- ^ the step condtion failed but maybe a better invariant could do it
+  | NotApplicable
+ -- ^ the loop game result is false, or the base condition not applicable
+
+-- | 'lemmaCond' check if the condition of a lemma holds.
+lemmaCond :: Config -> Arena -> Loc -> SymSt -> AccelLemma -> Term -> IO LemmaStatus
+lemmaCond conf arena loc target lemma loopGameResult = do
   let accelValue = FOL.andf [dom arena loc, conc lemma]
-  let stepCond = accelValue `FOL.impl` res
+  let stepCond = accelValue `FOL.impl` loopGameResult
   let baseCond = FOL.andf [dom arena loc, base lemma] `FOL.impl` (target `get` loc)
-  -- TODO maybe make smt query, or extend shortcut or so!!
-  sat <- SMT.sat conf res
-  if not sat
-    then lg conf ["Precondition trivially false"] $> Left res
+  holds <- SMT.sat conf loopGameResult
+  if not holds
+    then lg conf ["Precondition trivially false"] $> NotApplicable
     else do
-      holds <- SMT.valid conf stepCond
+      holds <- SMT.valid conf baseCond
       if not holds
-        then lg conf ["Step condition failed"] $> Left res
+        then lg conf ["Base condition failed"] $> NotApplicable
         else do
-          holds <- SMT.valid conf baseCond
+          holds <- SMT.valid conf stepCond
           if not holds
-            then lg conf ["Base condition failed"] $> Left res
-            else pure $ Right (accelValue, prog)
+            then lg conf ["Step condition failed"] $> Refine
+            else lg conf ["Lemma conditions hold"] $> Applicable
 
 -- IO version of iterA, the organisation of those might be done 'a bit' better
 -- TODO integrate summaries in a better way!
