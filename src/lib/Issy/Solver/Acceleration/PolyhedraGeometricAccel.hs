@@ -62,33 +62,45 @@ accelGAL conf heur player arena prime loc = go 0
     go depth reach maintain inv = do
       let gal = lemmaGuess heur (vars arena) prime (reach `get` loc)
       case gal of
-        Nothing -> pure Nothing
-        Just gal -> iter (0 :: Integer) inv gal
+        Nothing -> lg conf ["Could not guess lemma"] $> Nothing
+        Just gal -> do
+            lg conf ["Guess general lemma:"]
+            lg conf ["- base:", SMTLib.toString (gbase gal)]
+            lg conf ["- stay:", SMTLib.toString (gstay gal)]
+            lg conf ["- step:", SMTLib.toString (gstep gal)]
+            lg conf ["- conc:", SMTLib.toString (gconc gal)]
+            iter 0 inv gal
       where
-        iter cnt inv gal = do
-          let al = addInv (vars arena) inv $ addMaintain maintain $ galToAl gal
-          -- TODO: Mayb reuse loop-game and so?
-          (pre, preProg) <- preComp conf heur player arena loc reach al
-          check <- lemmaCond conf arena loc reach al pre
-          case check of
-            NotApplicable -> pure Nothing
-            Applicable -> pure $ Just (pre, preProg)
-            Refine
-              | depth >= H.ggaDepth heur -> iter (cnt + 1) pre gal
-              | otherwise -> do
-                  -- Nesting
-                let subGoal = set (emptySt arena) loc pre
-                let subMaintain = FOL.andf [maintain, gstay gal]
-                subRes <- go (depth + 1) subGoal subMaintain FOL.true
-                case subRes of
-                  Nothing -> iter (cnt + 1) pre gal
-                  Just (ext, extProg) -> do
-                    preExt <- SMT.simplify conf $ FOL.orf [ext, pre]
-                    let prog = Synt.callOn loc ext extProg preProg
-                    check <- lemmaCond conf arena loc reach al preExt
-                    case check of
-                      Applicable -> pure $ Just (preExt, prog)
-                      _ -> iter (cnt + 1) pre gal
+        --TODO: Dont forget limit!
+        iter cnt inv gal 
+          | cnt > H.ggaIters heur= pure Nothing
+          | otherwise = do
+                  lg conf ["Use invariant", SMTLib.toString inv]
+                  let al = addInv (vars arena) inv $ addMaintain maintain $ galToAl gal
+                  -- TODO: Mayb reuse loop-game and so?
+                  (pre, preProg) <- preComp conf heur player arena loc reach al
+                  check <- lemmaCond conf arena loc reach al pre
+                  case check of
+                    NotApplicable -> pure Nothing
+                    Applicable -> pure $ Just (pre, preProg) --TODO: add conclusion and so?
+                    Refine
+                      | True -> iter (cnt + 1) pre gal
+                      -- TODO DEBUG | depth >= H.ggaDepth heur -> iter (cnt + 1) pre gal
+                      | otherwise -> do
+                          -- Nesting
+                        let subGoal = set (emptySt arena) loc pre
+                        let subMaintain = FOL.andf [maintain, gstay gal]
+                        subRes <- go (depth + 1) subGoal subMaintain FOL.true
+                        case subRes of
+                          Nothing -> iter (cnt + 1) pre gal
+                          Just (ext, extProg) -> do
+                            preExt <- SMT.simplify conf $ FOL.orf [ext, pre]
+                            -- TODO this nesting stuff is still wrongly implemented
+                            let prog = Synt.callOn loc ext extProg preProg
+                            check <- lemmaCond conf arena loc reach al preExt
+                            case check of
+                              Applicable -> pure $ Just (preExt, prog) --TODO: add conclusion and so?
+                              _ -> iter (cnt + 1) pre gal
 
 ---------------------------------------------------------------------------------------------------
 -- Attractor through loop arena
@@ -131,6 +143,7 @@ lemmaCond conf arena loc target lemma loopGameResult = do
   let accelValue = FOL.andf [dom arena loc, conc lemma]
   let stepCond = accelValue `FOL.impl` loopGameResult
   let baseCond = FOL.andf [dom arena loc, base lemma] `FOL.impl` (target `get` loc)
+  lg conf ["Loop game result", SMTLib.toString loopGameResult]
   holds <- SMT.sat conf loopGameResult
   if not holds
     then lg conf ["Precondition trivially false"] $> NotApplicable
