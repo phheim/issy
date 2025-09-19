@@ -102,21 +102,28 @@ simplify conf = noTimeout . trySimplify conf Nothing
 
 trySimplify :: Config -> Maybe Int -> Term -> IO (Maybe Term)
 trySimplify conf to term = do
-  simpTerm <- fmap Poly.normalize <$> simplifyTacs conf to z3Simplify term
-        -- TODO: make nicer
-  if not (debug conf)
-    then pure simpTerm
-    else case simpTerm of
-           Nothing -> pure Nothing
-           Just simpTerm -> do
-             same <- valid conf $ simpTerm `FOL.iff` term
-             if same
-               then pure $ Just simpTerm
-               else error
-                      $ "assert: "
-                          ++ SMTLib.toString term
-                          ++ " differs to "
-                          ++ SMTLib.toString simpTerm
+  simpTerm <- simplifyTacs conf to z3Simplify term
+  case simpTerm of
+    Nothing -> pure Nothing
+    Just simpTerm -> do
+      lgv conf ["Polyhedra simplification on", SMTLib.toString simpTerm]
+      simpTerm <- pure $ Poly.normalize simpTerm
+      lgv conf ["Polyhedra simplified to", SMTLib.toString simpTerm]
+      Just
+        <$> assertM
+              conf
+              simpTerm
+              (valid conf (simpTerm `FOL.iff` term))
+              "SMT.trySimplify: terms differ"
+
+assertM :: Config -> a -> IO Bool -> String -> IO a
+assertM conf val check msg
+  | debug conf = do
+    res <- check
+    if res
+      then pure val
+      else error $ "assert: " ++ msg
+  | otherwise = pure val
 
 simplifyTacs :: Config -> Maybe Int -> [String] -> Term -> IO (Maybe Term)
 simplifyTacs conf to tactics f

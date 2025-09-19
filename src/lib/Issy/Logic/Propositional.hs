@@ -12,6 +12,8 @@
 module Issy.Logic.Propositional
   ( Prop(..)
   , Propositional(..)
+  , NNF(..)
+  , toNNF
   , DNF(..)
   , toDNF
   , CNF(..)
@@ -54,13 +56,17 @@ class Propositional p where
   -- | 'fromProp' refolds the explicit structure from 'Prop' back into the original type
   fromProp :: Prop p -> p
 
+-- | 'toCNF' transforms the top-level boolean structure of 'Propositional' objects to 'CNF'
+toNNF :: Propositional a => a -> NNF a
+toNNF = propToNNF . toProp
+
 -- | 'toDNF' transforms the top-level boolean structure of 'Propositional' objects to 'DNF'
 toDNF :: Propositional a => a -> DNF a
-toDNF = nnfToDNF . toNNF . toProp
+toDNF = nnfToDNF . toNNF
 
 -- | 'toCNF' transforms the top-level boolean structure of 'Propositional' objects to 'CNF'
 toCNF :: Propositional a => a -> CNF a
-toCNF = nnfToCNF . toNNF . toProp
+toCNF = nnfToCNF . toNNF
 
 ---------------------------------------------------------------------------------------------------
 -- Class instances
@@ -77,27 +83,27 @@ instance Functor Prop where
 ---------------------------------------------------------------------------------------------------
 -- Normal Form Transformations
 ---------------------------------------------------------------------------------------------------
-data NNFComb a
+data NNF a
   = NNFLit Bool a
-  | NNFAnd [NNFComb a]
-  | NNFOr [NNFComb a]
+  | NNFAnd [NNF a]
+  | NNFOr [NNF a]
   deriving (Eq, Ord, Show)
 
-toNNF :: Prop a -> NNFComb a
-toNNF =
+propToNNF :: Prop a -> NNF a
+propToNNF =
   \case
     PConst True -> NNFAnd []
     PConst False -> NNFOr []
     PLit a -> NNFLit True a
-    PAnd fs -> NNFAnd $ map toNNF fs
-    POr fs -> NNFOr $ map toNNF fs
-    PNot (PConst c) -> toNNF $ PConst $ not c
+    PAnd fs -> NNFAnd $ map propToNNF fs
+    POr fs -> NNFOr $ map propToNNF fs
+    PNot (PConst c) -> propToNNF $ PConst $ not c
     PNot (PLit a) -> NNFLit False a
-    PNot (PNot f) -> toNNF f
-    PNot (PAnd fs) -> NNFOr $ map (toNNF . PNot) fs
-    PNot (POr fs) -> NNFAnd $ map (toNNF . PNot) fs
+    PNot (PNot f) -> propToNNF f
+    PNot (PAnd fs) -> NNFOr $ map (propToNNF . PNot) fs
+    PNot (POr fs) -> NNFAnd $ map (propToNNF . PNot) fs
 
-nnfToDNF :: NNFComb a -> DNF a
+nnfToDNF :: NNF a -> DNF a
 nnfToDNF = DNF . go
   where
     go =
@@ -106,7 +112,7 @@ nnfToDNF = DNF . go
         NNFOr fs -> concatMap go fs
         NNFAnd fs -> map concat $ distribute $ map go fs
 
-nnfToCNF :: NNFComb a -> CNF a
+nnfToCNF :: NNF a -> CNF a
 nnfToCNF = CNF . go
   where
     go =

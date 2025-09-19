@@ -23,6 +23,7 @@ module Issy.Logic.Polyhedra
 import Data.Bifunctor (first, second)
 import Data.Map.Strict (Map, (!?))
 import qualified Data.Map.Strict as Map
+import Data.Maybe (catMaybes, mapMaybe)
 import Data.Ratio ((%), denominator, numerator)
 import Data.Set (Set)
 import qualified Data.Set as Set
@@ -36,7 +37,7 @@ import Issy.Logic.FOL
   )
 import qualified Issy.Logic.FOL as FOL
 import Issy.Logic.Interval
-import Issy.Logic.Propositional (DNF(..), toDNF)
+import Issy.Logic.Propositional (DNF(..), NNF(..), toDNF, toNNF)
 
 ---------------------------------------------------------------------------------------------------
 -- Efficient Maps for Lists
@@ -221,9 +222,27 @@ addLinearConstr coefs intv poly =
              Just constr -> Just $ poly {linearConstraints = constr}
              Nothing -> Nothing
   where
-    intersectAndCheck i1 i2
-      | isEmpty (i1 `intersect` i2) = Nothing
-      | otherwise = Just $ i1 `intersect` i2
+
+
+intersectAndCheck :: Interval -> Interval -> Maybe Interval
+intersectAndCheck i1 i2
+  | isEmpty (i1 `intersect` i2) = Nothing
+  | otherwise = Just $ i1 `intersect` i2
+
+-- | TODO assumption same varOrder!
+intersectP :: Polyhedron -> Polyhedron -> Maybe Polyhedron
+intersectP p1 p2
+  | isFullP p1 = Just p2
+  | isFullP p2 = Just p1
+  | otherwise =
+    let coeffList = toListT (linearConstraints p1)
+     in go p2 coeffList
+  where
+    go poly [] = Just poly
+    go poly ((coefs, intv):clr) =
+      case insertWithT intersectAndCheck coefs intv (linearConstraints poly) of
+        Just constr -> go (poly {linearConstraints = constr}) clr
+        Nothing -> Nothing
 
 -- | TODO assumption same varOrder!
 tryDisjunctP :: Polyhedron -> Polyhedron -> Maybe Polyhedron
@@ -267,6 +286,9 @@ addConstr poly term =
     Nothing -> NotLinear
     Just ineq -> maybe Infeasible NewPoly (addIneq ineq poly)
 
+tryPoly :: [(Symbol, Sort)] -> Term -> IncPoly
+tryPoly varOrder = addConstr (fullP varOrder)
+
 termToIneq :: Term -> Maybe (Ineq Rational)
 termToIneq =
   \case
@@ -308,23 +330,17 @@ newtype PTerm =
   PTerm [(Polyhedron, Set Term)]
   deriving (Show)
 
--- | TODO
-fromFOL :: Term -> PTerm
-fromFOL term =
-  let DNF dnf = toDNF term
-   in PTerm $ go [] dnf
+-- | 'unions' computes the onion of polyhedra-base terms.
+-- Note for this to be correct the variable order has to be same used by ALL polyhedra
+unions :: [PTerm] -> PTerm
+unions = go []
   where
-    varOrder = filter (FOL.isNumber . snd) $ Map.toList $ FOL.bindings term
-        --
-    go acc [] = acc
-    go acc (c:cr) =
-      case fromClause (fullP varOrder, Set.empty) c of
-        Just (poly, others) -> go (insertDisjunct (poly, others) acc) cr
-        Nothing -> go acc cr
-        --
+    go acc [] = PTerm acc
+    go acc (PTerm []:tr) = go acc tr
+    go acc (PTerm (d:dr):tr) = go (insertDisjunct d acc) (PTerm dr : tr)
+    --
     insertDisjunct new [] = [new]
     insertDisjunct (newP, newO) ((oldP, oldO):acc)
-        -- TODO: order counter-intuitive
       | Set.isSubsetOf oldO newO && includedP newP oldP = (oldP, oldO) : acc
       | Set.isSubsetOf newO oldO && includedP oldP newP = insertDisjunct (newP, newO) acc
       | newO == oldO =
@@ -332,7 +348,54 @@ fromFOL term =
           Just disP -> insertDisjunct (disP, newO) acc
           Nothing -> (oldP, oldO) : insertDisjunct (newP, newO) acc
       | otherwise = (oldP, oldO) : insertDisjunct (newP, newO) acc
+
+-- | 'intersections' computes the insersection of polyhedra-base terms.
+-- Note for this to be correct the variable order has to be same used by ALL polyhedra
+intersections :: [(Symbol, Sort)] -> [PTerm] -> PTerm
+intersections varOrder =
+  \case
+    [] -> PTerm [(fullP varOrder, Set.empty)]
+    [term] -> term
+    PTerm t1:tr ->
+      let PTerm t2 = intersections varOrder tr
+          prod = [intersectPO p1 p2 | p1 <- t1, p2 <- t2]
+       in unions $ map (\cl -> PTerm [cl]) $ catMaybes prod
+  where
+    intersectPO (p1, o1) (p2, o2) =
+      case intersectP p1 p2 of
+        Nothing -> Nothing
+        Just p
+          | any (\l -> FOL.neg l `elem` o1) o2 -> Nothing
+          | otherwise -> Just (p, Set.union o1 o2)
+
+-- | TODO
+fromFOL :: Term -> PTerm
+fromFOL term = go $ toNNF term
+  where
+    varOrder = filter (FOL.isNumber . snd) $ Map.toList $ FOL.bindings term
         --
+    go =
+      \case
+        NNFLit pol term ->
+          let lit =
+                if pol
+                  then term
+                  else FOL.neg term
+           in case tryPoly varOrder lit of
+                NewPoly p -> PTerm [(p, Set.empty)]
+                NotLinear -> PTerm [(fullP varOrder, Set.singleton lit)]
+                Infeasible -> PTerm []
+        NNFAnd fs -> intersections varOrder $ map go fs
+        NNFOr fs -> unions $ map go fs
+
+-- | TODO
+fromFOLDNF :: Term -> PTerm
+fromFOLDNF term =
+  let DNF dnf = toDNF term
+   in unions $ mapMaybe clauseToPTerm dnf
+  where
+    varOrder = filter (FOL.isNumber . snd) $ Map.toList $ FOL.bindings term
+    clauseToPTerm = fmap (\cl -> PTerm [cl]) . fromClause (fullP varOrder, Set.empty)
     fromClause (poly, others) [] = Just (poly, others)
     fromClause (poly, others) (l:lr) =
       case addConstr poly (fromLit l) of

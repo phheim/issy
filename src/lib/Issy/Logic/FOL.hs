@@ -107,7 +107,7 @@ import Data.Ratio (denominator, numerator)
 import Data.Set (Set)
 import qualified Data.Set as Set
 
-import Issy.Logic.Propositional
+import Issy.Logic.Propositional hiding (NNF, toNNF)
 
 -------------------------------------------------------------------------------
 type Symbol = String
