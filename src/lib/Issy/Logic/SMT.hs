@@ -79,12 +79,11 @@ satCommand f
 ---------------------------------------------------------------------------------------------------
 z3Simplify :: [String]
 z3Simplify =
+  ["simplify", "qe-light", "propagate-ineqs", "unit-subsume-simplify", "qe2"] ++ z3SimplifyQEFree
+
+z3SimplifyQEFree :: [String]
+z3SimplifyQEFree =
   [ "simplify"
-  , "qe-light"
-  , "propagate-ineqs"
-  , "unit-subsume-simplify"
-  , "qe2"
-  , "simplify"
   , "blast-term-ite"
   , "nnf"
   , "ctx-solver-simplify"
@@ -100,9 +99,14 @@ z3SimplifyUF = ["simplify", "blast-term-ite", "nnf", "propagate-ineqs", "qe", "s
 simplify :: Config -> Term -> IO Term
 simplify conf = noTimeout . trySimplify conf Nothing
 
+simplifyWith :: Term -> [String]
+simplifyWith term -- TODO: add case for only doing the polyhedra stuff, i.e. if isQFLIRA?? (different type might be a problem thoug)
+  | FOL.quantifierFree term = z3SimplifyQEFree
+  | otherwise = z3Simplify
+
 trySimplify :: Config -> Maybe Int -> Term -> IO (Maybe Term)
 trySimplify conf to term = do
-  simpTerm <- simplifyTacs conf to z3Simplify term
+  simpTerm <- simplifyTacs conf to (simplifyWith term) term
   case simpTerm of
     Nothing -> pure Nothing
     Just simpTerm -> do
@@ -127,6 +131,7 @@ assertM conf val check msg
 
 simplifyTacs :: Config -> Maybe Int -> [String] -> Term -> IO (Maybe Term)
 simplifyTacs conf to tactics f
+  | null tactics = pure (Just f)
   | f == FOL.true || f == FOL.false = pure (Just f)
   | FOL.ufFree f = do
     let query = SMTLib.toQuery f ++ "(apply " ++ z3TacticList tactics ++ ")"

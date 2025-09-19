@@ -221,8 +221,6 @@ addLinearConstr coefs intv poly =
            case insertWithT intersectAndCheck scaledCoefs scaledIntv (linearConstraints poly) of
              Just constr -> Just $ poly {linearConstraints = constr}
              Nothing -> Nothing
-  where
-
 
 intersectAndCheck :: Interval -> Interval -> Maybe Interval
 intersectAndCheck i1 i2

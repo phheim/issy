@@ -79,6 +79,7 @@ module Issy.Logic.FOL
   , modT
   , toRealT
   , isNumber
+  , isInteger
   , --
     bindings
   , frees
@@ -383,6 +384,9 @@ neg =
     Func FNot [f] -> f
     Func FLt [f, g] -> geqT f g
     Func FLte [f, g] -> gtT f g
+    Func FEq [f, g]
+      | isNumericT f && isNumericT g -> orf [f `gtT` g, f `ltT` g]
+      | otherwise -> Func FNot [Func FEq [f, g]]
     f -> Func FNot [f]
 
 ite :: Term -> Term -> Term -> Term
@@ -627,6 +631,18 @@ toRealT a = func FAbs [a]
 
 unintFunc :: String -> Sort -> [(Symbol, Sort)] -> Term
 unintFunc name resSort args = Func (CustomF name (map snd args) resSort) $ map (uncurry Var) args
+
+isNumericT :: Term -> Bool
+isNumericT =
+  \case
+    Var _ sort -> isNumber sort
+    Const (CInt _) -> True
+    Const (CReal _) -> True
+    Func FIte [_, t, e] -> isNumericT t && isNumericT e
+    Func func fs
+      | func `elem` [FAdd, FMul, FAbs, FMod, FDivInt, FDivReal, FToReal] -> all isNumericT fs
+      | otherwise -> False
+    _ -> False
 
 isInteger :: Term -> Bool
 isInteger =

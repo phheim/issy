@@ -32,6 +32,8 @@ module Issy.Logic.Interval
   ) where
 
 ---------------------------------------------------------------------------------------------------
+import Data.Ratio (denominator)
+
 import Issy.Logic.FOL (Term)
 import qualified Issy.Logic.FOL as FOL
 
@@ -206,15 +208,23 @@ gtUpp intv term =
 -- | 'isInside' generates the 'Term' that a given 'Term' is inside the 'Interval'
 isInside :: Term -> Interval -> Term
 isInside t intv =
-  let lowT =
-        case lower intv of
-          MinusInfinity -> FOL.true
-          GTVal True r -> FOL.geqT t $ FOL.numberT r
-          GTVal False r -> FOL.gtT t $ FOL.numberT r
-      upT =
-        case upper intv of
-          PlusInfinity -> FOL.true
-          LTVal True r -> FOL.leqT t $ FOL.numberT r
-          LTVal False r -> FOL.ltT t $ FOL.numberT r
-   in FOL.andf [lowT, upT]
+  case isIntegerSingleton intv of
+    Nothing -> FOL.andf [inLow intv t, inUpp intv t]
+    Just i
+      | FOL.isInteger t -> t `FOL.equal` FOL.intConst i
+      | otherwise -> FOL.andf [inLow intv t, inUpp intv t]
+
+isIntegerSingleton :: Interval -> Maybe Integer
+isIntegerSingleton intv =
+  case (lower intv, upper intv) of
+    (GTVal True l, LTVal True u)
+      | ceiling l == (floor u :: Integer) -> Just $ floor u
+      | otherwise -> Nothing
+    (GTVal False l, _)
+      | denominator l == 1 -> isIntegerSingleton $ intv {lower = GTVal True (l + 1)}
+      | otherwise -> isIntegerSingleton $ intv {lower = GTVal True l}
+    (_, LTVal False u)
+      | denominator u == 1 -> isIntegerSingleton $ intv {upper = LTVal True (u - 1)}
+      | otherwise -> isIntegerSingleton $ intv {upper = LTVal True u}
+    _ -> Nothing
 ---------------------------------------------------------------------------------------------------
