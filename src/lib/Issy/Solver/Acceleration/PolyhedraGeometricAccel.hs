@@ -13,6 +13,8 @@ module Issy.Solver.Acceleration.PolyhedraGeometricAccel
   ( accelReach
   ) where
 
+import qualified Data.List as List
+
 ---------------------------------------------------------------------------------------------------
 import qualified Data.Set as Set
 import Issy.Prelude
@@ -30,6 +32,7 @@ import Issy.Solver.Acceleration.LoopScenario (reducedLoopArena)
 import Issy.Solver.GameInterface
 import Issy.Solver.Synthesis (SyBo)
 import qualified Issy.Solver.Synthesis as Synt
+import Issy.Utils.Extra (justOn)
 import Issy.Utils.Logging
 import qualified Issy.Utils.OpenList as OL
 
@@ -41,91 +44,86 @@ accelReach conf heur player arena loc reach = do
   conf <- pure $ setName "GGeoA" conf
   lg conf ["Accelerate in", locName arena loc, "on", strSt arena reach]
   let prime = FOL.uniquePrefix "init_" $ usedSymbols arena
-  res <- accelGAL conf heur player arena prime loc reach FOL.true FOL.true
+  res <- accelGAL conf heur player arena prime loc reach FOL.true
   case res of
     Just (conc, prog) -> lg conf ["Suceeded with", SMTLib.toString conc] $> (conc, prog)
     Nothing -> lg conf ["Failed"] $> (FOL.false, Synt.empty)
 
+-- TODO: can this and accelReach be merged?
 accelGAL ::
-     Config
-  -> Heur
-  -> Player
-  -> Arena
-  -> Symbol
-  -> Loc
-  -> SymSt
-  -> Term
-  -> Term
-  -> IO (Maybe (Term, SyBo))
-accelGAL conf heur player arena prime loc = go 0
+     Config -> Heur -> Player -> Arena -> Symbol -> Loc -> SymSt -> Term -> IO (Maybe (Term, SyBo))
+accelGAL conf heur player arena prime loc reach inv = do
+  (indeps, preComb) <- preCompGen conf heur player arena loc reach prime
+  let gal = guessLemma heur (vars arena) indeps prime (reach `get` loc)
+  case gal of
+    [] -> lg conf ["Could not guess any lemma"] $> Nothing
+    gals -> go preComb indeps gals
   where
-    go depth reach maintain inv = do
-      let gal = lemmaGuess heur (vars arena) prime (reach `get` loc)
-      case gal of
-        Nothing -> lg conf ["Could not guess lemma"] $> Nothing
-        Just gal -> do
-          lg conf ["Guess general lemma:"]
-          lg conf ["- base:", SMTLib.toString (gbase gal)]
-          lg conf ["- stay:", SMTLib.toString (gstay gal)]
-          lg conf ["- step:", SMTLib.toString (gstep gal)]
-          lg conf ["- conc:", SMTLib.toString (gconc gal)]
-          iter 0 inv gal
-        --TODO: Dont forget limit!
+    go _ _ [] = lg conf ["All lemma-tries failed"] $> Nothing
+    go preComb indeps (gal:galr) = do
+      lgGAL conf "Lemma try" gal
+      res <- iter 0 inv gal
+      case res of
+        Just res -> lg conf ["Lemma try suceeded"] $> Just res
+        Nothing -> do
+          lg conf ["Lemma try failed"]
+          go preComb indeps galr
+        --
       where
         iter cnt inv gal
           | cnt > H.ggaIters heur = pure Nothing
           | otherwise = do
-            lg conf ["Use invariant", SMTLib.toString inv]
-            let al = addInv (vars arena) inv $ addMaintain maintain $ galToAl gal
-                  -- TODO: Mayb reuse loop-game and so?
-            (pre, preProg) <- preComp conf heur player arena loc reach al
+            lg conf ["Use invariant", SMTLib.toString inv, show cnt]
+            let al = addInv (vars arena) inv $ galToAl gal
+            (pre, preProg) <- preComb al
             check <- lemmaCond conf arena loc reach al pre
             case check of
               NotApplicable -> pure Nothing
               Applicable -> pure $ Just (pre, preProg) --TODO: add conclusion and so?
               Refine
-                | True -> iter (cnt + 1) pre gal
-                      -- TODO DEBUG | depth >= H.ggaDepth heur -> iter (cnt + 1) pre gal
+                | cnt == H.ggaIters heur -> iter (cnt + 1) pre gal
                 | otherwise -> do
-                          -- Nesting
-                  let subGoal = set (emptySt arena) loc pre
-                  let subMaintain = FOL.andf [maintain, gstay gal]
-                  subRes <- go (depth + 1) subGoal subMaintain FOL.true
-                  case subRes of
-                    Nothing -> iter (cnt + 1) pre gal
-                    Just (ext, extProg) -> do
-                      preExt <- SMT.simplify conf $ FOL.orf [ext, pre]
-                            -- TODO this nesting stuff is still wrongly implemented
-                      let prog = Synt.callOn loc ext extProg preProg
-                      check <- lemmaCond conf arena loc reach al preExt
-                      case check of
-                        Applicable -> pure $ Just (preExt, prog) --TODO: add conclusion and so?
-                        _ -> iter (cnt + 1) pre gal
+                  lg conf ["Guess sublemma for", SMTLib.toString pre]
+                  case guessLemmaSimple heur (vars arena) indeps prime pre of
+                    [] -> iter (cnt + 1) pre gal
+                    subGal:subGalR --TODO use more than one!
+                     -> do
+                      gal <- pure $ galChain (vars arena) gal subGal
+                      lgGAL conf "Enhanced" gal
+                                -- TODO: maybe some emptiness check??
+                      iter (cnt + 1) inv gal
 
 ---------------------------------------------------------------------------------------------------
 -- Attractor through loop arena
 ---------------------------------------------------------------------------------------------------
--- TODO: can this be generalized module wise?
-galToAl :: GenAccelLemma -> AccelLemma
-galToAl gal = AccelLemma {base = gbase gal, step = gstep gal, conc = gconc gal, prime = gprime gal}
-
-addMaintain :: Term -> AccelLemma -> AccelLemma
-addMaintain maintain al = al {step = FOL.andf [step al, maintain]}
-
-preComp :: Config -> Heur -> Player -> Arena -> Loc -> SymSt -> AccelLemma -> IO (Term, SyBo)
-preComp conf heur player arena loc target lemma = do
-  (arena, loc, loc', subs, target, prog) <-
-    pure $ reducedLoopArena conf heur arena loc target (prime lemma)
+-- TODO: document!!
+preCompGen ::
+     Config
+  -> Heur
+  -> Player
+  -> Arena
+  -> Loc
+  -> SymSt
+  -> Symbol
+  -> IO (Set Symbol, AccelLemma -> IO (Term, SyBo))
+preCompGen conf heur player arena loc target prime = do
+  (arena, loc, loc', subs, target, prog) <- pure $ reducedLoopArena conf heur arena loc target prime
   lg conf ["Loop Scenario on", strS (locName arena) subs]
   prog <- pure $ Synt.returnOn target prog
-  target <- pure $ set target loc' $ FOL.orf [target `get` loc, step lemma]
-  -- Remark: we do not use independent variables, as their constrains are expected to be 
-  -- found otherwise in the invariant generation iteration. This is beneficial as
-  -- otherwise we usually do an underapproximating projection
-  (stAcc, prog) <- iterA conf heur player arena target loc' prog
-  let res = unprime lemma $ stAcc `get` loc
-  res <- SMT.simplify conf res
-  pure (res, prog)
+  indeps <- independentProgVars conf arena
+  lg conf ["Independent state variables", strS id indeps]
+  -- TODO deuglify
+  pure
+    ( indeps
+    , \lemma -> do
+        target <- pure $ set target loc' $ FOL.orf [target `get` loc, step lemma]
+    -- Remark: we do not use independent variables, as their constrains are expected to be 
+    -- found otherwise in the invariant generation iteration. This is beneficial as
+    -- otherwise we usually do an underapproximating projection
+        (stAcc, prog) <- iterA conf heur player arena target loc' prog
+        let res = unprime lemma $ stAcc `get` loc
+        res <- SMT.simplify conf res
+        pure (res, prog))
 
 -- | small three-valued data structure to indicate the resulf of checking the
 -- conditions for acceleration lemma
@@ -187,12 +185,73 @@ data GenAccelLemma = GenAccelLemma
   , gprime :: Symbol
   }
 
+lgGAL :: Config -> String -> GenAccelLemma -> IO ()
+lgGAL conf name gal = do
+  lg conf ["GAL:", name]
+  lg conf ["- base:", SMTLib.toString (gbase gal)]
+  lg conf ["- stay:", SMTLib.toString (gstay gal)]
+  lg conf ["- step:", SMTLib.toString (gstep gal)]
+  lg conf ["- conc:", SMTLib.toString (gconc gal)]
+
+-- TODO: can this be generalized module wise?
+galToAl :: GenAccelLemma -> AccelLemma
+galToAl gal = AccelLemma {base = gbase gal, step = gstep gal, conc = gconc gal, prime = gprime gal}
+
+guessLemmaSimple :: Heur -> Variables -> Set Symbol -> Symbol -> Term -> [GenAccelLemma]
+guessLemmaSimple heur vars indeps prime = mapMaybe gen . nontrivialPolyhedra
+  where
+    gen = fromPolyhedron vars indeps prime (H.minEpsilon heur)
+
 -- TODO use heuristic better
-lemmaGuess :: Heur -> Variables -> Symbol -> Term -> Maybe GenAccelLemma
-lemmaGuess heur vars prime trg = do
-  case fromPolyhedron vars prime (H.minEpsilon heur) <$> nontrivialPolyhedra trg of
-    [] -> Nothing
-    gals -> Just $ galUnion gals
+guessLemma :: Heur -> Variables -> Set Symbol -> Symbol -> Term -> [GenAccelLemma]
+guessLemma heur vars indeps prime trg =
+  case mapMaybe gen (nontrivialPolyhedra trg) of
+    [] -> []
+    [l] -> [l]
+    gals -> map galUnionsLex $ combs gals
+  where
+    gen = fromPolyhedron vars indeps prime (H.minEpsilon heur)
+    combs = take 10 . filter (not . null) . permutationsUpTo 2 -- TODO: add heursitic values
+
+permutationsUpTo :: Int -> [a] -> [[a]]
+permutationsUpTo maxL =
+  List.sortOn length . concatMap List.permutations . filter ((<= maxL) . length) . List.subsequences
+
+-- condition: all priming is the same!, list not empty
+galChain :: Variables -> GenAccelLemma -> GenAccelLemma -> GenAccelLemma
+galChain vars main sub =
+  GenAccelLemma
+    { gbase = gbase main
+    , gconc = FOL.andf [gconc main, gconc sub]
+    , gstay = FOL.andf [gstay main, gstay sub]
+    , gstep =
+        FOL.orf
+          [ FOL.andf [prm (gbase sub), gstep main]
+          , FOL.andf [prm (FOL.neg (gbase sub)), gstay main, gstep sub]
+          ]
+    , gprime = gprime main
+    }
+  where
+    prm = primeT vars (gprime main)
+
+-- condition: all priming is the same!, list not empty
+galUnionLex :: GenAccelLemma -> GenAccelLemma -> GenAccelLemma
+galUnionLex gal1 gal2 =
+  GenAccelLemma
+    { gbase = FOL.orf [gbase gal1, gbase gal2]
+    , gconc = FOL.orf [gconc gal1, gconc gal2]
+    , gstay = FOL.andf [gstay gal1, gstay gal2]
+    , gstep = FOL.orf [gstep gal1, FOL.andf [gstay gal1, gstep gal2]]
+    , gprime = gprime gal1
+    }
+
+-- condition: all priming is the same!, list not empty
+galUnionsLex :: [GenAccelLemma] -> GenAccelLemma
+galUnionsLex = go
+  where
+    go [] = error "assertion"
+    go [x] = x
+    go (x:xr) = galUnionLex x (go xr)
 
 -- condition: all priming is the same!, list not empty
 galUnion :: [GenAccelLemma] -> GenAccelLemma
@@ -206,20 +265,23 @@ galUnion subs =
     , gprime = gprime (head subs)
     }
 
-fromPolyhedron :: Variables -> Symbol -> Rational -> (Polyhedron, Set Term) -> GenAccelLemma
-fromPolyhedron vars prime epsilon (poly, sideConstr) =
+fromPolyhedron ::
+     Variables -> Set Symbol -> Symbol -> Rational -> (Polyhedron, Set Term) -> Maybe GenAccelLemma
+fromPolyhedron vars indeps prime epsilon (poly, sideConstr) =
   let ineqs = toIneqs poly
-      inv = FOL.andf $ Set.toList sideConstr -- Remark: this is fairly simplistic, and could be enhnaced
-   in GenAccelLemma
-        { gbase = FOL.andf [inv, FOL.andfL ineqs ineqGoal]
-        , gconc = inv
-        , gstay = FOL.andf [inv, FOL.andfL ineqs $ ineqStay vars prime]
-        , gstep =
-            FOL.orfL (singleOut ineqs) $ \(ineq, others) ->
-              FOL.andf
-                [inv, ineqStep vars prime epsilon ineq, FOL.andfL others (ineqStay vars prime)]
-        , gprime = prime
-        }
+      someDeps = any (any ((`notElem` indeps) . (fst . fst)) . fst) ineqs --TODO: improve by filter on idividual terms!
+      inv = FOL.andf $ Set.toList sideConstr -- Remark: this is fairly simplistic, and could be enhanced
+   in justOn someDeps
+        $ GenAccelLemma
+            { gbase = FOL.andf [inv, FOL.andfL ineqs ineqGoal]
+            , gconc = inv
+            , gstay = FOL.andf [inv, FOL.andfL ineqs $ ineqStay vars prime]
+            , gstep =
+                FOL.orfL (singleOut ineqs) $ \(ineq, others) ->
+                  FOL.andf
+                    [inv, ineqStep vars prime epsilon ineq, FOL.andfL others (ineqStay vars prime)]
+            , gprime = prime
+            }
 
 ineqGoal :: Ineq Integer -> Term
 ineqGoal (linComb, bounds) =
