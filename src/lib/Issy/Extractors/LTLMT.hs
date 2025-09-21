@@ -23,7 +23,17 @@ import Issy.Specification (Specification)
 import qualified Issy.SymbolicArena as SG
 
 specToLTLMT :: Specification -> String
-specToLTLMT = uncurry formulaToLTLMT . toFormula
+specToLTLMT = uncurry formulaToLTLMT . shiftInTime . toFormula
+
+-- | 'shiftInTime' adapts the formula such that unpriming it matches the different 
+-- semantic in shifting in time.
+shiftInTime :: (Variables, TL.Formula Term) -> (Variables, TL.Formula Term)
+shiftInTime (vars, formula) =
+  let inputPref = FOL.uniquePrefix "intial_value_" $ Vars.allSymbols vars
+      mapping = map (\v -> (Vars.prime v, inputPref ++ v, Vars.sortOf vars v)) $ Vars.stateVarL vars
+      inputEnc = map (\(var, init, sort) -> FOL.var var sort `FOL.equal` FOL.var init sort) mapping
+      newVars = foldl (\vars (_, init, sort) -> Vars.addInput vars init sort) vars mapping
+   in (newVars, And (map Atom inputEnc ++ [TL.next formula]))
 
 toFormula :: Specification -> (Variables, TL.Formula Term)
 toFormula spec =
@@ -58,9 +68,10 @@ gameToFormula locVar (arena, obj) =
 
 formulaToLTLMT :: Variables -> TL.Formula Term -> String
 formulaToLTLMT vars term =
-  "property \""
+  "property: \""
     ++ printFormula vars term
     ++ "\"\n"
+    ++ "variables:\n"
     ++ concatMap
          (\v -> variableToLTLMT v (Vars.typeOf vars v))
          (Vars.inputL vars ++ Vars.stateVarL vars)
@@ -108,7 +119,7 @@ enclose c str =
 
 reencodeStates :: Variables -> Symbol -> Symbol
 reencodeStates vars name
-  | not (Vars.isStateVar vars name) = name
+  | not (Vars.isStateVar vars name) && not (Vars.isStateVar vars (Vars.unprime name)) = name
   | head name == 'y' && Vars.isPrimed name = Vars.unprime ('y' : name)
   | head name == 'y' = "y(y" ++ name ++ ")"
   | Vars.isPrimed name = Vars.unprime name
@@ -117,10 +128,15 @@ reencodeStates vars name
 printFormula :: Variables -> TL.Formula Term -> String
 printFormula vars = go
   where
+    trueConstVar = head $ Vars.stateVarL vars
     go =
       \case
         Atom t -> enclose '[' $ toPythonZ3 $ FOL.mapSymbol (reencodeStates vars) t
+        And [] -> enclose '[' $ trueConstVar ++ "==" ++ trueConstVar -- There are no boolean constants!
+        And [f] -> go f
         And fs -> paraInbetween " & " $ map go fs
+        Or [] -> go $ Not $ And []
+        Or [f] -> go f
         Or fs -> paraInbetween " | " $ map go fs
         Not f -> enclose '(' $ "! " ++ go f
         UExp Next f -> enclose '(' $ "X " ++ go f
@@ -137,27 +153,16 @@ toPythonZ3 = go
       \case
         Var var _ -> var
         Const (CInt n) -> show n
-        Const (CBool b)
-          | b -> "True"
-          | otherwise -> "False"
         Const (CReal r) -> "(" ++ show (numerator r) ++ ".0 / " ++ show (denominator r) ++ ".0)"
-        Func FAnd fs -> "And" ++ paraInbetween ", " (map go fs)
-        Func FOr fs -> "Or" ++ paraInbetween ", " (map go fs)
-        Func FDistinct _ -> error "TODO"
-        Func FNot [f] -> "Not(" ++ go f ++ ")"
-        Func FImply [a, b] -> "Implies(" ++ go a ++ ", " ++ go b ++ ")"
-        Func FIte [a, b, c] -> "If(" ++ go a ++ ", " ++ go b ++ ", " ++ go c ++ ")"
+        Const (CBool _) ->
+          error "boolean constants are not supported by Syntheos parser in SMT context"
         Func FAdd fs -> paraInbetween " + " $ map go fs
         Func FMul fs -> paraInbetween " * " $ map go fs
         Func FEq [a, b] -> "(" ++ go a ++ ") == (" ++ go b ++ ")"
         Func FLt [a, b] -> "(" ++ go a ++ ") < (" ++ go b ++ ")"
         Func FLte [a, b] -> "(" ++ go a ++ ") <= (" ++ go b ++ ")"
-        Func FAbs [_] -> error "TODO"
-        Func FToReal [_] -> error "TODO"
-        Func FMod [_, _] -> error "TODO"
-        Func FDivInt [_, _] -> error "TODO"
-        Func FDivReal [_, _] -> error "TODO"
-        Func _ _ -> error "assert: found unkown function pattern"
+        Func _ _ ->
+          error "assert: other function patterns are not supported by Syntheos as it seems"
         QVar _ -> error "for now we do not support quantifiers here"
         Quant {} -> error "for now we do not support quantifiers here"
         Lambda _ _ -> error "for now we do not support lambdas here"
