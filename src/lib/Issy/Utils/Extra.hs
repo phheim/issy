@@ -14,6 +14,7 @@ module Issy.Utils.Extra
   , reachables
   , firstLine
   , intmapSet
+  , invertMap
   , mapFromSet
   , mapFromSetWith
   , runTO
@@ -77,6 +78,9 @@ predecessorRelation succ base =
            foldl (\m targ -> Map.insertWith Set.union targ (Set.singleton src) m) m (succ src))
         init
         base
+
+invertMap :: (Ord a, Ord k) => Map k a -> Map a (Set k)
+invertMap mp = Map.fromListWith Set.union $ map (\(k, a) -> (a, Set.singleton k)) $ Map.toList mp
 
 reachables :: Ord a => (a -> Set a) -> Set a -> Set a
 reachables succ = go Set.empty . OL.fromSet

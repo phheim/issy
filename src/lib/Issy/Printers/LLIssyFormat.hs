@@ -33,7 +33,7 @@ printVars vars =
     (\v ->
        case Vars.typeOf vars v of
          Vars.TInput sort -> "(input " ++ printSort sort ++ " " ++ v ++ ")\n"
-         Vars.TOutput sort -> "(state " ++ printSort sort ++ " " ++ v ++ ")\n")
+         Vars.TState sort -> "(state " ++ printSort sort ++ " " ++ v ++ ")\n")
     $ Vars.inputL vars ++ Vars.stateVarL vars
 
 printSort :: FOL.Sort -> String

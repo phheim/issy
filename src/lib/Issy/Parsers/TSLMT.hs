@@ -44,9 +44,9 @@ parseType =
     'i':'n':'p':' ':'I':'n':'t':' ':sr -> Right (TInput SInt, sr)
     'i':'n':'p':' ':'R':'e':'a':'l':' ':sr -> Right (TInput SReal, sr)
     'i':'n':'p':' ':'B':'o':'o':'l':' ':sr -> Right (TInput SBool, sr)
-    'v':'a':'r':' ':'I':'n':'t':' ':sr -> Right (TOutput SInt, sr)
-    'v':'a':'r':' ':'R':'e':'a':'l':' ':sr -> Right (TOutput SReal, sr)
-    'v':'a':'r':' ':'B':'o':'o':'l':' ':sr -> Right (TOutput SBool, sr)
+    'v':'a':'r':' ':'I':'n':'t':' ':sr -> Right (TState SInt, sr)
+    'v':'a':'r':' ':'R':'e':'a':'l':' ':sr -> Right (TState SReal, sr)
+    'v':'a':'r':' ':'B':'o':'o':'l':' ':sr -> Right (TState SBool, sr)
     decl -> Left $ "illegal type declaration: " ++ decl
 
 parseDecls :: String -> Either String (Variables, String)

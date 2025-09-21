@@ -56,7 +56,7 @@ data Variables = Variables
 
 data Type
   = TInput Sort
-  | TOutput Sort
+  | TState Sort
   deriving (Eq, Ord, Show)
 
 allVars :: Variables -> Set Symbol
@@ -75,7 +75,7 @@ sortOf vars var =
 typeOf :: Variables -> Symbol -> Type
 typeOf vars var
   | var `elem` inputs vars = TInput (sortOf vars var)
-  | otherwise = TOutput (sortOf vars var)
+  | otherwise = TState (sortOf vars var)
 
 mk :: Variables -> Symbol -> Term
 mk vars name
@@ -125,7 +125,7 @@ addVariable :: Variables -> Symbol -> Type -> Variables
 addVariable vars var =
   \case
     TInput sort -> addInput vars var sort
-    TOutput sort -> addStateVar vars var sort
+    TState sort -> addStateVar vars var sort
 
 setBounded :: Variables -> Symbol -> Variables
 setBounded vars var

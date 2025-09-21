@@ -79,7 +79,7 @@ parseVarDec =
       pure (name, Vars.TInput sort)
     SPar _ [SId _ "state", sortExpr, SId _ name] -> do
       sort <- parseSort sortExpr
-      pure (name, Vars.TOutput sort)
+      pure (name, Vars.TState sort)
     s -> perr (getPos s) "Expected variable declaration"
 
 parseSort :: SExpr -> PRes Sort

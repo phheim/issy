@@ -20,6 +20,7 @@ data Mode
   | EncodeTSLMT
   | EncodeMuCLP
   | EncodeRPG
+  | EncodeLTLMT
 
 data InputFormat
   = HighLevel
@@ -99,6 +100,17 @@ main = do
       putStrLn $ printSG $ rpgToSG game
     (EncodeRPG, _) ->
       die "invalid arguments: can only encode RPGs/TSLMT to Symbolic Games at the moment"
+    (EncodeLTLMT, LowLevel) -> do
+      spec <- liftErr $ parseLLIssyFormat input
+      checkSpecification cfg spec >>= liftErr
+      putStrLn $ specToLTLMT spec
+    (EncodeLTLMT, HighLevel) -> do
+      input <- liftErr $ compile input
+      spec <- liftErr $ parseLLIssyFormat input
+      checkSpecification cfg spec >>= liftErr
+      putStrLn $ specToLTLMT spec
+    (EncodeLTLMT, _) ->
+      die "invalid arguments: can only encode Issy/LLissy as Syntheos LTLMT at the moment"
 
 printRes :: Config -> (Bool, Stats, Maybe (IO String)) -> IO ()
 printRes conf (res, stats, printProg) = do
@@ -153,6 +165,7 @@ getMode =
     "--encode-tslmt" -> Just EncodeTSLMT
     "--encode-muclp" -> Just EncodeMuCLP
     "--encode-rpg-as-sg" -> Just EncodeRPG
+    "--encode-ltlmt" -> Just EncodeLTLMT
     _ -> Nothing
 
 getInputFormat :: String -> Maybe InputFormat
@@ -293,6 +306,7 @@ help =
   , "   --print   : pretty print a llissy or RPG spec"
   , "   --encode-tslmt : encode a RPG spec to TSLMT"
   , "   --encode-muclp : encode a RPG spec to MuCLP used by 'muval'"
+  , "   --encode-ltlmt : encode issy/llissy spec as LTLMT formula used by 'Syntheos'"
   , ""
   , " Logging:"
   , "   --quiet    : no logging at all"

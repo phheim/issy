@@ -31,7 +31,8 @@ module Issy
   , -- Sanitizing
     checkSpecification
   , -- Encoding
-    rpgToMuCLP
+    specToLTLMT
+  , rpgToMuCLP
   , rpgToSG
   , rpgToTSLT
   ) where
@@ -42,6 +43,7 @@ import Issy.Config (Config(..), defaultConfig)
 import Issy.Statistics (Stats, emptyStats, printStats)
 
 -- Encoding
+import Issy.Extractors.LTLMT (specToLTLMT)
 import Issy.Extractors.MuCLP (rpgToMuCLP)
 import Issy.Extractors.TSLT (rpgToTSLT)
 

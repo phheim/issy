@@ -6,14 +6,18 @@ module Issy.Base.Objectives
   , mapWC
   , mapLoc
   , isSafety
+  , toTemporalLogic
   ) where
 
+import qualified Data.List as List
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
 
 import Issy.Base.Locations (Loc)
+import qualified Issy.Logic.Temporal as TL
+import Issy.Utils.Extra (invertMap)
 
 data Objective = Objective
   { initialLoc :: Loc
@@ -54,3 +58,28 @@ isSafety obj =
   case winningCond obj of
     Safety _ -> True
     _ -> False
+
+-- | 'toTemporalLogic' encodes an 'Objective' into a termporal logic formula, given an 
+-- encoding for the locations in the objective. Note that this encoding is the straightforward
+-- without any sophisticated optimizations
+toTemporalLogic :: (Loc -> a) -> Objective -> TL.Formula a
+toTemporalLogic encLoc obj =
+  let encWC =
+        case winningCond obj of
+          Safety safe -> TL.globally $ encSet safe
+          Reachability reach -> TL.eventually $ encSet reach
+          Buechi recs -> TL.globally $ TL.eventually $ encSet recs
+          CoBuechi stays -> TL.eventually $ TL.globally $ encSet stays
+          Parity rank -> encParity $ List.sortOn ((maxBound -) . fst) $ Map.toList $ invertMap rank
+   in TL.And [TL.Atom (encLoc (initialLoc obj)), encWC]
+  where
+    encSet = TL.Or . map (TL.Atom . encLoc) . Set.toList
+    encParity [] = error "assert: Objective should not be empty"
+    encParity [(col, locs)]
+      | even col = TL.globally $ TL.eventually $ encSet locs
+      | otherwise = TL.eventually $ TL.globally $ TL.Not $ encSet locs
+    encParity ((col, locs):rr) =
+      let smallerColors = encParity rr
+       in if even col
+            then TL.Or [TL.globally (TL.eventually (encSet locs)), smallerColors]
+            else TL.And [TL.eventually (TL.globally (TL.Not (encSet locs))), smallerColors]

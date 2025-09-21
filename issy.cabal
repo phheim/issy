@@ -36,6 +36,7 @@ library
     , Issy.Base.SymbolicState
     , Issy.Base.Variables
     , Issy.Config
+    , Issy.Extractors.LTLMT
     , Issy.Extractors.MuCLP
     , Issy.Extractors.TSLT
     , Issy.Logic.CHC
