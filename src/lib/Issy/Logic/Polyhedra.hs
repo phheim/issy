@@ -15,6 +15,7 @@ module Issy.Logic.Polyhedra
   , sumTerm
   , toIneqs
   , normalize
+  , normalizeFast
   , toTerms
   , nontrivialPolyhedra
   ) where
@@ -23,7 +24,7 @@ module Issy.Logic.Polyhedra
 import Data.Bifunctor (first, second)
 import Data.Map.Strict (Map, (!?))
 import qualified Data.Map.Strict as Map
-import Data.Maybe (catMaybes, mapMaybe)
+import Data.Maybe (catMaybes)
 import Data.Ratio ((%), denominator, numerator)
 import Data.Set (Set)
 import qualified Data.Set as Set
@@ -37,7 +38,7 @@ import Issy.Logic.FOL
   )
 import qualified Issy.Logic.FOL as FOL
 import Issy.Logic.Interval
-import Issy.Logic.Propositional (DNF(..), NNF(..), toDNF, toNNF)
+import Issy.Logic.Propositional (NNF(..), toNNF)
 
 ---------------------------------------------------------------------------------------------------
 -- Efficient Maps for Lists
@@ -291,9 +292,7 @@ termToIneq :: Term -> Maybe (Ineq Rational)
 termToIneq =
   \case
     Func comp [a, b] ->
-      let sum
-            -- In order to be meaningfull, this assumes that FOL.addT is flattening 
-           =
+      let sum =
             case FOL.addT [a, FOL.invT b] of
               Func FAdd ts -> ts
               t -> [t]
@@ -374,39 +373,14 @@ fromFOL term = go $ toNNF term
         --
     go =
       \case
-        NNFLit pol term ->
-          let lit =
-                if pol
-                  then term
-                  else FOL.neg term
-           in case tryPoly varOrder lit of
-                NewPoly p -> PTerm [(p, Set.empty)]
-                NotLinear -> PTerm [(fullP varOrder, Set.singleton lit)]
-                Infeasible -> PTerm []
+        NNFLit False term -> go $ NNFLit True (FOL.neg term)
+        NNFLit True term ->
+          case tryPoly varOrder term of
+            NewPoly p -> PTerm [(p, Set.empty)]
+            NotLinear -> PTerm [(fullP varOrder, Set.singleton term)]
+            Infeasible -> PTerm []
         NNFAnd fs -> intersections varOrder $ map go fs
         NNFOr fs -> unions $ map go fs
-
--- | TODO
-fromFOLDNF :: Term -> PTerm
-fromFOLDNF term =
-  let DNF dnf = toDNF term
-   in unions $ mapMaybe clauseToPTerm dnf
-  where
-    varOrder = filter (FOL.isNumber . snd) $ Map.toList $ FOL.bindings term
-    clauseToPTerm = fmap (\cl -> PTerm [cl]) . fromClause (fullP varOrder, Set.empty)
-    fromClause (poly, others) [] = Just (poly, others)
-    fromClause (poly, others) (l:lr) =
-      case addConstr poly (fromLit l) of
-        NewPoly poly -> fromClause (poly, others) lr
-        NotLinear
-          | FOL.neg (fromLit l) `elem` others -> Nothing
-          | otherwise -> fromClause (poly, Set.insert (fromLit l) others) lr
-            -- TODO: this should have alredy been caught in to DNF!
-        Infeasible -> Nothing
-        --
-    fromLit (pol, lit)
-      | pol = lit
-      | otherwise = FOL.neg lit
 
 -- | TODO
 toFOL :: PTerm -> Term
@@ -416,6 +390,41 @@ toFOL (PTerm disjuncts) =
 -- | TODO
 normalize :: Term -> Term
 normalize = toFOL . fromFOL
+
+normalizeFast :: Term -> Term
+normalizeFast = go . toNNF
+  where
+    go :: NNF Term -> Term
+    go =
+      \case
+        NNFLit pol term
+          | pol -> term
+          | otherwise -> FOL.neg term
+        NNFAnd [] -> FOL.true
+        NNFOr [] -> FOL.false
+        NNFAnd [f] -> go f
+        NNFOr [f] -> go f
+        NNFAnd fs -> tryNorm $ FOL.andf $ map go fs
+        NNFOr fs -> tryNorm $ FOL.orf $ map go fs
+        --
+    tryNorm term
+      | doNorm (toNNF term) = norm3 term
+      | otherwise = term
+        --
+    norm3 = normalize . FOL.neg . normalize . FOL.neg . normalize
+        --
+    doNorm :: NNF a -> Bool
+    doNorm =
+      \case
+        NNFLit _ _ -> False
+        NNFOr fs -> all isLit fs
+        NNFAnd fs -> all isLit fs
+        --
+    isLit :: NNF a -> Bool
+    isLit =
+      \case
+        NNFLit _ _ -> True
+        _ -> False
 
 -- | TODO get non-trivial polyhedra constraints, TODO. rename!
 nontrivialPolyhedra :: Term -> [(Polyhedron, Set Term)]

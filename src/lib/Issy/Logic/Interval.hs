@@ -208,11 +208,22 @@ gtUpp intv term =
 -- | 'isInside' generates the 'Term' that a given 'Term' is inside the 'Interval'
 isInside :: Term -> Interval -> Term
 isInside t intv =
-  case isIntegerSingleton intv of
-    Nothing -> FOL.andf [inLow intv t, inUpp intv t]
-    Just i
-      | FOL.isInteger t -> t `FOL.equal` FOL.intConst i
-      | otherwise -> FOL.andf [inLow intv t, inUpp intv t]
+  case isSingleton intv of
+    Just r -> t `FOL.equal` FOL.numberT r
+    Nothing ->
+      case isIntegerSingleton intv of
+        Nothing -> FOL.andf [inLow intv t, inUpp intv t]
+        Just i
+          | FOL.isInteger t -> t `FOL.equal` FOL.intConst i
+          | otherwise -> FOL.andf [inLow intv t, inUpp intv t]
+
+isSingleton :: Interval -> Maybe Rational
+isSingleton intv =
+  case (lower intv, upper intv) of
+    (GTVal True l, LTVal True u)
+      | l == u -> Just u
+      | otherwise -> Nothing
+    _ -> Nothing
 
 isIntegerSingleton :: Interval -> Maybe Integer
 isIntegerSingleton intv =

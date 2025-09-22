@@ -80,6 +80,7 @@ module Issy.Logic.FOL
   , toRealT
   , isNumber
   , isInteger
+  , isNumericT
   , --
     bindings
   , frees
@@ -384,9 +385,6 @@ neg =
     Func FNot [f] -> f
     Func FLt [f, g] -> geqT f g
     Func FLte [f, g] -> gtT f g
-    Func FEq [f, g]
-      | isNumericT f && isNumericT g -> orf [f `gtT` g, f `ltT` g]
-      | otherwise -> Func FNot [Func FEq [f, g]]
     f -> Func FNot [f]
 
 ite :: Term -> Term -> Term -> Term

@@ -20,14 +20,17 @@ module Issy.Logic.SMT
   ) where
 
 ---------------------------------------------------------------------------------------------------
+import Data.Functor (($>))
 import Data.Map ((!?))
+import Data.Maybe (fromMaybe)
 import qualified Data.Set as Set
 import System.Exit (die)
+import qualified System.Timeout as Sys (timeout)
 
 import Issy.Config (Config, debug, z3cmd)
 import Issy.Logic.FOL (Model, Sort, Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
-import qualified Issy.Logic.Polyhedra as Poly (normalize)
+import qualified Issy.Logic.Polyhedra as Poly (normalize, normalizeFast)
 import qualified Issy.Parsers.SMTLib as SMTLib
 import qualified Issy.Parsers.SMTLibLexer as SMTLib
 import qualified Issy.Printers.SMTLib as SMTLib
@@ -104,15 +107,27 @@ simplifyWith term -- TODO: add case for only doing the polyhedra stuff, i.e. if 
   | FOL.quantifierFree term = z3SimplifyQEFree
   | otherwise = z3Simplify
 
+simplifyPoly :: Config -> Term -> IO (Maybe Term)
+simplifyPoly conf term = do
+  lgv conf ["Polyhedra simplification on", SMTLib.toString term]
+  simpTerm <-
+    Sys.timeout
+      (5 * (10 ^ (6 :: Int)))
+      (do
+         pure $! Poly.normalizeFast term -- TODO: make proper parameter here!
+       )
+  case simpTerm of
+    Nothing -> lgv conf ["Polyhedra simplification seems to expensive"] $> Nothing
+    Just term -> lgv conf ["Polyhedra simplified to", SMTLib.toString term] $> Just term
+
 trySimplify :: Config -> Maybe Int -> Term -> IO (Maybe Term)
 trySimplify conf to term = do
   simpTerm <- simplifyTacs conf to (simplifyWith term) term
   case simpTerm of
     Nothing -> pure Nothing
     Just simpTerm -> do
-      lgv conf ["Polyhedra simplification on", SMTLib.toString simpTerm]
-      simpTerm <- pure $ Poly.normalize simpTerm
-      lgv conf ["Polyhedra simplified to", SMTLib.toString simpTerm]
+      mSimpTerm <- simplifyPoly conf simpTerm
+      simpTerm <- pure $ fromMaybe (Poly.normalizeFast simpTerm) mSimpTerm
       Just
         <$> assertM
               conf
