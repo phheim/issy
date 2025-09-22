@@ -68,9 +68,9 @@ data Monitor = Monitor
   , stateLabel :: Map State M.State
   , revLabel :: Map M.State State
   , cnt :: Int
-  , stateTrans :: Map (State, [(Term, Bool)]) (Trans [([(Bool, Symbol, Term)], State)])
+  , stateTrans :: Map (State, Set (Term, Bool)) (Trans [([(Bool, Symbol, Term)], State)])
   , expansionCache :: Map
-      (ExpansionState, [(Term, Bool)])
+      (ExpansionState, Set (Term, Bool))
       (Trans [(Term, [(Bool, Symbol, Term)], ExpansionState)])
   , hasUpdates :: Bool
   }

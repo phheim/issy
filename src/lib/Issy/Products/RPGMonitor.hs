@@ -69,13 +69,13 @@ explore cfg game init mon = go (OL.fromList [initLocState init mon]) mon emptyPr
 
 traversTransition ::
      Config -> Monitor -> State -> Transition -> IO (Trans [(Map Symbol Term, Loc, State)], Monitor)
-traversTransition cfg mon state = go [] mon
+traversTransition cfg mon state = go Set.empty mon
   where
     go conditions mon =
       \case
         TIf p tt tf -> do
-          (tt', mon) <- go ((p, True) : conditions) mon tt
-          (tf', mon) <- go ((p, False) : conditions) mon tf
+          (tt', mon) <- go (Set.insert (p, True) conditions) mon tt
+          (tf', mon) <- go (Set.insert (p, False) conditions) mon tf
           return (TrIf p tt' tf', mon)
         TSys upds -> do
           (mon, trans) <- Mon.generateSuccessor cfg mon state conditions

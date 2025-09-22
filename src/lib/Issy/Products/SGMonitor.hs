@@ -97,7 +97,7 @@ explore cfg arena init mon = go (OL.fromList [(init, Mon.initial mon)]) mon Map.
 
 genTransition :: Config -> Monitor -> Loc -> State -> Term -> IO (Map (Loc, State) Term, Monitor)
 genTransition cfg mon l' q term = do
-  (trans, mon) <- go [] mon term $ Set.toList $ FOL.nonBoolTerms term
+  (trans, mon) <- go Set.empty mon term $ Set.toList $ FOL.nonBoolTerms term
   trans <- pure $ Map.fromListWith (\t1 t2 -> FOL.orf [t1, t2]) trans
   trans <- Map.filter (/= FOL.false) <$> mapM (SMT.simplify cfg) trans
   pure (trans, mon)
@@ -118,7 +118,7 @@ genTransition cfg mon l' q term = do
             trans <- pure $ flattenTrans trans
             pure (trans, mon)
           p:pr -> do
-            let rec mon pol = go ((p, pol) : conditions) mon (FOL.setTerm p pol term) pr
+            let rec mon pol = go (Set.insert (p, pol) conditions) mon (FOL.setTerm p pol term) pr
             let mpAnd q = map (\(st, t) -> (st, FOL.andf [q, t]))
             (tt, mon) <- rec mon True
             (tf, mon) <- rec mon False

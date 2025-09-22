@@ -144,7 +144,7 @@ mapFormulas fm st =
 replaceSt :: (Term, Bool) -> ExpansionState -> ExpansionState
 replaceSt asg = mapES $ simpleNormSt . mapFormulas (MF.replaceT asg)
 
-replacesSt :: [(Term, Bool)] -> ExpansionState -> ExpansionState
+replacesSt :: Set (Term, Bool) -> ExpansionState -> ExpansionState
 replacesSt asgs =
   mapES $ \st -> simpleNormSt $ foldl (\st asg -> mapFormulas (MF.replaceT asg) st) st asgs
 

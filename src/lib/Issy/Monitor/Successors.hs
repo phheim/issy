@@ -5,6 +5,7 @@ module Issy.Monitor.Successors
   ) where
 
 import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
 import Issy.Prelude
 
 import qualified Issy.Logic.FOL as FOL
@@ -36,7 +37,7 @@ generateSuccessor ::
      Config
   -> Monitor
   -> State
-  -> [(Term, Bool)]
+  -> Set (Term, Bool)
   -> IO (Monitor, Trans [([(Bool, Symbol, Term)], State)])
 generateSuccessor cfg mon st assign = do
   cfg <- pure $ setName "Monitor" cfg
@@ -49,7 +50,7 @@ generateSuccessor cfg mon st assign = do
         case expansionCache mon !? (expState, assign) of
           Just tree -> pure (tree, mon)
           Nothing -> do
-            lg cfg ["Compute Expansion", stateName mon st, strL (strP SMTLib.toString show) assign]
+            lg cfg ["Compute Expansion", stateName mon st, strS (strP SMTLib.toString show) assign]
             tree <-
               computeExpansion cfg (variables mon) (hasUpdates mon) (predicates mon) expState assign
             pure
@@ -82,40 +83,44 @@ computeExpansion ::
   -> Bool
   -> Set Term
   -> ExpansionState
-  -> [(Term, Bool)]
+  -> Set (Term, Bool)
   -> IO (Trans [(Term, [(Bool, Symbol, Term)], ExpansionState)])
-computeExpansion cfg vars hasUpd preds st assign =
-  let constr = map polTerm assign
-   in computeBranching cfg vars hasUpd preds constr $ replacesSt assign $ expandSt st
+computeExpansion cfg vars hasUpd preds st assign = do
+  let constr = FOL.andf $ map polTerm $ Set.toList assign
+  constr <- SMT.simplify cfg constr
+  computeBranching cfg vars hasUpd preds constr $ replacesSt assign $ expandSt st
 
 computeBranching ::
      Config
   -> Variables
   -> Bool
   -> Set Term
-  -> [Term]
+  -> Term
   -> ExpansionState
   -> IO (Trans [(Term, [(Bool, Symbol, Term)], ExpansionState)])
 computeBranching cfg vars hasUpd preds = go
   where
+    -- TODO: can constr be false?
     go constr st =
       case pickFreeSt st of
         Just p -> do
-          let query pol = polTerm (p, pol) : constr
+          let query pol = FOL.andf [polTerm (p, pol), constr]
+          queryTrue <- SMT.simplify cfg (query True)
+          queryFalse <- SMT.simplify cfg (query False)
           let stTrue = replaceSt (p, True) st
           let stFalse = replaceSt (p, False) st
-          lg cfg ["branch", "queryTrue", strL SMTLib.toString (query True)]
-          lg cfg ["branch", "queryFalse", strL SMTLib.toString (query False)]
-          ifM (unsatC cfg (query True)) (go constr stFalse)
-            $ ifM (unsatC cfg (query False)) (go constr stTrue)
+          lg cfg ["branch", "queryTrue", SMTLib.toString queryTrue]
+          lg cfg ["branch", "queryFalse", SMTLib.toString queryFalse]
+          ifM (SMT.unsat cfg queryTrue) (go constr stFalse)
+            $ ifM (SMT.unsat cfg queryFalse) (go constr stTrue)
             $ do
-                recP <- go (query True) stTrue
-                recN <- go (query False) stFalse
+                recP <- go queryTrue stTrue
+                recN <- go queryFalse stFalse
                 pure $ trIf p recP recN
         Nothing
-          | hasUpd -> TrSucc <$> computeUpdates cfg preds (FOL.andf constr) st
+          | hasUpd -> TrSucc <$> computeUpdates cfg preds constr st
           | otherwise -> do
-            prop <- FOL.andf <$> propagatedPredicatesRPLTL cfg vars (FOL.andf constr) preds
+            prop <- FOL.andf <$> propagatedPredicatesRPLTL cfg vars constr preds
             prop <- SMT.simplify cfg prop
             pure $ TrSucc [(prop, [], normESt (shiftSt st))]
 
@@ -140,9 +145,6 @@ computeUpdates cfg preds constr = go []
           prop <- FOL.andf <$> propagatedPredicatesTSL cfg constr upds preds
           prop <- SMT.simplify cfg prop
           pure [(prop, choices, normESt (shiftSt st))]
-
-unsatC :: Config -> [Term] -> IO Bool
-unsatC cfg = SMT.unsat cfg . FOL.andf
 
 polTerm :: (Term, Bool) -> Term
 polTerm (p, True) = p
