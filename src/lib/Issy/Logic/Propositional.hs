@@ -14,6 +14,7 @@ module Issy.Logic.Propositional
   , Propositional(..)
   , NNF(..)
   , toNNF
+  , normNNF
   , DNF(..)
   , toDNF
   , CNF(..)
@@ -60,6 +61,9 @@ class Propositional p where
 toNNF :: Propositional a => a -> NNF a
 toNNF = propToNNF . toProp
 
+normNNF :: Propositional a => a -> a
+normNNF = fromProp . nnfToProp . toNNF
+
 -- | 'toDNF' transforms the top-level boolean structure of 'Propositional' objects to 'DNF'
 toDNF :: Propositional a => a -> DNF a
 toDNF = nnfToDNF . toNNF
@@ -102,6 +106,18 @@ propToNNF =
     PNot (PNot f) -> propToNNF f
     PNot (PAnd fs) -> NNFOr $ map (propToNNF . PNot) fs
     PNot (POr fs) -> NNFAnd $ map (propToNNF . PNot) fs
+
+nnfToProp :: NNF a -> Prop a
+nnfToProp =
+  \case
+    NNFLit True a -> PLit a
+    NNFLit False a -> PNot $ PLit a
+    NNFAnd [] -> PConst True
+    NNFAnd [f] -> nnfToProp f
+    NNFAnd fs -> PAnd $ map nnfToProp fs
+    NNFOr [] -> PConst False
+    NNFOr [f] -> nnfToProp f
+    NNFOr fs -> POr $ map nnfToProp fs
 
 nnfToDNF :: NNF a -> DNF a
 nnfToDNF = DNF . go

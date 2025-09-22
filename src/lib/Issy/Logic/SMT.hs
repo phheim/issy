@@ -56,12 +56,16 @@ trySat :: Config -> Maybe Int -> Term -> IO (Maybe Bool)
 trySat conf to f
   | f == FOL.true = pure $ Just True
   | f == FOL.false = pure $ Just False
-  | otherwise = do
-    let query = SMTLib.toQuery f ++ satCommand f
-    callz3 conf to query $ \case
-      'u':'n':'s':'a':'t':_ -> Just False
-      's':'a':'t':_ -> Just True
-      _ -> Nothing
+  | FOL.underapproxSAT f =
+    assertM conf (Just True) (fromMaybe False <$> properSAT) "SMT.trySat: satisfiability differs"
+  | otherwise = properSAT
+  where
+    properSAT = do
+      let query = SMTLib.toQuery f ++ satCommand f
+      callz3 conf to query $ \case
+        'u':'n':'s':'a':'t':_ -> Just False
+        's':'a':'t':_ -> Just True
+        _ -> Nothing
 
 trySatModel :: Config -> Maybe Int -> Term -> IO (Maybe (Maybe Model))
 trySatModel conf to f = do

@@ -99,13 +99,14 @@ module Issy.Logic.FOL
   , --
     toNNF
   , pushdownQE
+  , underapproxSAT
   ) where
 
 -------------------------------------------------------------------------------
 import Data.List (isPrefixOf)
 import Data.Map (Map, (!?))
 import qualified Data.Map as Map
-import Data.Ratio (denominator, numerator)
+import Data.Ratio ((%), denominator, numerator)
 import Data.Set (Set)
 import qualified Data.Set as Set
 
@@ -279,13 +280,28 @@ mapTerm m =
         Just term -> term
         Nothing -> Var v t
     Func f args ->
-      let margs = map (mapTerm m) args
-       in case f of
-            CustomF v sargs starg ->
-              case m v (SFunc sargs starg) of
-                Nothing -> Func f margs
-                Just funInst -> foldl betaReduce funInst margs
-            _ -> Func f margs
+      case (f, map (mapTerm m) args) of
+        (CustomF v sargs starg, args) ->
+          case m v (SFunc sargs starg) of
+            Nothing -> Func f args
+            Just funInst -> foldl betaReduce funInst args
+        (FAnd, fs) -> andf fs
+        (FOr, fs) -> orf fs
+        (FNot, [f]) -> neg f
+        (FDistinct, fs) -> distinct fs
+        (FImply, [a, b]) -> implyT a b
+        (FIte, [a, b, c]) -> ite a b c
+        (FAdd, fs) -> addT fs
+        (FMul, fs) -> multT fs
+        (FDivReal, [a, b]) -> realdivT a b
+        (FEq, [a, b]) -> a `equal` b
+        (FLt, [a, b]) -> a `ltT` b
+        (FLte, [a, b]) -> a `leqT` b
+        (FAbs, [t]) -> absT t
+        (FToReal, [t]) -> toRealT t
+        (FMod, [a, b]) -> modT a b
+        (FDivInt, [a, b]) -> intdivT a b
+        (f, args) -> Func f args
     Quant q t f -> Quant q t (mapTerm m f)
     Lambda t f -> Lambda t (mapTerm m f)
     QVar n -> QVar n
@@ -655,12 +671,20 @@ isInteger =
     _ -> False
 
 leqT :: Term -> Term -> Term
+leqT (Const (CInt a)) (Const (CInt b)) = boolConst (a <= b)
+leqT (Const (CInt a)) (Const (CReal b)) = boolConst ((a % 1) <= b)
+leqT (Const (CReal a)) (Const (CInt b)) = boolConst (a <= (b % 1))
+leqT (Const (CReal a)) (Const (CReal b)) = boolConst (a <= b)
 leqT t (Const (CInt n))
   | isInteger t = func FLt [t, Const (CInt (n + 1))]
   | otherwise = func FLte [t, Const (CInt n)]
 leqT a b = func FLte [a, b]
 
 ltT :: Term -> Term -> Term
+ltT (Const (CInt a)) (Const (CInt b)) = boolConst (a < b)
+ltT (Const (CInt a)) (Const (CReal b)) = boolConst ((a % 1) < b)
+ltT (Const (CReal a)) (Const (CInt b)) = boolConst (a < (b % 1))
+ltT (Const (CReal a)) (Const (CReal b)) = boolConst (a < b)
 ltT (Const (CInt n)) t
   | isInteger t = func FLte [Const (CInt (n + 1)), t]
   | otherwise = func FLt [Const (CInt n), t]
@@ -673,6 +697,10 @@ gtT :: Term -> Term -> Term
 gtT a b = ltT b a
 
 equal :: Term -> Term -> Term
+equal (Const (CInt a)) (Const (CInt b)) = boolConst (a == b)
+equal (Const (CInt a)) (Const (CReal b)) = boolConst ((a % 1) == b)
+equal (Const (CReal a)) (Const (CInt b)) = boolConst (a == (b % 1))
+equal (Const (CReal a)) (Const (CReal b)) = boolConst (a == b)
 equal a b = func FEq [a, b]
 
 multT :: [Term] -> Term
@@ -684,11 +712,12 @@ multT =
     [t] -> t
     ts -> func FMul ts
 
--- TODO: flatten?
 addT :: [Term] -> Term
 addT =
   \case
     [] -> zeroT
+    Const (CInt a):Const (CInt b):ar -> addT $ Const (CInt (a + b)) : ar
+    Const (CReal a):Const (CReal b):ar -> addT $ Const (CReal (a + b)) : ar
     [t] -> t
     ts -> func FAdd $ flatten ts
   where
@@ -747,6 +776,7 @@ pushdownQE =
         (q, t) -> Quant q s t
     Func f args -> Func f (map pushdownQE args)
     term -> term
+
 --typeCheck :: Term -> Either String Sort
 --typeCheck = go (const Nothing)
 --    where
@@ -779,3 +809,43 @@ pushdownQE =
 -- Pre-Simplification / Pre-Simplification check
 -- TODO: This might be a different module
 --
+setSymbolTo :: Symbol -> Term -> Term -> Term
+setSymbolTo var term =
+  mapTerm $ \var' _ ->
+    if var == var'
+      then Just term
+      else Nothing
+
+-- TODO: move to different module
+underapproxSAT :: Term -> Bool
+underapproxSAT = go . normNNF
+  where
+    go =
+      \case
+        Const (CBool b) -> b
+        Func FOr fs -> any go fs
+        Func FAnd [] -> True
+        Func FAnd (Const (CBool True):tr) -> go $ Func FAnd tr
+        Func FAnd (f:fr) ->
+          let rec = Func FAnd fr
+           in case f of
+                Func comp [Var v _, Const c]
+                  | comp `elem` [FEq, FLte] -> go $ setSymbolTo v (Const c) rec
+                  | comp == FLt -> go $ setSymbolTo v (minusT [Const c, Const (CInt 1)]) rec
+                Func comp [Const c, Var v _]
+                  | comp `elem` [FEq, FLte] -> go $ setSymbolTo v (Const c) rec
+                  | comp == FLt -> go $ setSymbolTo v (addT [Const c, Const (CInt 1)]) rec
+                Func FNot [Func FEq [Var v s, Const c]]
+                  | isNumber s -> go $ setSymbolTo v (addT [Const c, Const (CInt 1)]) rec
+                  | s == SBool -> go $ setSymbolTo v (neg (Const c)) rec
+                  | otherwise -> False
+                Func FNot [Func FEq [Const c, Var v s]]
+                  | isNumber s -> go $ setSymbolTo v (addT [Const c, Const (CInt 1)]) rec
+                  | s == SBool -> go $ setSymbolTo v (neg (Const c)) rec
+                  | otherwise -> False
+                _ -> False
+        Func comp [Var v1 _, Var v2 _]
+          | v1 == v2 -> comp == FEq
+          | otherwise -> comp `elem` [FEq, FLt, FLte]
+        Func FNot [Func FEq [Var v1 _, Var v2 _]] -> v1 /= v2
+        f -> go $ Func FAnd [f]
