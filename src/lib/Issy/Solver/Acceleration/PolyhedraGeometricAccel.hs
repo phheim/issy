@@ -42,18 +42,17 @@ accelReach conf heur player arena loc reach = do
   conf <- pure $ setName "GGeoA" conf
   accelGAL conf heur player arena loc reach
 
+-- TODO: switch lemma search to BFS instead of DFS
 accelGAL :: Config -> Heur -> Player -> Arena -> Loc -> SymSt -> IO (Term, SyBo)
 accelGAL conf heur player arena loc reach = do
   lg conf ["Accelerate in", locName arena loc, "on", strSt arena reach]
   (indeps, preComb) <- preCompGen conf heur player arena loc reach prime
-  let gal = guessLemma heur indeps (reach `get` loc)
-  case gal of
-    [] -> lg conf ["Could not guess any lemma"] $> (FOL.false, Synt.empty)
-    gals -> do
-      res <- go preComb indeps gals
-      case res of
-        Nothing -> lg conf ["Failed"] $> (FOL.false, Synt.empty)
-        Just (conc, prog) -> lg conf ["Suceeded with", SMTLib.toString conc] $> (conc, prog)
+  let gals = guessLemma heur indeps (reach `get` loc)
+  when (null gals) $ lg conf ["Could not guess any lemma"]
+  res <- go preComb indeps gals
+  case res of
+    Nothing -> lg conf ["Failed"] $> (FOL.false, Synt.empty)
+    Just (conc, prog) -> lg conf ["Suceeded with", SMTLib.toString conc] $> (conc, prog)
   where
     -- Priming symbol for the previous state in the lemma
     prime = FOL.uniquePrefix "init_" $ usedSymbols arena
@@ -64,10 +63,8 @@ accelGAL conf heur player arena loc reach = do
       res <- iter 0 FOL.true gal
       case res of
         Just res -> lg conf ["Lemma try suceeded"] $> Just res
-        Nothing -> do
-          lg conf ["Lemma try failed"]
-          go preComb indeps galr
-        --
+        Nothing -> lg conf ["Lemma try failed"] >> go preComb indeps galr
+        -- Try out different invaraints
       where
         iter cnt inv gal
           | cnt > H.ggaIters heur = pure Nothing
@@ -81,21 +78,33 @@ accelGAL conf heur player arena loc reach = do
             check <- lemmaCond conf arena loc reach al pre
             case check of
               NotApplicable -> pure Nothing
-              Applicable -> pure $ Just (pre, preProg) --TODO: add conclusion and so?
+              Applicable -> pure $ Just (conc al, preProg)
               Refine
                 -- TODO: Proper heuristic
                 | cnt == H.ggaIters heur -> iter (cnt + 1) pre gal
                 | otherwise -> do
                   lg conf ["Guess sublemma for", SMTLib.toString pre]
-                  case guessLemmaSimple heur indeps pre of
-                    [] -> iter (cnt + 1) pre gal
-                    subGal:subGalR --TODO use more than one!
-                     -> do
-                      gal <- pure $ CChain gal subGal
-                      lg conf ["GAL enhance to", polyLemmaToStr gal]
-                                -- TODO: maybe some emptiness check??
-                      iter (cnt + 1) inv gal
+                  trySublemmas $ guessLemmaSimple heur indeps pre
+          where
+            trySublemmas =
+              \case
+                [] -> lg conf ["No more sublemmas to try"] $> Nothing
+                subGal:rest -> do
+                  gal <- pure $ CChain gal subGal
+                  lg conf ["GAL enhance to", polyLemmaToStr gal]
+                  res <- iter (cnt + 1) inv gal
+                  case res of
+                    Just res -> pure $ Just res
+                    Nothing -> trySublemmas rest
 
+--lemmaTry :: PolyLemma -> LemmaTry
+--lemmaTry lemma = LemmaTry {lemmaCom = lemma, iterCnt = 0, nestCnt = 0}
+--
+--data LemmaTry = LemmaTry 
+--    {   lemmaComb :: PolyLemma
+--    ,   iterCnt :: Int
+--    ,   nestCnt :: Int
+--    }
 ---------------------------------------------------------------------------------------------------
 -- Attractor through loop arena
 ---------------------------------------------------------------------------------------------------
@@ -196,21 +205,19 @@ guessLemma heur indeps trg =
   case filter (not . null) $ map gen (nontrivialPolyhedra trg) of
     [] -> []
     [l] -> l
-    gals -> concatMap (map combUnionLex . listProduct) $ reverse $ combs gals
+    gals -> concatMap (map combUnionLex . listProduct) $ combs gals
   where
     gen = fromPolyhedron indeps
-    combs = take 10 . filter (not . null) . permutationsUpTo 2 -- TODO: add heursitic values
+    combs = reverse . take 10 . filter (not . null) . permutationsUpTo 2 -- TODO: add heursitic values
 
 -- TODO: this neeeds to be documents why stuff happens
 fromPolyhedron :: Set Symbol -> (Polyhedron, Set Term) -> [PolyLemma]
 fromPolyhedron indeps (poly, sideConstr) =
   let (rankIneqs, invIneqs) = List.partition (potentialGAL indeps) $ toIneqs poly
       invFor keep = FOL.andf $ Set.toList sideConstr ++ map ineqToTerm (invIneqs ++ keep)
-   in if null rankIneqs --TODO: this check might be uncessesary!
-        then []
-        else map (\(rank, keep) -> combInv (invFor keep) (combIntersect (map CBase rank)))
-               $ filter (not . null . fst)
-               $ partitionsUpTo 2 rankIneqs -- TODO heursitic instead of 2
+   in map (\(rank, keep) -> combInv (invFor keep) (combIntersect (map CBase rank)))
+        $ filter (not . null . fst)
+        $ partitionsUpTo 2 rankIneqs -- TODO heursitic instead of 2
 
 potentialGAL :: Set Symbol -> Ineq Integer -> Bool
 potentialGAL indeps = any ((`notElem` indeps) . fst . fst) . fst
@@ -271,7 +278,10 @@ data Combinator a
 combInv :: Term -> Combinator a -> Combinator a
 combInv inv
   | inv == FOL.true = id
-  | otherwise = CInv inv
+  | otherwise =
+    \case
+      CInv oinv comb -> CInv (FOL.andf [inv, oinv]) comb
+      comb -> CInv inv comb
 
 combUnionLex :: [Combinator a] -> Combinator a
 combUnionLex =
@@ -285,7 +295,7 @@ combIntersect =
   \case
     [] -> error "assert: not allowed"
     [c] -> c
-    cs -> CUnionLex cs
+    cs -> CIntersection cs
 
 combToStr :: (a -> String) -> Combinator a -> String
 combToStr toStr comb = "COMB[" ++ go comb ++ "]"
