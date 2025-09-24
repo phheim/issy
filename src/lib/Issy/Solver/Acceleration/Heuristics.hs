@@ -15,6 +15,9 @@ module Issy.Solver.Acceleration.Heuristics
   , lemmaResolveTO
   , templatePattern
   , nestingDepth
+  , ggaMaxIntersect
+  , ggaMaxLexiUnionSize
+  , ggaMaxLexiUnion
   ) where
 
 import Data.List (genericReplicate)
@@ -77,13 +80,22 @@ invSatModelTO :: Heur -> Maybe Int
 invSatModelTO _ = Just 20
 
 ---
--- Geometric Acceleration
+-- General Geometric Acceleration
 ---
 ggaIters :: Heur -> Int
 ggaIters _ = 2
 
 ggaDepth :: Heur -> Int
 ggaDepth _ = 2
+
+ggaMaxIntersect :: Heur -> Int
+ggaMaxIntersect _ = 2
+
+ggaMaxLexiUnionSize :: Heur -> Int
+ggaMaxLexiUnionSize _ = 2
+
+ggaMaxLexiUnion :: Heur -> Int
+ggaMaxLexiUnion _ = 10
 
 ---
 -- UF Acceleration
