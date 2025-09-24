@@ -12,6 +12,7 @@
 module Issy.Logic.Polyhedra
   ( Polyhedron
   , Ineq
+  , ineqToTerm
   , sumTerm
   , toIneqs
   , normalize
@@ -257,6 +258,9 @@ tryDisjunctP p1 p2 =
 -- TODO make this to additional interface between terms and polyhedra!
 type Ineq a = ([((Symbol, Sort), a)], Interval)
 
+ineqToTerm :: Ineq Integer -> Term
+ineqToTerm (linComb, intv) = isInside (sumTerm linComb) intv
+
 toIneqs :: Polyhedron -> [Ineq Integer]
 toIneqs poly = map toIneq $ toListT $ linearConstraints poly
   where
@@ -272,7 +276,7 @@ sumTerm :: [((Symbol, Sort), Integer)] -> Term
 sumTerm = FOL.addT . map (\((v, s), c) -> FOL.multT [FOL.numberT c, FOL.var v s])
 
 toTerms :: Polyhedron -> [Term]
-toTerms = map (\(linc, intv) -> isInside (sumTerm linc) intv) . toIneqs
+toTerms = map ineqToTerm . toIneqs
 
 data IncPoly
   = NewPoly Polyhedron
