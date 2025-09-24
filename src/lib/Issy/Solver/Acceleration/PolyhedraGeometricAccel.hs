@@ -13,9 +13,8 @@ module Issy.Solver.Acceleration.PolyhedraGeometricAccel
   ( accelReach
   ) where
 
-import qualified Data.List as List
-
 ---------------------------------------------------------------------------------------------------
+import qualified Data.List as List
 import qualified Data.Set as Set
 import Issy.Prelude
 
@@ -32,7 +31,6 @@ import Issy.Solver.Acceleration.LoopScenario (reducedLoopArena)
 import Issy.Solver.GameInterface
 import Issy.Solver.Synthesis (SyBo)
 import qualified Issy.Solver.Synthesis as Synt
-import Issy.Utils.Extra (justOn)
 import Issy.Utils.Logging
 import qualified Issy.Utils.OpenList as OL
 
@@ -42,27 +40,28 @@ import qualified Issy.Utils.OpenList as OL
 accelReach :: Config -> Heur -> Player -> Arena -> Loc -> SymSt -> IO (Term, SyBo)
 accelReach conf heur player arena loc reach = do
   conf <- pure $ setName "GGeoA" conf
-  lg conf ["Accelerate in", locName arena loc, "on", strSt arena reach]
-  let prime = FOL.uniquePrefix "init_" $ usedSymbols arena
-  res <- accelGAL conf heur player arena prime loc reach FOL.true
-  case res of
-    Just (conc, prog) -> lg conf ["Suceeded with", SMTLib.toString conc] $> (conc, prog)
-    Nothing -> lg conf ["Failed"] $> (FOL.false, Synt.empty)
+  accelGAL conf heur player arena loc reach
 
--- TODO: can this and accelReach be merged?
-accelGAL ::
-     Config -> Heur -> Player -> Arena -> Symbol -> Loc -> SymSt -> Term -> IO (Maybe (Term, SyBo))
-accelGAL conf heur player arena prime loc reach inv = do
+accelGAL :: Config -> Heur -> Player -> Arena -> Loc -> SymSt -> IO (Term, SyBo)
+accelGAL conf heur player arena loc reach = do
+  lg conf ["Accelerate in", locName arena loc, "on", strSt arena reach]
   (indeps, preComb) <- preCompGen conf heur player arena loc reach prime
   let gal = guessLemma heur (vars arena) indeps prime (reach `get` loc)
   case gal of
-    [] -> lg conf ["Could not guess any lemma"] $> Nothing
-    gals -> go preComb indeps gals
+    [] -> lg conf ["Could not guess any lemma"] $> (FOL.false, Synt.empty)
+    gals -> do
+      res <- go preComb indeps gals
+      case res of
+        Nothing -> lg conf ["Failed"] $> (FOL.false, Synt.empty)
+        Just (conc, prog) -> lg conf ["Suceeded with", SMTLib.toString conc] $> (conc, prog)
   where
+    -- Priming symbol for the previous state in the lemma
+    prime = FOL.uniquePrefix "init_" $ usedSymbols arena
+    -- Try out different lemmas
     go _ _ [] = lg conf ["All lemma-tries failed"] $> Nothing
     go preComb indeps (gal:galr) = do
       lgGAL conf "Lemma try" gal
-      res <- iter 0 inv gal
+      res <- iter 0 FOL.true gal
       case res of
         Just res -> lg conf ["Lemma try suceeded"] $> Just res
         Nothing -> do
@@ -81,6 +80,7 @@ accelGAL conf heur player arena prime loc reach inv = do
               NotApplicable -> pure Nothing
               Applicable -> pure $ Just (pre, preProg) --TODO: add conclusion and so?
               Refine
+                -- TODO: Proper heuristic
                 | cnt == H.ggaIters heur -> iter (cnt + 1) pre gal
                 | otherwise -> do
                   lg conf ["Guess sublemma for", SMTLib.toString pre]
@@ -177,6 +177,75 @@ iterA conf heur player arena attr shadow =
 ---------------------------------------------------------------------------------------------------
 -- Lemma Guessing based on polyhedra
 ---------------------------------------------------------------------------------------------------
+guessLemmaSimple :: Heur -> Variables -> Set Symbol -> Symbol -> Term -> [GenAccelLemma]
+guessLemmaSimple heur vars indeps prime = concatMap gen . nontrivialPolyhedra
+  where
+    gen = fromPolyhedron vars indeps prime (H.minEpsilon heur)
+
+-- TODO use heuristic better
+guessLemma :: Heur -> Variables -> Set Symbol -> Symbol -> Term -> [GenAccelLemma]
+guessLemma heur vars indeps prime trg =
+  case filter (not . null) $ map gen (nontrivialPolyhedra trg) of
+    [] -> []
+    [l] -> l
+    gals -> concatMap (map galUnionsLex . listProduct) $ reverse $ combs gals
+  where
+    gen = fromPolyhedron vars indeps prime (H.minEpsilon heur)
+    combs = take 10 . filter (not . null) . permutationsUpTo 2 -- TODO: add heursitic values
+
+-- TODO: this neeeds to be documents why stuff happens
+fromPolyhedron ::
+     Variables -> Set Symbol -> Symbol -> Rational -> (Polyhedron, Set Term) -> [GenAccelLemma]
+fromPolyhedron vars indeps prime epsilon (poly, sideConstr) =
+  let (statics, gals) = partitionMaybe (ineqGal vars indeps prime epsilon) $ toIneqs poly
+      invFor staticGals =
+        FOL.andf $ Set.toList sideConstr ++ map ineqGoal statics ++ map gbase staticGals -- Remark: this is fairly simplistic, and could be enhanced
+   in if null gals
+        then []
+        else map (\(rank, keep) -> addInvariant (invFor keep) (galIntersections vars rank))
+               $ filter (not . null . fst)
+               $ partitionsUpTo 2 gals -- TODO heursitic instead of 2
+
+ineqGal :: Variables -> Set Symbol -> Symbol -> Rational -> Ineq Integer -> Maybe GenAccelLemma
+ineqGal vars indeps prime epsilon (linComb, bounds)
+  | all ((`elem` indeps) . fst . fst) linComb = Nothing
+  | otherwise =
+    let sum = sumTerm linComb
+        sum' = primeT vars prime sum
+                -- Remark: Note that priming is "inverted" (previous part is primed)
+                -- as we do a backward computation
+     in Just
+          $ GenAccelLemma
+              { gprime = prime
+              , gbase = ineqGoal (linComb, bounds)
+              , gstay =
+                  FOL.orf
+                    [ ineqGoal (linComb, bounds)
+                    , FOL.andf [ltLow bounds sum, sum `FOL.geqT` sum', inUpp bounds sum']
+                    , FOL.andf [gtUpp bounds sum, sum `FOL.leqT` sum', inLow bounds sum']
+                    ]
+              , gstep =
+                  FOL.orf
+                    [ ineqGoal (linComb, bounds)
+                    , FOL.andf [ltLow bounds sum, sum' `ltEpsilon` sum, inUpp bounds sum']
+                    , FOL.andf [gtUpp bounds sum, sum `ltEpsilon` sum', inLow bounds sum']
+                    ]
+              , gconc = FOL.true
+              }
+  where
+    ltEpsilon t1 t2
+      | (FOL.sorts t1 `Set.union` FOL.sorts t2) == Set.singleton FOL.SInt = t1 `FOL.ltT` t2
+      | otherwise = t1 `FOL.ltT` FOL.addT [FOL.numberT epsilon, t2]
+
+ineqGoal :: Ineq Integer -> Term
+ineqGoal (linComb, bounds) =
+  let sum = sumTerm linComb
+   in FOL.andf [inLow bounds sum, inUpp bounds sum]
+
+---------------------------------------------------------------------------------------------------
+-- General Acceleration Lemmas
+-- TODO: can this be generalized module wise?
+---------------------------------------------------------------------------------------------------
 data GenAccelLemma = GenAccelLemma
   { gbase :: Term
   , gstep :: Term
@@ -185,6 +254,36 @@ data GenAccelLemma = GenAccelLemma
   , gprime :: Symbol
   }
 
+galToAl :: GenAccelLemma -> AccelLemma
+galToAl gal = AccelLemma {base = gbase gal, step = gstep gal, conc = gconc gal, prime = gprime gal}
+
+data Combinator a
+  = CBase a
+  | CInv Term (Combinator a)
+  | CChain (Combinator a) (Combinator a)
+  | CUnionLex [Combinator a]
+  | CIntersection [Combinator a]
+
+toGAL :: Variables -> (a -> GenAccelLemma) -> Combinator a -> GenAccelLemma
+toGAL vars mkGAL = go
+  where
+    go =
+      \case
+        CBase a -> mkGAL a
+        CInv inv a -> addInvariant inv (go a)
+        CChain a b -> galChain vars (go a) (go b)
+        CUnionLex gs -> galUnionsLex (map go gs)
+        CIntersection gs -> galIntersections vars (map go gs)
+
+addInvariant :: Term -> GenAccelLemma -> GenAccelLemma
+addInvariant inv gal =
+  gal
+    { gbase = FOL.andf [gbase gal, inv]
+    , gconc = FOL.andf [gconc gal, inv]
+    , gstay = FOL.andf [gstay gal, inv]
+    , gstep = FOL.andf [gstep gal, inv]
+    }
+
 lgGAL :: Config -> String -> GenAccelLemma -> IO ()
 lgGAL conf name gal = do
   lg conf ["GAL:", name]
@@ -192,30 +291,6 @@ lgGAL conf name gal = do
   lg conf ["- stay:", SMTLib.toString (gstay gal)]
   lg conf ["- step:", SMTLib.toString (gstep gal)]
   lg conf ["- conc:", SMTLib.toString (gconc gal)]
-
--- TODO: can this be generalized module wise?
-galToAl :: GenAccelLemma -> AccelLemma
-galToAl gal = AccelLemma {base = gbase gal, step = gstep gal, conc = gconc gal, prime = gprime gal}
-
-guessLemmaSimple :: Heur -> Variables -> Set Symbol -> Symbol -> Term -> [GenAccelLemma]
-guessLemmaSimple heur vars indeps prime = mapMaybe gen . nontrivialPolyhedra
-  where
-    gen = fromPolyhedron vars indeps prime (H.minEpsilon heur)
-
--- TODO use heuristic better
-guessLemma :: Heur -> Variables -> Set Symbol -> Symbol -> Term -> [GenAccelLemma]
-guessLemma heur vars indeps prime trg =
-  case mapMaybe gen (nontrivialPolyhedra trg) of
-    [] -> []
-    [l] -> [l]
-    gals -> map galUnionsLex $ combs gals
-  where
-    gen = fromPolyhedron vars indeps prime (H.minEpsilon heur)
-    combs = take 10 . filter (not . null) . permutationsUpTo 2 -- TODO: add heursitic values
-
-permutationsUpTo :: Int -> [a] -> [[a]]
-permutationsUpTo maxL =
-  List.sortOn length . concatMap List.permutations . filter ((<= maxL) . length) . List.subsequences
 
 -- condition: all priming is the same!, list not empty
 galChain :: Variables -> GenAccelLemma -> GenAccelLemma -> GenAccelLemma
@@ -247,46 +322,32 @@ galUnionLex gal1 gal2 =
 
 -- condition: all priming is the same!, list not empty
 galUnionsLex :: [GenAccelLemma] -> GenAccelLemma
-galUnionsLex = go
-  where
-    go [] = error "assertion"
-    go [x] = x
-    go (x:xr) = galUnionLex x (go xr)
+galUnionsLex [] = error "assert: cannot compute empty list of GAL unions"
+galUnionsLex (x:xr) = foldr galUnionLex x xr
 
 -- condition: all priming is the same!, list not empty
-galUnion :: [GenAccelLemma] -> GenAccelLemma
-galUnion subs =
-  GenAccelLemma
-    { gbase = FOL.orfL subs gbase
-    , gstay = FOL.andfL subs gstay
-    , gconc = FOL.orfL subs gconc
-    , gstep =
-        FOL.orfL (singleOut subs) $ \(poly, others) -> FOL.andf $ gstep poly : map gstay others
-    , gprime = gprime (head subs)
-    }
+galIntersections :: Variables -> [GenAccelLemma] -> GenAccelLemma
+galIntersections vars gals =
+  let newConc = FOL.andfL gals gconc
+      newStep =
+        FOL.orfL (singleOut gals) $ \(gal, others) ->
+          FOL.andf [gstep gal, prm (FOL.neg (gbase gal)), FOL.andfL others gstay]
+   in GenAccelLemma
+        { gbase = FOL.andfL gals gbase
+        , gstay = FOL.andfL gals gstay
+        , gstep = FOL.andf [newConc, newStep]
+        , gconc = newConc
+        , gprime = gprime (head gals)
+        }
+  where
+    prm = primeT vars (gprime (head gals))
 
-fromPolyhedron ::
-     Variables -> Set Symbol -> Symbol -> Rational -> (Polyhedron, Set Term) -> Maybe GenAccelLemma
-fromPolyhedron vars indeps prime epsilon (poly, sideConstr) =
-  let ineqs = toIneqs poly
-      someDeps = any (any ((`notElem` indeps) . (fst . fst)) . fst) ineqs --TODO: improve by filter on idividual terms!
-      inv = FOL.andf $ Set.toList sideConstr -- Remark: this is fairly simplistic, and could be enhanced
-   in justOn someDeps
-        $ GenAccelLemma
-            { gbase = FOL.andf [inv, FOL.andfL ineqs ineqGoal]
-            , gconc = inv
-            , gstay = FOL.andf [inv, FOL.andfL ineqs $ ineqStay vars prime]
-            , gstep =
-                FOL.orfL (singleOut ineqs) $ \(ineq, others) ->
-                  FOL.andf
-                    [inv, ineqStep vars prime epsilon ineq, FOL.andfL others (ineqStay vars prime)]
-            , gprime = prime
-            }
-
-ineqGoal :: Ineq Integer -> Term
-ineqGoal (linComb, bounds) =
-  let sum = sumTerm linComb
-   in FOL.andf [inLow bounds sum, inUpp bounds sum]
+---------------------------------------------------------------------------------------------------
+-- Generic Functions
+---------------------------------------------------------------------------------------------------
+permutationsUpTo :: Int -> [a] -> [[a]]
+permutationsUpTo maxL =
+  List.sortOn length . concatMap List.permutations . filter ((<= maxL) . length) . List.subsequences
 
 singleOut :: [a] -> [(a, [a])]
 singleOut = go []
@@ -296,31 +357,29 @@ singleOut = go []
         [] -> []
         x:xr -> (x, acc ++ xr) : go (acc ++ [x]) xr
 
-ineqStay :: Variables -> Symbol -> Ineq Integer -> Term
-ineqStay vars prime (linComb, bounds) =
-  let sum = sumTerm linComb
-      sum' = primeT vars prime sum
-        -- Remark: Note that priming is "inverted" (previous part is primed)
-        -- as we do a backward computation
-   in FOL.orf
-        [ ineqGoal (linComb, bounds)
-        , FOL.andf [ltLow bounds sum, sum `FOL.geqT` sum', inUpp bounds sum']
-        , FOL.andf [gtUpp bounds sum, sum `FOL.leqT` sum', inLow bounds sum']
-        ]
-
-ineqStep :: Variables -> Symbol -> Rational -> Ineq Integer -> Term
-ineqStep vars prime epsilon (linComb, bounds) =
-  let sum = sumTerm linComb
-      sum' = primeT vars prime sum
-        -- Remark: Note that priming is "inverted" (previous part is primed)
-        -- as we do a backward computation
-   in FOL.orf
-        [ ineqGoal (linComb, bounds)
-        , FOL.andf [ltLow bounds sum, sum' `ltEpsilon` sum, inUpp bounds sum']
-        , FOL.andf [gtUpp bounds sum, sum `ltEpsilon` sum', inLow bounds sum']
-        ]
+-- 'paritionsUpTo' computes all partitions of the given list with a bound on the lenght of the first
+-- partitioning
+partitionsUpTo :: Int -> [a] -> [([a], [a])]
+partitionsUpTo maxL = map (\(_, as, bs) -> (as, bs)) . go
   where
-    ltEpsilon t1 t2
-      | (FOL.sorts t1 `Set.union` FOL.sorts t2) == Set.singleton FOL.SInt = t1 `FOL.ltT` t2
-      | otherwise = t1 `FOL.ltT` FOL.addT [FOL.numberT epsilon, t2]
+    go [] = [(0, [], [])]
+    go (x:xr) =
+      flip concatMap (go xr) $ \(n, as, bs) ->
+        if n >= maxL
+          then [(n, as, x : bs)]
+          else [(n, as, x : bs), (n + 1, x : as, bs)]
+
+-- 'listProduct' computes the n-ary cartesian product over a list
+listProduct :: [[a]] -> [[a]]
+listProduct [] = []
+listProduct [xs] = map (: []) xs
+listProduct (xs:yr) = concatMap (\y -> map (: y) xs) $ listProduct yr
+
+-- TODO: Move to Prelude or so Utils.Extra!
+partitionMaybe :: (a -> Maybe b) -> [a] -> ([a], [b])
+partitionMaybe _ [] = ([], [])
+partitionMaybe f (x:xr) =
+  case f x of
+    Nothing -> first (x :) $ partitionMaybe f xr
+    Just y -> second (y :) $ partitionMaybe f xr
 ---------------------------------------------------------------------------------------------------

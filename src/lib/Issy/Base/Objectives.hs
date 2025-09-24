@@ -61,7 +61,7 @@ isSafety obj =
 
 -- | 'toTemporalLogic' encodes an 'Objective' into a termporal logic formula, given an 
 -- encoding for the locations in the objective. Note that this encoding is the straightforward
--- without any sophisticated optimizations
+-- one without any sophisticated optimizations.
 toTemporalLogic :: (Loc -> a) -> Objective -> TL.Formula a
 toTemporalLogic encLoc obj =
   let encWC =

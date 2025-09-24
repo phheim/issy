@@ -118,7 +118,7 @@ simplifyPoly conf term = do
     Sys.timeout
       (5 * (10 ^ (6 :: Int)))
       (do
-         pure $! Poly.normalizeFast term -- TODO: make proper parameter here!
+         pure $! Poly.normalize term -- TODO: make proper parameter here!
        )
   case simpTerm of
     Nothing -> lgv conf ["Polyhedra simplification seems to expensive"] $> Nothing
