@@ -6,7 +6,7 @@
 -- License     : The Unlicense
 --
 ---------------------------------------------------------------------------------------------------
-{-# LANGUAGE LambdaCase, MultiWayIf #-}
+{-# LANGUAGE MultiWayIf #-}
 
 ---------------------------------------------------------------------------------------------------
 module Issy.Solver.Acceleration.PolyhedraGeometricAccel
@@ -15,7 +15,6 @@ module Issy.Solver.Acceleration.PolyhedraGeometricAccel
 
 ---------------------------------------------------------------------------------------------------
 import qualified Data.List as List
-import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Issy.Prelude
 
@@ -34,6 +33,7 @@ import Issy.Solver.Synthesis (SyBo)
 import qualified Issy.Solver.Synthesis as Synt
 import Issy.Utils.Logging
 import qualified Issy.Utils.OpenList as OL
+import qualified Issy.Utils.PrioQueue as PQ
 
 ---------------------------------------------------------------------------------------------------
 -- Top-level acceleration
@@ -55,10 +55,10 @@ accelGAL conf heur player arena loc reach = do
     -- Priming symbol for the previous state in the lemma
     prime = FOL.uniquePrefix "init_" $ usedSymbols arena
     -- Search for lemmas
-    searchLemma preComb indeps gals = search $ pushPQs searchKeyInit gals emptyPQ
+    searchLemma preComb indeps gals = search $ PQ.fromList searchKeyInit gals
       where
         search queue =
-          case popPQ queue of
+          case PQ.pop queue of
             Nothing -> lg conf ["Did not find any applicable lemma!"] $> (FOL.false, Synt.empty)
             Just (sk, lemmaComb, queue) -> do
               lg conf ["Try", polyLemmaToStr lemmaComb]
@@ -72,7 +72,7 @@ accelGAL conf heur player arena loc reach = do
                 Refine ->
                   let queueA
                         | refinementCnt sk < H.ggaIters heur =
-                          pushPQ
+                          PQ.push
                             (sk {refinementCnt = refinementCnt sk + 1})
                             (combInv pre lemmaComb)
                             queue
@@ -82,7 +82,7 @@ accelGAL conf heur player arena loc reach = do
                          =
                           let subLemmas =
                                 map (combChain lemmaComb) $ guessLemmaSimple heur indeps pre
-                           in pushPQs (sk {nestingCnt = nestingCnt sk + 1}) subLemmas queueA
+                           in PQ.pushs (sk {nestingCnt = nestingCnt sk + 1}) subLemmas queueA
                         | otherwise = queueA
                    in search queueB
 
@@ -96,58 +96,11 @@ searchKeyInit = SearchKey {refinementCnt = 0, nestingCnt = 0}
 
 instance Ord SearchKey where
   compare skA skB =
-    if | nestingCnt skA < nestingCnt skB -> LT
-       | nestingCnt skA > nestingCnt skB -> GT
-       | refinementCnt skA < refinementCnt skB -> LT
-       | refinementCnt skA > refinementCnt skB -> GT
+    if | nestingCnt skA < nestingCnt skB -> GT
+       | nestingCnt skA > nestingCnt skB -> LT
+       | refinementCnt skA < refinementCnt skB -> GT
+       | refinementCnt skA > refinementCnt skB -> LT
        | otherwise -> EQ
-
--- TODO: Move to own moduls!
-newtype Queue a =
-  Queue ([a], [a])
-
-nullQ :: Queue a -> Bool
-nullQ (Queue ([], [])) = True
-nullQ _ = False
-
-emptyQ :: Queue a
-emptyQ = Queue ([], [])
-
-pushQ :: a -> Queue a -> Queue a
-pushQ a (Queue ([], [])) = Queue ([a], [])
-pushQ a (Queue (outS, inpS)) = Queue (outS, a : inpS)
-
-popQ :: Queue a -> Maybe (a, Queue a)
-popQ (Queue ([], [])) = Nothing
-popQ (Queue (a:outR, inpS)) = Just (a, Queue (outR, inpS))
-popQ (Queue ([], inpS)) =
-  let outS = reverse inpS
-   in Just (head outS, Queue (tail outS, []))
-
-newtype PrioQueue k a =
-  PrioQueue (Map k (Queue a))
-
-emptyPQ :: PrioQueue k a
-emptyPQ = PrioQueue Map.empty
-
-pushPQ :: Ord k => k -> a -> PrioQueue k a -> PrioQueue k a
-pushPQ k a (PrioQueue q) = PrioQueue $ Map.alter updQueue k q
-  where
-    updQueue = Just . pushQ a . fromMaybe emptyQ
-
-pushPQs :: Ord k => k -> [a] -> PrioQueue k a -> PrioQueue k a
-pushPQs k xs q = foldl (flip (pushPQ k)) q xs
-
-popPQ :: Ord k => PrioQueue k a -> Maybe (k, a, PrioQueue k a)
-popPQ (PrioQueue q) =
-  case Map.lookupMin q of
-    Nothing -> Nothing
-    Just (k, subq) ->
-      case popQ subq of
-        Nothing -> error "assert: this should not happen"
-        Just (a, subq)
-          | nullQ subq -> Just (k, a, PrioQueue (Map.deleteMin q))
-          | otherwise -> Just (k, a, PrioQueue (Map.insert k subq q))
 
 ---------------------------------------------------------------------------------------------------
 -- Attractor through loop arena
@@ -197,19 +150,19 @@ lemmaCond conf arena loc target lemma loopGameResult = do
   let accelValue = FOL.andf [dom arena loc, conc lemma]
   let stepCond = accelValue `FOL.impl` loopGameResult
   let baseCond = FOL.andf [dom arena loc, base lemma] `FOL.impl` (target `get` loc)
-  lg conf ["Loop game result", SMTLib.toString loopGameResult]
+  lgd conf ["Loop game result", SMTLib.toString loopGameResult]
   holds <- SMT.sat conf loopGameResult
   if not holds
-    then lg conf ["Precondition trivially false"] $> NotApplicable
+    then lgd conf ["Precondition trivially false"] $> NotApplicable
     else do
       holds <- SMT.valid conf baseCond
       if not holds
-        then lg conf ["Base condition failed"] $> NotApplicable
+        then lgd conf ["Base condition failed"] $> NotApplicable
         else do
           holds <- SMT.valid conf stepCond
           if not holds
-            then lg conf ["Step condition failed"] $> Refine
-            else lg conf ["Lemma conditions hold"] $> Applicable
+            then lgd conf ["Step condition failed"] $> Refine
+            else lgd conf ["Lemma conditions hold"] $> Applicable
 
 -- IO version of iterA, the organisation of those might be done 'a bit' better
 -- TODO integrate summaries in a better way!

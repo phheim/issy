@@ -99,6 +99,8 @@ library
     , Issy.Utils.Extra
     , Issy.Utils.Logging
     , Issy.Utils.OpenList
+    , Issy.Utils.PrioQueue
+    , Issy.Utils.Queue
 
   hs-source-dirs:
       src/lib
