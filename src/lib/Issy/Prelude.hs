@@ -8,26 +8,44 @@
 --
 ---------------------------------------------------------------------------------------------------
 module Issy.Prelude
-  ( Config
+  ( -- Configuration
+    Config
   , setName
   , debug
-  , Symbol
+  , -- First-order logic parts
+    Symbol
   , Sort
   , Term
   , Model
   , Function
-  , Loc
+  , -- Default game parts
+    Loc
   , Variables
   , Objective
   , WinningCondition
-  , SymSt
+  , -- Symbolic state parts
+    SymSt
   , get
   , set
-  , Set
+  , -- Logging, and string composing operations
+    lg
+  , lgd
+  , lgv
+  , strS
+  , strM
+  , strL
+  , strP
+  , strT
+  , -- Default data structures (& some operations)
+    Set
   , Map
+  , Queue
+  , PrioQueue
   , (!?)
   , (!)
-  , first
+  , -- Functions from the standard library
+    -- Pure functions
+    first
   , second
   , bimap
   , ($>)
@@ -40,12 +58,14 @@ module Issy.Prelude
   , denominator
   , numerator
   , swap
-  , (<=<)
+  , -- Monad operations
+    (<=<)
   , filterM
   , foldM
   , unless
   , when
-  , die
+  , -- IO operations
+    die
   ) where
 
 import Issy.Config (Config, debug, setName)
@@ -57,8 +77,12 @@ import Issy.Base.Objectives (Objective, WinningCondition)
 import Issy.Base.SymbolicState (SymSt, get, set)
 import Issy.Base.Variables (Variables)
 
+import Issy.Utils.Logging (lg, lgd, lgv, strL, strM, strP, strS, strT)
+
 import Data.Map.Strict (Map, (!), (!?))
 import Data.Set (Set)
+import Issy.Utils.PrioQueue (PrioQueue)
+import Issy.Utils.Queue (Queue)
 
 import Data.Bifunctor (bimap, first, second)
 import Data.Functor (($>), (<&>))

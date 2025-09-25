@@ -14,9 +14,8 @@ module Issy.Solver.Attractor
   , noCheck
   ) where
 
-import qualified Data.Set as Set
-
 ---------------------------------------------------------------------------------------------------
+import qualified Data.Set as Set
 import Issy.Prelude
 
 import qualified Issy.Base.SymbolicState as SymSt
@@ -33,7 +32,6 @@ import qualified Issy.Solver.Synthesis as Synt
 import Issy.Statistics (Stats)
 import qualified Issy.Statistics as Stats
 import Issy.Utils.Extra
-import Issy.Utils.Logging
 import Issy.Utils.OpenList (OpenList)
 import qualified Issy.Utils.OpenList as OL
 

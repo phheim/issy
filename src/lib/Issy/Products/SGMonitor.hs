@@ -17,7 +17,6 @@ import qualified Issy.Monitor as Mon
 import qualified Issy.Printers.SMTLib as SMTLib
 import Issy.SymbolicArena (Arena)
 import qualified Issy.SymbolicArena as SG
-import Issy.Utils.Logging
 import qualified Issy.Utils.OpenList as OL
 
 onTheFlyProduct :: Config -> Arena -> Objective -> Monitor -> IO (Arena, Objective)

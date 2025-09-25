@@ -20,7 +20,6 @@ import Issy.Solver.GameInterface
 import Issy.Solver.Synthesis (SyBo)
 import qualified Issy.Solver.Synthesis as Synt
 import Issy.Utils.Extra
-import Issy.Utils.Logging
 
 -------------------------------------------------------------------------------
 loopScenario ::

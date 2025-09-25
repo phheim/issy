@@ -19,7 +19,6 @@ import qualified Issy.RPG as RPG
 import qualified Issy.Translation.DOA as DOA
 import qualified Issy.Translation.LTL2DOA as LTL2DOA
 import Issy.Utils.Extra (intmapSet)
-import Issy.Utils.Logging
 
 updates :: Set TSL.Atom -> Map Symbol (Set Term)
 updates =

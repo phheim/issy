@@ -27,7 +27,6 @@ import Issy.Solver.GameInterface
 import Issy.Solver.Synthesis (SyBo)
 import qualified Issy.Solver.Synthesis as Synt
 import Issy.Statistics (Stats)
-import Issy.Utils.Logging
 
 ---------------------------------------------------------------------------------------------------
 -- Overall Solving

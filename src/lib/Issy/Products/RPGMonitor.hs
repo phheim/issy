@@ -14,7 +14,6 @@ import Issy.Monitor (Monitor, State, Trans(..), Verdict(..))
 import qualified Issy.Monitor as Mon
 import Issy.RPG (Game, Transition(..))
 import qualified Issy.RPG as RPG
-import Issy.Utils.Logging
 
 onTheFlyProduct :: Config -> Game -> Objective -> Monitor -> IO (Game, Objective)
 onTheFlyProduct cfg game obj monitor = do

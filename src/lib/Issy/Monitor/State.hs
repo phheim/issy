@@ -51,7 +51,6 @@ import Issy.Prelude
 
 import Issy.Monitor.Formula (Formula)
 import qualified Issy.Monitor.Formula as MF
-import Issy.Utils.Logging
 
 -------------------------------------------------------------------------------
 data State = State

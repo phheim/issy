@@ -50,7 +50,6 @@ import qualified Issy.Monitor.Rules as MR
 import Issy.Monitor.State (falseSt, initSt, stateToString, trueSt)
 import Issy.Monitor.Successors (generateSuccessor)
 import qualified Issy.Printers.SMTLib as SMTLib
-import Issy.Utils.Logging
 
 ---------------------------------------------------------------------------------------------------
 -- | 'initializeRPLTL' creates as 'Monitor' for RPLTL formula specifications. In order to used the

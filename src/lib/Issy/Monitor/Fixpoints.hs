@@ -15,7 +15,6 @@ import Issy.Logic.FOL (Constant(..), Quantifier(..), Sort(..), Term(..))
 import qualified Issy.Logic.FOL as FOL
 import Issy.Printers.SMTLib (funcToString)
 import Issy.Utils.Extra (firstLine)
-import Issy.Utils.Logging
 
 encSort :: Sort -> String
 encSort =

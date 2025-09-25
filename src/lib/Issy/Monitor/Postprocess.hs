@@ -15,7 +15,6 @@ import Issy.Monitor.Rules (derivedEventually)
 import Issy.Monitor.State (Domain(..), fset, isSafeSt, mapFs, normSt, stateToString)
 import qualified Issy.Monitor.State as M (State)
 import Issy.Utils.Extra (predecessorRelation, reachables)
-import Issy.Utils.Logging
 
 -------------------------------------------------------------------------------
 -- for all GF pred, search reachables 

@@ -11,10 +11,9 @@ module Issy.Monitor.Rules
   , derivedEventually
   ) where
 
+-------------------------------------------------------------------------------
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
-
--------------------------------------------------------------------------------
 import Issy.Prelude
 
 import qualified Issy.Base.Variables as Vars
@@ -32,7 +31,6 @@ import Issy.Monitor.Fixpoints
 import Issy.Monitor.Formula
 import Issy.Monitor.State
 import Issy.Utils.Extra (ifQuery, intmapSet)
-import Issy.Utils.Logging
 
 -------------------------------------------------------------------------------
 -- Overall

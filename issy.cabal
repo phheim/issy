@@ -9,6 +9,13 @@ library
   ghc-options:
     -Wall
     -Wno-name-shadowing
+    -Werror
+    -Wwarn=unused-imports
+    -Wwarn=unused-matches
+    -Wwarn=unused-top-binds
+    -Wwarn=unused-local-binds
+    -Wwarn=unused-pattern-binds
+    -Wwarn=type-defaults
     -fno-ignore-asserts
     -static
 -----optl-static
@@ -113,6 +120,13 @@ executable issy
   ghc-options:
     -Wall
     -Wno-name-shadowing
+    -Werror
+    -Wwarn=unused-imports
+    -Wwarn=unused-matches
+    -Wwarn=unused-top-binds
+    -Wwarn=unused-local-binds
+    -Wwarn=unused-pattern-binds
+    -Wwarn=type-defaults
 -----optl-static
 
   main-is:

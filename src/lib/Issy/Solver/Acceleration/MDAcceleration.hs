@@ -7,10 +7,9 @@ module Issy.Solver.Acceleration.MDAcceleration
   , iterA
   ) where
 
+-------------------------------------------------------------------------------
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
-
--------------------------------------------------------------------------------
 import Issy.Prelude
 
 import qualified Issy.Base.SymbolicState as SymSt
@@ -27,7 +26,6 @@ import Issy.Solver.GameInterface
 import Issy.Solver.Synthesis (SyBo)
 import qualified Issy.Solver.Synthesis as Synt
 import Issy.Utils.Extra
-import Issy.Utils.Logging
 import qualified Issy.Utils.OpenList as OL (fromSet, pop, push)
 
 -------------------------------------------------------------------------------

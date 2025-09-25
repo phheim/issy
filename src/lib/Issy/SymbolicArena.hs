@@ -61,7 +61,6 @@ import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.SMT as SMT
 import qualified Issy.Printers.SMTLib as SMTLib
 import Issy.Utils.Extra hiding (reachables)
-import Issy.Utils.Logging
 import qualified Issy.Utils.OpenList as OL
 
 ---------------------------------------------------------------------------------------------------

@@ -31,7 +31,6 @@ import Issy.Monitor.State
 import qualified Issy.Monitor.State as M (State)
 import qualified Issy.Printers.SMTLib as SMTLib (toString)
 import Issy.Utils.Extra
-import Issy.Utils.Logging
 
 generateSuccessor ::
      Config

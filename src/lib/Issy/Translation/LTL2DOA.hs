@@ -29,7 +29,6 @@ import qualified Hanoi as HOA (State, parse, printHOA)
 import Issy.Config (ltl2tgba)
 import qualified Issy.Logic.Temporal as TL
 import qualified Issy.Translation.DOA as DOA
-import Issy.Utils.Logging
 
 spotHOA :: Config -> [String] -> String -> IO HOA
 spotHOA cfg options ltlstr = do

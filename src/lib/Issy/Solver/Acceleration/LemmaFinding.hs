@@ -16,7 +16,6 @@ import qualified Issy.Printers.SMTLib as SMTLib (toString)
 import Issy.Solver.Acceleration.Base (primeT)
 import Issy.Solver.Acceleration.Heuristics (Heur)
 import qualified Issy.Solver.Acceleration.Heuristics as H
-import Issy.Utils.Logging
 
 -------------------------------------------------------------------------------
 type Constraint = [Term]

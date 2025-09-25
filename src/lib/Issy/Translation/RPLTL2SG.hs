@@ -15,7 +15,6 @@ import qualified Issy.SymbolicArena as SG
 import qualified Issy.Translation.DOA as DOA
 import qualified Issy.Translation.LTL2DOA as LTL2DOA
 import Issy.Utils.Extra (intmapSet)
-import Issy.Utils.Logging
 
 translate :: Config -> TL.Spec Term -> IO (Arena, Objective)
 translate cfg spec = do
