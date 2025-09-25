@@ -27,7 +27,7 @@ import Prelude hiding (null)
 -- amortized running time that is better than one would have by using a list.
 newtype Queue a =
   Queue ([a], [a])
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Show)
 
 instance Functor Queue where
   fmap f (Queue (outS, insS)) = Queue (fmap f outS, fmap f insS)

@@ -28,7 +28,8 @@ import qualified Issy.Utils.Queue as Q
 -- are popped in a FIFO order.
 newtype PrioQueue p a =
   PrioQueue (Map p (Queue a))
-  deriving (Eq, Ord)
+  -- ^ the invariant is the non-of the mapped queues are empy, i.e. Map.all (not . Q.null) q holds
+  deriving (Eq, Ord, Show)
 
 ---------------------------------------------------------------------------------------------------
 -- | 'empty' is the empty priority queue.
@@ -37,7 +38,9 @@ empty = PrioQueue Map.empty
 
 -- | 'fromList' create a priority queue with a single priority from a list
 fromList :: p -> [a] -> PrioQueue p a
-fromList p = PrioQueue . Map.singleton p . Q.fromList
+fromList p xs
+  | null xs = empty
+  | otherwise = PrioQueue $ Map.singleton p $ Q.fromList xs
 
 -- | 'pop' returns the first element accoding to the queuing order, its priority, and the
 -- reduced queue. If the queue is empty 'Nothing' is returned.

@@ -148,6 +148,7 @@ data Combinator a
   | CChain (Combinator a) (Combinator a)
   | CLexiUnion [Combinator a]
   | CIntersection [Combinator a]
+  deriving (Eq, Ord, Show)
 
 toLemma :: Variables -> (a -> AccelLemma) -> Combinator a -> AccelLemma
 toLemma vars mkGAL = go

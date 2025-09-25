@@ -71,36 +71,46 @@ accelGAL conf heur player arena loc reach = do
                 NotApplicable -> search queue
                 Refine ->
                   let queueA
-                        | refinementCnt sk < H.ggaIters heur =
-                          PQ.push
-                            (sk {refinementCnt = refinementCnt sk + 1})
-                            (combInv pre lemmaComb)
-                            queue
+                        | doRefine heur sk = PQ.push (skRefine sk) (combInv pre lemmaComb) queue
                         | otherwise = queue
                       queueB
-                        | nestingCnt sk < 2 --TODO heursitic  
-                         =
+                        | doNest heur sk =
                           let subLemmas =
                                 map (combChain lemmaComb) $ guessLemmaSimple heur indeps pre
-                           in PQ.pushs (sk {nestingCnt = nestingCnt sk + 1}) subLemmas queueA
+                           in PQ.pushs (skNest sk) subLemmas queueA
                         | otherwise = queueA
                    in search queueB
 
+---------------------------------------------------------------------------------------------------
+-- Priority for search guidance
+---------------------------------------------------------------------------------------------------
 data SearchKey = SearchKey
   { refinementCnt :: Int
   , nestingCnt :: Int
-  } deriving (Eq)
+  } deriving (Eq, Show)
+
+instance Ord SearchKey where
+  compare skA skB =
+    if | nestingCnt skA < nestingCnt skB -> LT -- TODO: swapped
+       | nestingCnt skA > nestingCnt skB -> GT
+       | refinementCnt skA < refinementCnt skB -> GT
+       | refinementCnt skA > refinementCnt skB -> LT
+       | otherwise -> EQ
 
 searchKeyInit :: SearchKey
 searchKeyInit = SearchKey {refinementCnt = 0, nestingCnt = 0}
 
-instance Ord SearchKey where
-  compare skA skB =
-    if | nestingCnt skA < nestingCnt skB -> GT
-       | nestingCnt skA > nestingCnt skB -> LT
-       | refinementCnt skA < refinementCnt skB -> GT
-       | refinementCnt skA > refinementCnt skB -> LT
-       | otherwise -> EQ
+doRefine :: Heur -> SearchKey -> Bool
+doRefine heur sk = False -- TODO: refinementCnt sk < H.ggaIters heur
+
+skRefine :: SearchKey -> SearchKey
+skRefine sk = sk {refinementCnt = refinementCnt sk + 1}
+
+doNest :: Heur -> SearchKey -> Bool
+doNest _ sk = nestingCnt sk < 1 --TODO heursitic
+
+skNest :: SearchKey -> SearchKey
+skNest sk = sk {nestingCnt = nestingCnt sk + 1}
 
 ---------------------------------------------------------------------------------------------------
 -- Attractor through loop arena
@@ -147,8 +157,7 @@ data LemmaStatus
 -- | 'lemmaCond' check if the condition of a lemma holds.
 lemmaCond :: Config -> Arena -> Loc -> SymSt -> AccelLemma -> Term -> IO LemmaStatus
 lemmaCond conf arena loc target lemma loopGameResult = do
-  let accelValue = FOL.andf [dom arena loc, conc lemma]
-  let stepCond = accelValue `FOL.impl` loopGameResult
+  let stepCond = FOL.andf [dom arena loc, conc lemma] `FOL.impl` loopGameResult
   let baseCond = FOL.andf [dom arena loc, base lemma] `FOL.impl` (target `get` loc)
   lgd conf ["Loop game result", SMTLib.toString loopGameResult]
   holds <- SMT.sat conf loopGameResult
