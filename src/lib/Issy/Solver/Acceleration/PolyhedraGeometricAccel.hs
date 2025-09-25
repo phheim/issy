@@ -6,7 +6,7 @@
 -- License     : The Unlicense
 --
 ---------------------------------------------------------------------------------------------------
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE LambdaCase, MultiWayIf #-}
 
 ---------------------------------------------------------------------------------------------------
 module Issy.Solver.Acceleration.PolyhedraGeometricAccel
@@ -15,6 +15,7 @@ module Issy.Solver.Acceleration.PolyhedraGeometricAccel
 
 ---------------------------------------------------------------------------------------------------
 import qualified Data.List as List
+import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Issy.Prelude
 
@@ -42,66 +43,112 @@ accelReach conf heur player arena loc reach = do
   conf <- pure $ setName "GGeoA" conf
   accelGAL conf heur player arena loc reach
 
--- TODO: switch lemma search to BFS instead of DFS
 accelGAL :: Config -> Heur -> Player -> Arena -> Loc -> SymSt -> IO (Term, SyBo)
 accelGAL conf heur player arena loc reach = do
+  reach <- SymSt.simplify conf reach -- TODO: why is this not done before
   lg conf ["Accelerate in", locName arena loc, "on", strSt arena reach]
   (indeps, preComb) <- preCompGen conf heur player arena loc reach prime
   let gals = guessLemma heur indeps (reach `get` loc)
   when (null gals) $ lg conf ["Could not guess any lemma"]
-  res <- go preComb indeps gals
-  case res of
-    Nothing -> lg conf ["Failed"] $> (FOL.false, Synt.empty)
-    Just (conc, prog) -> lg conf ["Suceeded with", SMTLib.toString conc] $> (conc, prog)
+  searchLemma preComb indeps gals
   where
     -- Priming symbol for the previous state in the lemma
     prime = FOL.uniquePrefix "init_" $ usedSymbols arena
-    -- Try out different lemmas
-    go _ _ [] = lg conf ["All lemma-tries failed"] $> Nothing
-    go preComb indeps (gal:galr) = do
-      lg conf ["GAL try", polyLemmaToStr gal]
-      res <- iter 0 FOL.true gal
-      case res of
-        Just res -> lg conf ["Lemma try suceeded"] $> Just res
-        Nothing -> lg conf ["Lemma try failed"] >> go preComb indeps galr
-        -- Try out different invaraints
+    -- Search for lemmas
+    searchLemma preComb indeps gals = search $ pushPQs searchKeyInit gals emptyPQ
       where
-        iter cnt inv gal
-          | cnt > H.ggaIters heur = pure Nothing
-          | otherwise = do
-            lg conf ["Use invariant", SMTLib.toString inv, show cnt]
-            let al = polyLemma (vars arena) prime (H.minEpsilon heur) $ combInv inv gal
-            (pre, preProg) <- preComb al
-            check <- lemmaCond conf arena loc reach al pre
-            case check of
-              NotApplicable -> pure Nothing
-              Applicable -> pure $ Just (conc al, preProg)
-              Refine
-                -- TODO: Proper heuristic
-                | cnt == H.ggaIters heur -> iter (cnt + 1) pre gal
-                | otherwise -> do
-                  lg conf ["Guess sublemma for", SMTLib.toString pre]
-                  trySublemmas $ guessLemmaSimple heur indeps pre
-          where
-            trySublemmas =
-              \case
-                [] -> lg conf ["No more sublemmas to try"] $> Nothing
-                subGal:rest -> do
-                  gal <- pure $ combChain gal subGal
-                  lg conf ["GAL enhance to", polyLemmaToStr gal]
-                  res <- iter (cnt + 1) inv gal
-                  case res of
-                    Just res -> pure $ Just res
-                    Nothing -> trySublemmas rest
+        search queue =
+          case popPQ queue of
+            Nothing -> lg conf ["Did not find any applicable lemma!"] $> (FOL.false, Synt.empty)
+            Just (sk, lemmaComb, queue) -> do
+              lg conf ["Try", polyLemmaToStr lemmaComb]
+              let lemma = polyLemma (vars arena) prime (H.minEpsilon heur) lemmaComb
+              (pre, preProg) <- preComb lemma
+              check <- lemmaCond conf arena loc reach lemma pre
+              case check of
+                Applicable ->
+                  lg conf ["Suceeded with", SMTLib.toString (conc lemma)] $> (conc lemma, preProg)
+                NotApplicable -> search queue
+                Refine ->
+                  let queueA
+                        | refinementCnt sk < H.ggaIters heur =
+                          pushPQ
+                            (sk {refinementCnt = refinementCnt sk + 1})
+                            (combInv pre lemmaComb)
+                            queue
+                        | otherwise = queue
+                      queueB
+                        | nestingCnt sk < 2 --TODO heursitic  
+                         =
+                          let subLemmas =
+                                map (combChain lemmaComb) $ guessLemmaSimple heur indeps pre
+                           in pushPQs (sk {nestingCnt = nestingCnt sk + 1}) subLemmas queueA
+                        | otherwise = queueA
+                   in search queueB
 
---lemmaTry :: PolyLemma -> LemmaTry
---lemmaTry lemma = LemmaTry {lemmaCom = lemma, iterCnt = 0, nestCnt = 0}
---
---data LemmaTry = LemmaTry 
---    {   lemmaComb :: PolyLemma
---    ,   iterCnt :: Int
---    ,   nestCnt :: Int
---    }
+data SearchKey = SearchKey
+  { refinementCnt :: Int
+  , nestingCnt :: Int
+  } deriving (Eq)
+
+searchKeyInit :: SearchKey
+searchKeyInit = SearchKey {refinementCnt = 0, nestingCnt = 0}
+
+instance Ord SearchKey where
+  compare skA skB =
+    if | nestingCnt skA < nestingCnt skB -> LT
+       | nestingCnt skA > nestingCnt skB -> GT
+       | refinementCnt skA < refinementCnt skB -> LT
+       | refinementCnt skA > refinementCnt skB -> GT
+       | otherwise -> EQ
+
+-- TODO: Move to own moduls!
+newtype Queue a =
+  Queue ([a], [a])
+
+nullQ :: Queue a -> Bool
+nullQ (Queue ([], [])) = True
+nullQ _ = False
+
+emptyQ :: Queue a
+emptyQ = Queue ([], [])
+
+pushQ :: a -> Queue a -> Queue a
+pushQ a (Queue ([], [])) = Queue ([a], [])
+pushQ a (Queue (outS, inpS)) = Queue (outS, a : inpS)
+
+popQ :: Queue a -> Maybe (a, Queue a)
+popQ (Queue ([], [])) = Nothing
+popQ (Queue (a:outR, inpS)) = Just (a, Queue (outR, inpS))
+popQ (Queue ([], inpS)) =
+  let outS = reverse inpS
+   in Just (head outS, Queue (tail outS, []))
+
+newtype PrioQueue k a =
+  PrioQueue (Map k (Queue a))
+
+emptyPQ :: PrioQueue k a
+emptyPQ = PrioQueue Map.empty
+
+pushPQ :: Ord k => k -> a -> PrioQueue k a -> PrioQueue k a
+pushPQ k a (PrioQueue q) = PrioQueue $ Map.alter updQueue k q
+  where
+    updQueue = Just . pushQ a . fromMaybe emptyQ
+
+pushPQs :: Ord k => k -> [a] -> PrioQueue k a -> PrioQueue k a
+pushPQs k xs q = foldl (flip (pushPQ k)) q xs
+
+popPQ :: Ord k => PrioQueue k a -> Maybe (k, a, PrioQueue k a)
+popPQ (PrioQueue q) =
+  case Map.lookupMin q of
+    Nothing -> Nothing
+    Just (k, subq) ->
+      case popQ subq of
+        Nothing -> error "assert: this should not happen"
+        Just (a, subq)
+          | nullQ subq -> Just (k, a, PrioQueue (Map.deleteMin q))
+          | otherwise -> Just (k, a, PrioQueue (Map.insert k subq q))
+
 ---------------------------------------------------------------------------------------------------
 -- Attractor through loop arena
 ---------------------------------------------------------------------------------------------------
