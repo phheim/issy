@@ -91,9 +91,7 @@ chain vars main sub =
     , stay = FOL.andf [stay main, stay sub]
     , step =
         FOL.orf
-          [ FOL.andf [prm (base sub), step main]
-          , FOL.andf [prm (FOL.neg (base sub)), stay main, step sub]
-          ]
+          [FOL.andf [step main, conc sub], FOL.andf [prm (FOL.neg (base sub)), stay main, step sub]]
     , prime = prime main
     }
   where

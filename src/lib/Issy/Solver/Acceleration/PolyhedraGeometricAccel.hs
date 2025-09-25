@@ -55,31 +55,45 @@ accelGAL conf heur player arena loc reach = do
     -- Priming symbol for the previous state in the lemma
     prime = FOL.uniquePrefix "init_" $ usedSymbols arena
     -- Search for lemmas
-    searchLemma preComb indeps gals = search $ PQ.fromList searchKeyInit gals
+    searchLemma preComb indeps gals = search Nothing $ PQ.fromList searchKeyInit gals
       where
-        search queue =
+        search currSolution queue =
           case PQ.pop queue of
-            Nothing -> lg conf ["Did not find any applicable lemma!"] $> (FOL.false, Synt.empty)
+            Nothing ->
+              case currSolution of
+                Nothing -> lg conf ["Did not find any applicable lemma!"] $> (FOL.false, Synt.empty)
+                Just sol -> pure sol
             Just (sk, lemmaComb, queue) -> do
-              lg conf ["Try", polyLemmaToStr lemmaComb]
               let lemma = polyLemma (vars arena) prime (H.minEpsilon heur) lemmaComb
-              (pre, preProg) <- preComb lemma
-              check <- lemmaCond conf arena loc reach lemma pre
-              case check of
-                Applicable ->
-                  lg conf ["Suceeded with", SMTLib.toString (conc lemma)] $> (conc lemma, preProg)
-                NotApplicable -> search queue
-                Refine ->
-                  let queueA
-                        | doRefine heur sk = PQ.push (skRefine sk) (combInv pre lemmaComb) queue
-                        | otherwise = queue
-                      queueB
-                        | doNest heur sk =
-                          let subLemmas =
-                                map (combChain lemmaComb) $ guessLemmaSimple heur indeps pre
-                           in PQ.pushs (skNest sk) subLemmas queueA
-                        | otherwise = queueA
-                   in search queueB
+              better <- conc lemma `couldBeBetter` currSolution
+              if better
+                then do
+                  lg conf ["Try", polyLemmaToStr lemmaComb]
+                  (pre, preProg) <- preComb lemma
+                  check <- lemmaCond conf arena loc reach lemma pre
+                  case check of
+                    Applicable -> do
+                      lg conf ["Found", SMTLib.toString (conc lemma)]
+                      if conc lemma == FOL.true
+                        then pure (conc lemma, preProg)
+                        else search (Just (conc lemma, preProg)) queue
+                    NotApplicable -> search currSolution queue
+                    Refine ->
+                      let queueA
+                            | doRefine heur sk = PQ.push (skRefine sk) (combInv pre lemmaComb) queue
+                            | otherwise = queue
+                          queueB
+                            | doNest heur sk =
+                              let subLemmas =
+                                    map (combChain lemmaComb) $ guessLemmaSimple heur indeps pre
+                               in PQ.pushs (skNest sk) subLemmas queueA
+                            | otherwise = queueA
+                       in search currSolution queueB
+                else search currSolution queue
+        -- Check if the conclusion could be better than the current result
+        couldBeBetter _ Nothing = pure True
+        couldBeBetter new (Just (res, _)) =
+          SMT.sat conf $ FOL.andf [new, FOL.neg res, dom arena loc]
 
 ---------------------------------------------------------------------------------------------------
 -- Priority for search guidance
@@ -198,7 +212,7 @@ iterA _ heur player arena attr shadow = go (noVisits arena) (OL.fromSet (preds a
 type PolyLemma = Combinator (Ineq Integer)
 
 polyLemmaToStr :: PolyLemma -> String
-polyLemmaToStr = combToStr $ ("Rank to " ++) . SMTLib.toString . ineqToTerm
+polyLemmaToStr = combToStr $ SMTLib.toString . ineqToTerm
 
 guessLemmaSimple :: Heur -> Set Symbol -> Term -> [PolyLemma]
 guessLemmaSimple heur indeps = concatMap (fromPolyhedron heur indeps) . nontrivialPolyhedra
