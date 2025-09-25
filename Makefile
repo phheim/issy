@@ -1,4 +1,5 @@
 STACKPATH=$(shell stack path | grep local-install-root | sed 's/local-install-root: //')
+DOCPATH=$(shell stack path | grep local-doc-root | sed 's/local-doc-root: //')
 LINTING=hlint -i "Use tuple-section"
 
 default:
@@ -22,6 +23,12 @@ lint:
 	${LINTING} src/*/*/*/*.hs
 	${LINTING} src/*/*/*/*/*.hs
 
+doc-gen:
+	stack haddock --haddock-internal --only-locals
+
+doc-open:
+	@echo "Open ${DOCPATH}/index.html"
+	@xdg-open ${DOCPATH}/index.html
 
 STATIC_DIR=containers/static-build
 static:
