@@ -1,3 +1,5 @@
+{-# LANGUAGE Safe #-}
+
 module Issy.Base.SymbolicState
   ( SymSt
   , symSt

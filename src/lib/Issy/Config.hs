@@ -1,10 +1,15 @@
 ---------------------------------------------------------------------------------------------------
 -- | 
 -- Module      : Issy.Config
--- Description : Module containing all possibilities for configuring Issy
+-- Description : Central configuration for Issy.
 -- Copyright   : (c) Philippe Heim, 2025
 -- License     : The Unlicense
 --
+-- This module contains all runtime configuration options that Issy offers.
+--
+---------------------------------------------------------------------------------------------------
+{-# LANGUAGE Safe #-}
+
 ---------------------------------------------------------------------------------------------------
 module Issy.Config
   ( Config(..)
@@ -16,77 +21,76 @@ module Issy.Config
 -- | 'Config' is the data type for the different configuration options of Issy
 data Config = Config
   { logName :: String
-  -- ^ 'logName' is the prefix for log messages indicating the current subpart.
+  -- ^ Prefix for log messages indicating the current subpart.
   , logLevel :: Word
-  -- ^ 'logLevel' is the amount of logging as exposed to the outer tool. The higher
-  -- the more logging and zero means no logging.
+  -- ^ Amount of logging written to 'STDOUT'. Higher means more logging and zero means no logging.
   , statToStdout :: Bool
-  -- ^ DOCUMENT
+  -- ^ Indicates if the statistics collected should be written to 'STDOUT' instead 'STDERR'
     --
     -- Formula to game translation
     --  
   , pruneGame :: Bool
-  -- ^ DOCUMENT
+  -- ^ Indicates if monitor-pruning should be used to reduce games translated from logic formulas.
   , rulesDeduction :: Bool
-  -- ^ DOCUMENT
+  -- ^ Enables the monitor-pruning deduction rules on fixpoint computations.
   , rulesSaturation :: Bool
-  -- ^ DOCUMENT
+  -- ^ Enables the monitor-pruning saturation rules.
   , rulesSubsitution :: Bool
-  -- ^ DOCUMENT
+  -- ^ Enables the monitor-pruning substitution rules.
   , rulesUnsatChecks :: Bool
-  -- ^ DOCUMENT
+  -- ^ Enables the monitor-pruning UNSAT rules.
   , rulesDeductionPrecise :: Bool
-  -- ^ DOCUMENT
+  -- ^ Enables the monitor-pruning precise-deduction rule base on MaxCHC.
   , propagationLevel :: Int
-  -- ^ DOCUMENT
+  -- ^ Amount of predicates that are propagated during monitor construction (higher means more).
     --
     -- Game solving
     -- 
   , accelerate :: Bool
-  -- ^ 'acclerate' indicates if acceleration is enabled at all.
+  -- ^ Indicates if acceleration is enabled at all.
   , accelerateObjective :: Bool
-  -- ^ 'acclerate' indicates if accleration is enabled not only for attractors
+  -- ^ Indicates if acceleration is enabled not only for attractors
   -- but also for outer-fixpoint objectives like Büchi or parity.
   , genGeomAccel :: Bool
-  -- ^ 'genGeomAccel' indicates if general geometric acceleration is enabled
+  -- ^ Indicates if polyhedra-based acceleration is enabled
   , ufAcceleration :: Bool
-  -- ^ DOCUMENT
+  -- ^ Indicates if polyhedra-based acceleration is enabled
   , extendAcceleration :: Bool
-  -- ^ DOCUMENT
+  -- ^ Indicates if the acceleration-technique should use extended techniques like nesting.
   , accelerationLevel :: Word
   -- ^ if this is set, depending if is set ufAcceleration, we nest or use chc 
   , enforcementSummaries :: Bool
-  -- ^ 'enforcementSummaries' indicates if enforcment summaires are used 
+  -- ^ Indicates if enforcement summaries are used.
     --
     -- Synthesis
     --  
   , generateProgram :: Bool
-  -- ^ DOCUMENT
+  -- ^ Enables program generation.
     --
     -- External tools
     --  
   , z3cmd :: String
-  -- ^ DOCUMENT
+  -- ^ Path to binary that should be used to call z3.
   , ltl2tgba :: String
-  -- ^ DOCUMENT
+  -- ^ Path to binary that should be used to call Spot's ltl2tgba.
   , muvalScript :: String
-  -- ^ DOCUMENT
+  -- ^ Path to script that should be used to call MuVal (part of the coar toolsuite)
   , chcMaxScript :: String
-  -- ^ DOCUMENT
+  -- ^ Path to script that should be used to call CHCMax (part of the coar toolsuite)
     --
     -- Fixed constants
     -- 
   , muvalTimeOut :: Int
-  -- ^ DOCUMENT
+  -- ^ Fixed timeout for MuVal calls in seconds.
   , chcMaxTimeOut :: Int
-  -- ^ DOCUMENT
+  -- ^ Fixed timeout for CHCMax calls in seconds.
   , chcTimeout :: Int
-  -- ^ DOCUMENT
+  -- ^ Fixed timeout for CHC calls (to z3) in seconds.
   --
   -- Debug
   --
   , debug :: Bool
-  -- ^ 'debug' enables different validation techniques and double checks
+  -- ^ Enables different validation techniques and double checks
   }
 
 ---------------------------------------------------------------------------------------------------

@@ -1,4 +1,4 @@
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE Safe, LambdaCase #-}
 
 module Issy.Products.RPGMonitor
   ( onTheFlyProduct

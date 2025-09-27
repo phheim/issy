@@ -1,3 +1,5 @@
+{-# LANGUAGE Safe #-}
+
 module Issy.Utils.Concurrent
   ( parallelStrictFirst
   ) where

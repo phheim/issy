@@ -1,4 +1,4 @@
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE Safe, LambdaCase #-}
 
 module Issy.Utils.OpenList
   ( OpenList

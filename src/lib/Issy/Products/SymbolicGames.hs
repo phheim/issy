@@ -1,3 +1,5 @@
+{-# LANGUAGE Safe #-}
+
 module Issy.Products.SymbolicGames
   ( intersection
   ) where

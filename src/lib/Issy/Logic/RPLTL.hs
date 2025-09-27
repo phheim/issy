@@ -1,3 +1,5 @@
+{-# LANGUAGE Safe #-}
+
 module Issy.Logic.RPLTL
   ( Atom
   , preds

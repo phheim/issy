@@ -1,4 +1,4 @@
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE Safe, LambdaCase #-}
 
 module Issy.Base.Variables
   ( Type(..)

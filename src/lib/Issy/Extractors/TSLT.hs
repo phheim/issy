@@ -1,4 +1,4 @@
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE Safe, LambdaCase #-}
 
 module Issy.Extractors.TSLT
   ( rpgToTSLT

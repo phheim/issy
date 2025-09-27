@@ -1,4 +1,4 @@
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE Safe, LambdaCase #-}
 
 module Issy.Monitor.Formula
   ( Formula(FTrue, FOr, FAnd, FWeak, FNext, FFalse, FGlobally,

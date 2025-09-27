@@ -6,7 +6,7 @@
 -- License     : The Unlicense
 --
 ---------------------------------------------------------------------------------------------------
-{-# LANGUAGE LambdaCase, MultiWayIf #-}
+{-# LANGUAGE Safe, LambdaCase, MultiWayIf #-}
 
 ---------------------------------------------------------------------------------------------------
 module Issy.Logic.Polyhedra

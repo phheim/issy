@@ -5,7 +5,7 @@
 -- 'FOL' provides a simple interface for using FOL terms.
 --
 -------------------------------------------------------------------------------
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE Safe, LambdaCase #-}
 
 -------------------------------------------------------------------------------
 module Issy.Logic.FOL

@@ -1,6 +1,6 @@
 -- TODO Document and restructure places
 --
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE Safe, LambdaCase #-}
 
 module Issy.Extractors.LTLMT
   ( specToLTLMT

@@ -1,3 +1,5 @@
+{-# LANGUAGE Safe #-}
+
 module Issy.Monitor.Propagation
   ( generatePredicatesTSL
   , generatePredicatesRPLTL

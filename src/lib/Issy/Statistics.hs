@@ -1,10 +1,14 @@
 ---------------------------------------------------------------------------------------------------
 -- | 
 -- Module      : Issy.Statistics
--- Description : Data structure to accumulate statics over the run of Issy 
+-- Description : Data structure to accumulate statistics over the run of Issy 
 -- Copyright   : (c) Philippe Heim, 2025
 -- License     : The Unlicense
 --
+-- This module contains a simple data structure that can be used to accumulate statistics.
+---------------------------------------------------------------------------------------------------
+{-# LANGUAGE Safe #-}
+
 ---------------------------------------------------------------------------------------------------
 module Issy.Statistics
   ( Stats
@@ -20,12 +24,14 @@ import Issy.Config (Config, setName, statToStdout)
 import Issy.Utils.Logging
 
 ---------------------------------------------------------------------------------------------------
+-- | 'Stats' contains the accumulated statistical data.
 data Stats = Stats
   { accelAttempt :: Int
   , accelSuccess :: Int
   , summaryApplications :: Int
   }
 
+-- | The initial 'Stats' at the beggining of a run of Issy.
 emptyStats :: Stats
 emptyStats = Stats {accelAttempt = 0, accelSuccess = 0, summaryApplications = 0}
 
@@ -40,6 +46,7 @@ summaryApp :: Stats -> Stats
 summaryApp stats = stats {summaryApplications = 1 + summaryApplications stats}
 
 ---------------------------------------------------------------------------------------------------
+-- | Prints 'Stats' either to STDIN or STDOUT depening on the 'Config'
 printStats :: Config -> Stats -> IO ()
 printStats conf stats
   | statToStdout conf = putStrLn $ unlines $ statString stats
