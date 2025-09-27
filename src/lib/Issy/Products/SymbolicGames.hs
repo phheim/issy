@@ -8,12 +8,12 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Issy.Prelude
 
-import qualified Issy.Base.Locations as Locs
-import Issy.Base.Objectives (Objective(..), WinningCondition(..))
-import qualified Issy.Base.Objectives as Obj
+import qualified Issy.Games.Locations as Locs
+import Issy.Games.Objectives (Objective(..), WinningCondition(..))
+import qualified Issy.Games.Objectives as Obj
+import Issy.Games.SymbolicArena (Arena)
+import qualified Issy.Games.SymbolicArena as SG
 import qualified Issy.Logic.FOL as FOL
-import Issy.SymbolicArena (Arena)
-import qualified Issy.SymbolicArena as SG
 
 intersection :: [(Arena, Objective)] -> (Arena, Objective)
 intersection games

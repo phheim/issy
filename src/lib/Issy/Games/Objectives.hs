@@ -1,6 +1,6 @@
 {-# LANGUAGE Safe, LambdaCase #-}
 
-module Issy.Base.Objectives
+module Issy.Games.Objectives
   ( Objective(..)
   , WinningCondition(..)
   , mapWC
@@ -15,7 +15,7 @@ import qualified Data.Map.Strict as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
 
-import Issy.Base.Locations (Loc)
+import Issy.Games.Locations (Loc)
 import qualified Issy.Logic.Temporal as TL
 import Issy.Utils.Extra (invertMap)
 

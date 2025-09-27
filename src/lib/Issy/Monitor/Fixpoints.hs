@@ -9,8 +9,8 @@ import qualified Data.Set as Set
 import Issy.Prelude
 import System.Process (readProcessWithExitCode)
 
-import qualified Issy.Base.Variables as Vars
 import Issy.Config (muvalScript, muvalTimeOut)
+import qualified Issy.Games.Variables as Vars
 import Issy.Logic.FOL (Constant(..), Quantifier(..), Sort(..), Term(..))
 import qualified Issy.Logic.FOL as FOL
 import Issy.Printers.SMTLib (funcToString)

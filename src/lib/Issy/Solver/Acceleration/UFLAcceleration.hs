@@ -7,9 +7,9 @@ module Issy.Solver.Acceleration.UFLAcceleration
 import qualified Data.Set as Set
 import Issy.Prelude
 
-import qualified Issy.Base.SymbolicState as SymSt
-import qualified Issy.Base.Variables as Vars
 import Issy.Config (extendAcceleration)
+import qualified Issy.Games.SymbolicState as SymSt
+import qualified Issy.Games.Variables as Vars
 import Issy.Logic.FOL (Term(Func, Lambda, Quant, Var))
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Printers.SMTLib as SMTLib (toString)

@@ -1,6 +1,6 @@
 ---------------------------------------------------------------------------------------------------
 -- | 
--- Module      : Issy.Base.Locations
+-- Module      : Issy.Games.Locations
 -- Description : Encapsulated game-graph locations
 -- Copyright   : (c) Philippe Heim, 2025
 -- License     : The Unlicense
@@ -9,7 +9,7 @@
 {-# LANGUAGE Safe #-}
 
 ---------------------------------------------------------------------------------------------------
-module Issy.Base.Locations
+module Issy.Games.Locations
   ( Loc
   , Store
   , toSet

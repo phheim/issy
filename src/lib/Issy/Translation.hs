@@ -16,15 +16,15 @@ module Issy.Translation
 import Issy.Prelude
 
 import Issy.Config (pruneGame)
+import qualified Issy.Games.ReactiveProgramArena as RPG
+import qualified Issy.Games.SymbolicArena as SG
 import qualified Issy.Logic.TSLMT as TSLMT
 import qualified Issy.Logic.Temporal as TL
 import qualified Issy.Monitor as Monitor
 import qualified Issy.Products.RPGMonitor as RPGMonitor
 import qualified Issy.Products.SGMonitor as SGMonitor
 import qualified Issy.Products.SymbolicGames as SGProd
-import qualified Issy.RPG as RPG
 import qualified Issy.Specification as Spec
-import qualified Issy.SymbolicArena as SG
 import Issy.Translation.RPG2SG (rpgToSG)
 import qualified Issy.Translation.RPLTL2SG as RPLTL2SG
 import qualified Issy.Translation.TSL2RPG as TSL2RPG

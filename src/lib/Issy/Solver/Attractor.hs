@@ -6,6 +6,9 @@
 -- License     : The Unlicense
 --
 ---------------------------------------------------------------------------------------------------
+{-# LANGUAGE Safe #-}
+
+---------------------------------------------------------------------------------------------------
 module Issy.Solver.Attractor
   ( SolSt(stats)
   , emptySolSt
@@ -18,8 +21,8 @@ module Issy.Solver.Attractor
 import qualified Data.Set as Set
 import Issy.Prelude
 
-import qualified Issy.Base.SymbolicState as SymSt
 import Issy.Config (accelerate, enforcementSummaries, generateProgram)
+import qualified Issy.Games.SymbolicState as SymSt
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.SMT as SMT
 import qualified Issy.Printers.SMTLib as SMTLib (toString)

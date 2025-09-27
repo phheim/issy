@@ -1,4 +1,4 @@
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE Safe, LambdaCase #-}
 
 module Issy.Translation.RPG2SG
   ( rpgToSG
@@ -7,11 +7,11 @@ module Issy.Translation.RPG2SG
 import qualified Data.Map.Strict as Map
 import Issy.Prelude
 
-import qualified Issy.Base.Objectives as Obj
-import qualified Issy.Base.Variables as Vars
+import qualified Issy.Games.Objectives as Obj
+import qualified Issy.Games.ReactiveProgramArena as RPG
+import qualified Issy.Games.SymbolicArena as SG
+import qualified Issy.Games.Variables as Vars
 import qualified Issy.Logic.FOL as FOL
-import qualified Issy.RPG as RPG
-import qualified Issy.SymbolicArena as SG
 
 rpgToSG :: (RPG.Game, Objective) -> (SG.Arena, Objective)
 rpgToSG (rpg, objRPG) =

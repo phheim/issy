@@ -30,7 +30,7 @@ module Issy.Solver.Acceleration.Base
 ---------------------------------------------------------------------------------------------------
 import Issy.Prelude
 
-import qualified Issy.Base.Variables as Vars
+import qualified Issy.Games.Variables as Vars
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Printers.SMTLib as SMTLib (toString)
 

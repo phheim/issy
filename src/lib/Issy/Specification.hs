@@ -26,9 +26,9 @@ module Issy.Specification
 ---------------------------------------------------------------------------------------------------
 import Issy.Prelude
 
-import qualified Issy.Base.Objectives as Obj
+import qualified Issy.Games.Objectives as Obj
+import qualified Issy.Games.SymbolicArena as SG
 import qualified Issy.Logic.Temporal as TL
-import qualified Issy.SymbolicArena as SG
 
 ---------------------------------------------------------------------------------------------------
 -- | DOCUMENT

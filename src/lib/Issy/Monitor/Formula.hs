@@ -44,7 +44,7 @@ import qualified Data.Set as Set
 -------------------------------------------------------------------------------
 import Issy.Prelude
 
-import qualified Issy.Base.Variables as Vars
+import qualified Issy.Games.Variables as Vars
 import Issy.Logic.FOL (Constant(..), Term(..))
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.RPLTL as RPLTL

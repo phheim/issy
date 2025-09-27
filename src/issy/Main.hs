@@ -9,7 +9,6 @@ import Data.Bifunctor (second)
 import System.Environment (getArgs)
 import System.Exit (die, exitSuccess)
 
-import Compiler
 import Issy
 
 data Mode

@@ -1,6 +1,6 @@
 {-# LANGUAGE Safe, LambdaCase #-}
 
-module Issy.Extractors.MuCLP
+module Issy.Encoders.MuCLP
   ( rpgToMuCLP
   ) where
 
@@ -10,13 +10,13 @@ import Data.Ratio ((%))
 import Data.Set (Set)
 import qualified Data.Set as Set
 
-import Issy.Base.Locations (Loc)
-import qualified Issy.Base.Locations as Locs
-import Issy.Base.Objectives (Objective(..), WinningCondition(..))
-import qualified Issy.Base.Variables as Vars
+import Issy.Games.Locations (Loc)
+import qualified Issy.Games.Locations as Locs
+import Issy.Games.Objectives (Objective(..), WinningCondition(..))
+import Issy.Games.ReactiveProgramArena (Game, Transition(..))
+import qualified Issy.Games.ReactiveProgramArena as RPG
+import qualified Issy.Games.Variables as Vars
 import Issy.Logic.FOL (Constant(..), Function(..), Sort(..), Symbol, Term(..))
-import Issy.RPG (Game, Transition(..))
-import qualified Issy.RPG as RPG
 
 outputs :: Game -> [Symbol]
 outputs = Vars.stateVarL . RPG.variables

@@ -4,10 +4,10 @@ module Issy.Printers.SymbolicGame
   ( printSG
   ) where
 
-import Issy.Base.Objectives (Objective)
+import Issy.Games.Objectives (Objective)
+import qualified Issy.Games.SymbolicArena as SG
 import Issy.Printers.LLIssyFormat (printLLIssyFormat)
 import qualified Issy.Specification as Spec
-import qualified Issy.SymbolicArena as SG
 
 printSG :: (SG.Arena, Objective) -> String
 printSG (arena, obj) =

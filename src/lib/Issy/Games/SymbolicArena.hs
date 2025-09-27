@@ -1,6 +1,6 @@
 ---------------------------------------------------------------------------------------------------
 -- | 
--- Module      : Issy.SymbolicArena
+-- Module      : Issy.Games.SymbolicArena
 -- Description : Data structure and methods for arenas of symbolic games
 -- Copyright   : (c) Philippe Heim, 2025
 -- License     : The Unlicense
@@ -9,7 +9,7 @@
 {-# LANGUAGE Safe, LambdaCase #-}
 
 ---------------------------------------------------------------------------------------------------
-module Issy.SymbolicArena
+module Issy.Games.SymbolicArena
   ( Arena
   , domain
   , locations
@@ -52,11 +52,11 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Issy.Prelude
 
-import qualified Issy.Base.Locations as Locs
-import Issy.Base.Objectives (Objective(..))
-import qualified Issy.Base.Objectives as Obj
-import qualified Issy.Base.SymbolicState as SymSt
-import qualified Issy.Base.Variables as Vars
+import qualified Issy.Games.Locations as Locs
+import Issy.Games.Objectives (Objective(..))
+import qualified Issy.Games.Objectives as Obj
+import qualified Issy.Games.SymbolicState as SymSt
+import qualified Issy.Games.Variables as Vars
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.SMT as SMT
 import qualified Issy.Printers.SMTLib as SMTLib

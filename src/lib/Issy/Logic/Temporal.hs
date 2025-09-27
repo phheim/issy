@@ -16,7 +16,7 @@ module Issy.Logic.Temporal
 import Data.Set (Set)
 import qualified Data.Set as Set
 
-import Issy.Base.Variables (Variables)
+import Issy.Games.Variables (Variables)
 
 data BOp
   = Until

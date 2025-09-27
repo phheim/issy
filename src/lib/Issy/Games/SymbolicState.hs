@@ -1,6 +1,6 @@
 {-# LANGUAGE Safe #-}
 
-module Issy.Base.SymbolicState
+module Issy.Games.SymbolicState
   ( SymSt
   , symSt
   , get
@@ -29,8 +29,8 @@ import Data.Maybe (fromMaybe)
 import Data.Set (Set)
 import qualified Data.Set as Set
 
-import Issy.Base.Locations (Loc)
 import Issy.Config (Config)
+import Issy.Games.Locations (Loc)
 import Issy.Logic.FOL (Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.SMT as SMT (simplify, valid)

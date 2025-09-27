@@ -6,12 +6,12 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Issy.Prelude
 
-import Issy.Base.Objectives (Objective(..))
-import qualified Issy.Base.Objectives as Obj
+import Issy.Games.Objectives (Objective(..))
+import qualified Issy.Games.Objectives as Obj
+import Issy.Games.SymbolicArena (Arena)
+import qualified Issy.Games.SymbolicArena as SG
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.Temporal as TL
-import Issy.SymbolicArena (Arena)
-import qualified Issy.SymbolicArena as SG
 import qualified Issy.Translation.DOA as DOA
 import qualified Issy.Translation.LTL2DOA as LTL2DOA
 import Issy.Utils.Extra (intmapSet)

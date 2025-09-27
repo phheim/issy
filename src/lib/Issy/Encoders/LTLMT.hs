@@ -2,7 +2,7 @@
 --
 {-# LANGUAGE Safe, LambdaCase #-}
 
-module Issy.Extractors.LTLMT
+module Issy.Encoders.LTLMT
   ( specToLTLMT
   , toFormula
   ) where
@@ -11,16 +11,16 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Issy.Prelude
 
-import qualified Issy.Base.Objectives as Obj
-import qualified Issy.Base.Variables as Vars
-import Issy.Base.Variables (Type(..))
+import qualified Issy.Games.Objectives as Obj
+import qualified Issy.Games.SymbolicArena as SG
+import qualified Issy.Games.Variables as Vars
+import Issy.Games.Variables (Type(..))
 import qualified Issy.Logic.FOL as FOL
 import Issy.Logic.FOL (Constant(..), Function(..), Sort(..), Term(..))
 import Issy.Logic.Temporal (BOp(..), Formula(..), UOp(..))
 import qualified Issy.Logic.Temporal as TL
 import qualified Issy.Specification as Spec
 import Issy.Specification (Specification)
-import qualified Issy.SymbolicArena as SG
 
 specToLTLMT :: Specification -> String
 specToLTLMT = uncurry formulaToLTLMT . shiftInTime . toFormula

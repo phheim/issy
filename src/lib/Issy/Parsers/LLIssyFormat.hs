@@ -10,11 +10,13 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Text.Read (readMaybe)
 
-import Issy.Base.Locations (Loc)
-import Issy.Base.Objectives (Objective)
-import qualified Issy.Base.Objectives as Obj
-import Issy.Base.Variables (Type, Variables)
-import qualified Issy.Base.Variables as Vars
+import Issy.Games.Locations (Loc)
+import Issy.Games.Objectives (Objective)
+import qualified Issy.Games.Objectives as Obj
+import Issy.Games.SymbolicArena (Arena)
+import qualified Issy.Games.SymbolicArena as SG
+import Issy.Games.Variables (Type, Variables)
+import qualified Issy.Games.Variables as Vars
 import Issy.Logic.FOL (Sort(..), Term)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.Temporal as TL
@@ -22,8 +24,6 @@ import Issy.Parsers.SExpression (PRes, Pos, SExpr(..), getPos, parse, perr)
 import qualified Issy.Parsers.SMTLib as SMTLib (parseFuncName, tryParseInt, tryParseRat)
 import Issy.Specification (Specification)
 import qualified Issy.Specification as Spec
-import Issy.SymbolicArena (Arena)
-import qualified Issy.SymbolicArena as SG
 
 --
 -- Main method

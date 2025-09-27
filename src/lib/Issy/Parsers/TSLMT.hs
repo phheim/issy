@@ -17,8 +17,8 @@ import TSL
   )
 import qualified TSL (Specification(assumptions, guarantees))
 
-import Issy.Base.Variables (Type(..), Variables)
-import qualified Issy.Base.Variables as Vars
+import Issy.Games.Variables (Type(..), Variables)
+import qualified Issy.Games.Variables as Vars
 import Issy.Logic.FOL (Constant(..), Sort(..), Symbol, Term(..))
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.TSLMT as TSLMT

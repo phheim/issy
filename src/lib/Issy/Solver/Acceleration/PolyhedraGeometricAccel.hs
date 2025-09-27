@@ -18,8 +18,8 @@ import qualified Data.List as List
 import qualified Data.Set as Set
 import Issy.Prelude
 
-import qualified Issy.Base.SymbolicState as SymSt
 import Issy.Config (extendAcceleration)
+import qualified Issy.Games.SymbolicState as SymSt
 import qualified Issy.Logic.FOL as FOL
 import Issy.Logic.Interval (gtUpp, inLow, inUpp, ltLow)
 import Issy.Logic.Polyhedra

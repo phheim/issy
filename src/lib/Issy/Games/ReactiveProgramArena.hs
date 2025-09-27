@@ -1,6 +1,6 @@
 ---------------------------------------------------------------------------------------------------
 -- | 
--- Module      : Issy.RPG 
+-- Module      : Issy.Games.ReactiveProgramArena 
 -- Description : Data structure and methods for reactive program games
 -- Copyright   : (c) Philippe Heim, 2025
 -- License     : The Unlicense
@@ -9,7 +9,7 @@
 {-# LANGUAGE Safe, LambdaCase #-}
 
 ---------------------------------------------------------------------------------------------------
-module Issy.RPG
+module Issy.Games.ReactiveProgramArena
   ( Game
   , Loc
   , -- Transition
@@ -59,10 +59,10 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Issy.Prelude
 
-import qualified Issy.Base.Locations as Locs
-import qualified Issy.Base.Objectives as Obj
-import qualified Issy.Base.SymbolicState as SymSt
-import qualified Issy.Base.Variables as Vars
+import qualified Issy.Games.Locations as Locs
+import qualified Issy.Games.Objectives as Obj
+import qualified Issy.Games.SymbolicState as SymSt
+import qualified Issy.Games.Variables as Vars
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.SMT as SMT
 import Issy.Utils.Extra hiding (reachables)

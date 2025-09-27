@@ -76,10 +76,10 @@ import Issy.Config (Config, debug, setName)
 
 import Issy.Logic.FOL (Function, Model, Sort, Symbol, Term)
 
-import Issy.Base.Locations (Loc)
-import Issy.Base.Objectives (Objective, WinningCondition)
-import Issy.Base.SymbolicState (SymSt, get, set)
-import Issy.Base.Variables (Variables)
+import Issy.Games.Locations (Loc)
+import Issy.Games.Objectives (Objective, WinningCondition)
+import Issy.Games.SymbolicState (SymSt, get, set)
+import Issy.Games.Variables (Variables)
 
 import Issy.Utils.Logging (lg, lgd, lgv, strL, strM, strP, strS, strT)
 

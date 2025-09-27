@@ -9,13 +9,13 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Issy.Prelude
 
-import Issy.Base.Objectives (Objective(..))
-import qualified Issy.Base.Objectives as Obj
-import qualified Issy.Base.Variables as Vars
+import Issy.Games.Objectives (Objective(..))
+import qualified Issy.Games.Objectives as Obj
+import Issy.Games.ReactiveProgramArena (Game, Transition(..))
+import qualified Issy.Games.ReactiveProgramArena as RPG
+import qualified Issy.Games.Variables as Vars
 import qualified Issy.Logic.TSLMT as TSL
 import qualified Issy.Logic.Temporal as TL
-import Issy.RPG (Game, Transition(..))
-import qualified Issy.RPG as RPG
 import qualified Issy.Translation.DOA as DOA
 import qualified Issy.Translation.LTL2DOA as LTL2DOA
 import Issy.Utils.Extra (intmapSet)

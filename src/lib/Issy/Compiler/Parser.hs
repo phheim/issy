@@ -1,6 +1,6 @@
 {-# LANGUAGE Safe, LambdaCase #-}
 
-module Compiler.Parser
+module Issy.Compiler.Parser
   ( parse
   ) where
 
@@ -9,7 +9,7 @@ import Data.Bifunctor (second)
 import Data.Ratio ((%))
 import Text.Read (readMaybe)
 
-import Compiler.Base
+import Issy.Compiler.Base
 
 parse :: [Token] -> PRes AstSpec
 parse = fmap fst . parseSpec

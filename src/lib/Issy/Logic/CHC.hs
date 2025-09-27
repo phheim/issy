@@ -19,10 +19,10 @@ import qualified Data.Set as Set
 import System.Process (readProcessWithExitCode)
 import Text.Read (readMaybe)
 
----------------------------------------------------------------------------------------------------
-import Issy.Base.Variables (Variables)
-import qualified Issy.Base.Variables as Vars
 import Issy.Config (Config, chcMaxScript, chcMaxTimeOut, chcTimeout, z3cmd)
+---------------------------------------------------------------------------------------------------
+import Issy.Games.Variables (Variables)
+import qualified Issy.Games.Variables as Vars
 import Issy.Logic.FOL (Sort(SBool, SInt), Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Printers.SMTLib as SMTLib

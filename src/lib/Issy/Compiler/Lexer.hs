@@ -1,10 +1,10 @@
 {-# LANGUAGE Safe, LambdaCase #-}
 
-module Compiler.Lexer
+module Issy.Compiler.Lexer
   ( tokenize
   ) where
 
-import Compiler.Base
+import Issy.Compiler.Base
 
 tokenize :: String -> PRes [Token]
 tokenize = lexer initPos . cleanup

@@ -9,11 +9,11 @@ import qualified Data.Set as Set
 import Issy.Prelude
 import qualified Issy.Utils.OpenList as OL
 
-import Issy.Base.Objectives (Objective(..), WinningCondition(..))
+import Issy.Games.Objectives (Objective(..), WinningCondition(..))
+import Issy.Games.ReactiveProgramArena (Game, Transition(..))
+import qualified Issy.Games.ReactiveProgramArena as RPG
 import Issy.Monitor (Monitor, State, Trans(..), Verdict(..))
 import qualified Issy.Monitor as Mon
-import Issy.RPG (Game, Transition(..))
-import qualified Issy.RPG as RPG
 
 onTheFlyProduct :: Config -> Game -> Objective -> Monitor -> IO (Game, Objective)
 onTheFlyProduct cfg game obj monitor = do

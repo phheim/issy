@@ -7,7 +7,9 @@
 --
 ---------------------------------------------------------------------------------------------------
 module Issy
-  ( Config(..)
+  ( compile
+  , -- Config
+    Config(..)
   , defaultConfig
   , -- Statistics
     Stats
@@ -38,14 +40,17 @@ module Issy
   ) where
 
 ---------------------------------------------------------------------------------------------------
+-- Compilation
+import Issy.Compiler (compile)
+
 -- Config and Statistics
 import Issy.Config (Config(..), defaultConfig)
 import Issy.Statistics (Stats, emptyStats, printStats)
 
 -- Encoding
-import Issy.Extractors.LTLMT (specToLTLMT)
-import Issy.Extractors.MuCLP (rpgToMuCLP)
-import Issy.Extractors.TSLT (rpgToTSLT)
+import Issy.Encoders.LTLMT (specToLTLMT)
+import Issy.Encoders.MuCLP (rpgToMuCLP)
+import Issy.Encoders.TSLT (rpgToTSLT)
 
 -- Parsers 
 import Issy.Parsers.LLIssyFormat (parseLLIssyFormat)

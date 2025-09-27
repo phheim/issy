@@ -1,6 +1,6 @@
 {-# LANGUAGE Safe, LambdaCase #-}
 
-module Issy.Base.Variables
+module Issy.Games.Variables
   ( Type(..)
   , Variables
   , mk

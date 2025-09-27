@@ -6,18 +6,18 @@ module Issy.Printers.LLIssyFormat
 
 import Data.Map.Strict ((!))
 
-import Issy.Base.Locations (Loc)
-import qualified Issy.Base.Locations as Locs
-import Issy.Base.Objectives (Objective)
-import qualified Issy.Base.Objectives as Obj
-import Issy.Base.Variables (Variables)
-import qualified Issy.Base.Variables as Vars
+import Issy.Games.Locations (Loc)
+import qualified Issy.Games.Locations as Locs
+import Issy.Games.Objectives (Objective)
+import qualified Issy.Games.Objectives as Obj
+import qualified Issy.Games.SymbolicArena as SG
+import Issy.Games.Variables (Variables)
+import qualified Issy.Games.Variables as Vars
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.Temporal as TL
 import qualified Issy.Printers.SMTLib as SMTLib (toString)
 import Issy.Specification (Specification)
 import qualified Issy.Specification as Spec
-import qualified Issy.SymbolicArena as SG
 
 printLLIssyFormat :: Specification -> String
 printLLIssyFormat spec =

@@ -29,15 +29,15 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import Text.Read (readMaybe)
 
-import Issy.Base.Locations (Loc)
-import Issy.Base.Objectives (Objective(..), WinningCondition(..))
-import qualified Issy.Base.Variables as Vars
+import Issy.Games.Locations (Loc)
+import Issy.Games.Objectives (Objective(..), WinningCondition(..))
+import Issy.Games.ReactiveProgramArena (Game(variables), Transition(..))
+import qualified Issy.Games.ReactiveProgramArena as RPG
+import qualified Issy.Games.Variables as Vars
 import Issy.Logic.FOL (Sort(..), Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Parsers.SMTLib as SMTLib (parseTerm, sortValue)
 import Issy.Parsers.SMTLibLexer (Token(..), tokenize)
-import Issy.RPG (Game(variables), Transition(..))
-import qualified Issy.RPG as RPG
 
 type PRes a = Either String a
 

@@ -1,3 +1,5 @@
+{-# LANGUAGE Safe #-}
+
 module Issy.Translation.DOA
   ( State
   , Acceptance(..)

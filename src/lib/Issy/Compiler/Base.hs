@@ -1,6 +1,6 @@
 {-# LANGUAGE Safe #-}
 
-module Compiler.Base
+module Issy.Compiler.Base
   ( PRes
   , perr
   , perrGen

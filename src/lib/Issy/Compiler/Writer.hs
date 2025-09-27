@@ -1,6 +1,6 @@
 {-# LANGUAGE Safe, LambdaCase #-}
 
-module Compiler.Writer
+module Issy.Compiler.Writer
   ( write
   ) where
 
@@ -9,7 +9,7 @@ import qualified Data.Map.Strict as Map
 import Data.Maybe (mapMaybe)
 import Data.Ratio (denominator, numerator)
 
-import Compiler.Base
+import Issy.Compiler.Base
 
 write :: AstSpec -> String
 write spec =

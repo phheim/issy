@@ -1,6 +1,6 @@
 ---------------------------------------------------------------------------------------------------
 -- | 
--- Module      : Issy
+-- Module      : Issy.Compiler
 -- Description : Top-level module of the issy's tool issy-format to lissy format compiler
 -- Copyright   : (c) Philippe Heim, 2025
 -- License     : The Unlicense
@@ -9,15 +9,15 @@
 {-# LANGUAGE Safe #-}
 
 ---------------------------------------------------------------------------------------------------
-module Compiler
+module Issy.Compiler
   ( compile
   ) where
 
 ---------------------------------------------------------------------------------------------------
-import Compiler.Checker (check)
-import Compiler.Lexer (tokenize)
-import Compiler.Parser (parse)
-import Compiler.Writer (write)
+import Issy.Compiler.Checker (check)
+import Issy.Compiler.Lexer (tokenize)
+import Issy.Compiler.Parser (parse)
+import Issy.Compiler.Writer (write)
 
 ---------------------------------------------------------------------------------------------------
 -- | 'compile' takes an issy-formated string and outputs an lissy-formated string. It fail if the

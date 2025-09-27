@@ -29,23 +29,25 @@ library
     , tsl-parser
 
   exposed-modules:
-      Compiler
-    , Issy
+      Issy
 
   other-modules:
-      Compiler.Base
-    , Compiler.Checker
-    , Compiler.Lexer
-    , Compiler.Parser
-    , Compiler.Writer
-    , Issy.Base.Locations
-    , Issy.Base.Objectives
-    , Issy.Base.SymbolicState
-    , Issy.Base.Variables
+      Issy.Compiler
+    , Issy.Compiler.Base
+    , Issy.Compiler.Checker
+    , Issy.Compiler.Lexer
+    , Issy.Compiler.Parser
+    , Issy.Compiler.Writer
     , Issy.Config
-    , Issy.Extractors.LTLMT
-    , Issy.Extractors.MuCLP
-    , Issy.Extractors.TSLT
+    , Issy.Encoders.LTLMT
+    , Issy.Encoders.MuCLP
+    , Issy.Encoders.TSLT
+    , Issy.Games.Locations
+    , Issy.Games.Objectives
+    , Issy.Games.ReactiveProgramArena
+    , Issy.Games.SymbolicArena
+    , Issy.Games.SymbolicState
+    , Issy.Games.Variables
     , Issy.Logic.CHC
     , Issy.Logic.FOL 
     , Issy.Logic.Interval
@@ -78,7 +80,6 @@ library
     , Issy.Products.RPGMonitor
     , Issy.Products.SGMonitor
     , Issy.Products.SymbolicGames
-    , Issy.RPG
     , Issy.Solver.Acceleration
     , Issy.Solver.Acceleration.Base
     , Issy.Solver.Acceleration.Heuristics
@@ -96,7 +97,6 @@ library
     , Issy.Solver.Synthesis
     , Issy.Specification
     , Issy.Statistics
-    , Issy.SymbolicArena
     , Issy.Translation
     , Issy.Translation.DOA
     , Issy.Translation.LTL2DOA
