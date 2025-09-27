@@ -83,10 +83,10 @@ invSatModelTO _ = Just 20
 -- General Geometric Acceleration
 ---
 ggaIters :: Heur -> Int
-ggaIters _ = 2
+ggaIters _ = 1
 
 ggaDepth :: Heur -> Int
-ggaDepth _ = 2
+ggaDepth _ = 1
 
 ggaMaxIntersect :: Heur -> Int
 ggaMaxIntersect _ = 2

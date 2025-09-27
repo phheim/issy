@@ -38,11 +38,14 @@ import qualified Issy.Utils.PrioQueue as PQ
 ---------------------------------------------------------------------------------------------------
 -- Top-level acceleration
 ---------------------------------------------------------------------------------------------------
+-- | 'accelReach' does reachability acceleration with a polyhedra-based method
 accelReach :: Config -> Heur -> Player -> Arena -> Loc -> SymSt -> IO (Term, SyBo)
 accelReach conf heur player arena loc reach = do
   conf <- pure $ setName "GGeoA" conf
   accelGAL conf heur player arena loc reach
 
+-- | 'accelGAL' is the top-level function which does the main search of the
+-- polyhedra-based acceleration
 accelGAL :: Config -> Heur -> Player -> Arena -> Loc -> SymSt -> IO (Term, SyBo)
 accelGAL conf heur player arena loc reach = do
   lg conf ["Accelerate in", locName arena loc, "on", strSt arena reach]
@@ -53,7 +56,7 @@ accelGAL conf heur player arena loc reach = do
   where
     -- Priming symbol for the previous state in the lemma
     prime = FOL.uniquePrefix "init_" $ usedSymbols arena
-    -- Search for lemmas
+    -- Search for lemmas with a priority queue
     searchLemma preComb indeps gals = search Nothing $ PQ.fromList searchKeyInit gals
       where
         search currSolution queue =
@@ -101,10 +104,11 @@ data SearchKey = SearchKey
   , nestingCnt :: Int
   } deriving (Eq, Show)
 
+-- The order here is important as larger 'SearchKey's will be tried first!
 instance Ord SearchKey where
   compare skA skB =
-    if | nestingCnt skA < nestingCnt skB -> LT -- TODO: swapped
-       | nestingCnt skA > nestingCnt skB -> GT
+    if | nestingCnt skA < nestingCnt skB -> GT
+       | nestingCnt skA > nestingCnt skB -> LT
        | refinementCnt skA < refinementCnt skB -> GT
        | refinementCnt skA > refinementCnt skB -> LT
        | otherwise -> EQ
@@ -113,13 +117,13 @@ searchKeyInit :: SearchKey
 searchKeyInit = SearchKey {refinementCnt = 0, nestingCnt = 0}
 
 doRefine :: Heur -> SearchKey -> Bool
-doRefine heur sk = False -- TODO: refinementCnt sk < H.ggaIters heur
+doRefine heur sk = refinementCnt sk <= H.ggaIters heur
 
 skRefine :: SearchKey -> SearchKey
 skRefine sk = sk {refinementCnt = refinementCnt sk + 1}
 
 doNest :: Heur -> SearchKey -> Bool
-doNest _ sk = nestingCnt sk < 1 --TODO heursitic
+doNest heur sk = nestingCnt sk <= H.ggaDepth heur
 
 skNest :: SearchKey -> SearchKey
 skNest sk = sk {nestingCnt = nestingCnt sk + 1}
