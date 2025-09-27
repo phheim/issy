@@ -1,3 +1,14 @@
+---------------------------------------------------------------------------------------------------
+-- | 
+-- Module      : Issy.Base.Locations
+-- Description : Encapsulated game-graph locations
+-- Copyright   : (c) Philippe Heim, 2025
+-- License     : The Unlicense
+--
+---------------------------------------------------------------------------------------------------
+{-# LANGUAGE Safe #-}
+
+---------------------------------------------------------------------------------------------------
 module Issy.Base.Locations
   ( Loc
   , Store
@@ -10,11 +21,16 @@ module Issy.Base.Locations
   , empty
   ) where
 
+---------------------------------------------------------------------------------------------------
 import Data.Map.Strict (Map, (!?))
 import qualified Data.Map.Strict as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
 
+---------------------------------------------------------------------------------------------------
+-- | 'Loc' is a location. Note that locations are in the context of a 'Store' which is usually
+-- provided by a game arena or so. 'Loc's from different 'Store's could be equally without 
+-- semantically being the same.
 newtype Loc =
   Loc Integer
   deriving (Eq, Ord, Show)
@@ -51,3 +67,4 @@ toString locs (Loc n) = "l" ++ show n ++ "_" ++ name locs (Loc n)
 
 toNumber :: Loc -> Integer
 toNumber (Loc n) = n
+---------------------------------------------------------------------------------------------------
