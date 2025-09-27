@@ -6,7 +6,7 @@
 -- License     : The Unlicense
 --
 ---------------------------------------------------------------------------------------------------
-{-# LANGUAGE MultiWayIf #-}
+{-# LANGUAGE Safe, MultiWayIf #-}
 
 ---------------------------------------------------------------------------------------------------
 module Issy.Solver.Acceleration.PolyhedraGeometricAccel
@@ -19,6 +19,7 @@ import qualified Data.Set as Set
 import Issy.Prelude
 
 import qualified Issy.Base.SymbolicState as SymSt
+import Issy.Config (extendAcceleration)
 import qualified Issy.Logic.FOL as FOL
 import Issy.Logic.Interval (gtUpp, inLow, inUpp, ltLow)
 import Issy.Logic.Polyhedra
@@ -44,7 +45,6 @@ accelReach conf heur player arena loc reach = do
 
 accelGAL :: Config -> Heur -> Player -> Arena -> Loc -> SymSt -> IO (Term, SyBo)
 accelGAL conf heur player arena loc reach = do
-  reach <- SymSt.simplify conf reach -- TODO: why is this not done before
   lg conf ["Accelerate in", locName arena loc, "on", strSt arena reach]
   (indeps, preComb) <- preCompGen conf heur player arena loc reach prime
   let gals = guessLemma heur indeps (reach `get` loc)
@@ -68,16 +68,15 @@ accelGAL conf heur player arena loc reach = do
               if better
                 then do
                   lg conf ["Try", polyLemmaToStr lemmaComb]
-                  (pre, preProg) <- preComb lemma
-                  check <- lemmaCond conf arena loc reach lemma pre
+                  check <- preComb lemma
                   case check of
-                    Applicable -> do
+                    Applicable preProg -> do
                       lg conf ["Found", SMTLib.toString (conc lemma)]
                       if conc lemma == FOL.true
                         then pure (conc lemma, preProg)
                         else search (Just (conc lemma, preProg)) queue
                     NotApplicable -> search currSolution queue
-                    Refine ->
+                    Refine pre ->
                       let queueA
                             | doRefine heur sk = PQ.push (skRefine sk) (combInv pre lemmaComb) queue
                             | otherwise = queue
@@ -128,48 +127,19 @@ skNest sk = sk {nestingCnt = nestingCnt sk + 1}
 ---------------------------------------------------------------------------------------------------
 -- Attractor through loop arena
 ---------------------------------------------------------------------------------------------------
--- TODO: document!!
-preCompGen ::
-     Config
-  -> Heur
-  -> Player
-  -> Arena
-  -> Loc
-  -> SymSt
-  -> Symbol
-  -> IO (Set Symbol, AccelLemma -> IO (Term, SyBo))
-preCompGen conf heur player arena loc target prime = do
-  (arena, loc, loc', subs, target, prog) <- pure $ reducedLoopArena conf heur arena loc target prime
-  lg conf ["Loop Scenario on", strS (locName arena) subs]
-  prog <- pure $ Synt.returnOn target prog
-  indeps <- independentProgVars conf arena
-  lg conf ["Independent state variables", strS id indeps]
-  -- TODO deuglify
-  pure
-    ( indeps
-    , \lemma -> do
-        target <- pure $ set target loc' $ FOL.orf [target `get` loc, step lemma]
-    -- Remark: we do not use independent variables, as their constrains are expected to be 
-    -- found otherwise in the invariant generation iteration. This is beneficial as
-    -- otherwise we usually do an underapproximating projection
-        (stAcc, prog) <- iterA conf heur player arena target loc' prog
-        let res = unprime lemma $ stAcc `get` loc
-        res <- SMT.simplify conf res
-        pure (res, prog))
-
 -- | small three-valued data structure to indicate the resulf of checking the
--- conditions for acceleration lemma
+-- conditions for an acceleration lemma
 data LemmaStatus
-  = Applicable
- -- ^ all conditions hold
-  | Refine
+  = Applicable SyBo
+ -- ^ all conditions hold with resulting program
+  | Refine Term
  -- ^ the step condtion failed but maybe a better invariant could do it
   | NotApplicable
  -- ^ the loop game result is false, or the base condition not applicable
 
--- | 'lemmaCond' check if the condition of a lemma holds.
-lemmaCond :: Config -> Arena -> Loc -> SymSt -> AccelLemma -> Term -> IO LemmaStatus
-lemmaCond conf arena loc target lemma loopGameResult = do
+-- | 'lemmaCond' check if the condition of a lemma holds on a specific loop game result
+lemmaCond :: Config -> Arena -> Loc -> SymSt -> AccelLemma -> Term -> SyBo -> IO LemmaStatus
+lemmaCond conf arena loc target lemma loopGameResult prog = do
   let stepCond = FOL.andf [dom arena loc, conc lemma] `FOL.impl` loopGameResult
   let baseCond = FOL.andf [dom arena loc, base lemma] `FOL.impl` (target `get` loc)
   lgd conf ["Loop game result", SMTLib.toString loopGameResult]
@@ -183,26 +153,73 @@ lemmaCond conf arena loc target lemma loopGameResult = do
         else do
           holds <- SMT.valid conf stepCond
           if not holds
-            then lgd conf ["Step condition failed"] $> Refine
-            else lgd conf ["Lemma conditions hold"] $> Applicable
+            then lgd conf ["Step condition failed"] $> Refine loopGameResult
+            else lgd conf ["Lemma conditions hold"] $> Applicable prog
 
--- IO version of iterA, the organisation of those might be done 'a bit' better
--- TODO integrate summaries in a better way!
+-- | 'preCompGen' is responsible for computing a pass of an acceleration lemma through a loop 
+-- game. In order to avoid dublicate computation of the loop game and independent variables.
+-- preCompGen is a generator function, i.e. it return a function that compute the pass of a
+-- lemma through a loop game and the check of conditions (in addition to the independen variables).
+preCompGen ::
+     Config
+  -> Heur
+  -> Player
+  -> Arena
+  -> Loc
+  -> SymSt
+  -> Symbol
+  -> IO (Set Symbol, AccelLemma -> IO LemmaStatus)
+preCompGen conf heur player arena loc target prime = do
+  (arena, loc, loc', subs, target, prog) <- pure $ reducedLoopArena conf heur arena loc target prime
+  lg conf ["Loop Scenario on", strS (locName arena) subs]
+  prog <- pure $ Synt.returnOn target prog
+  indeps <- independentProgVars conf arena
+  lg conf ["Independent state variables", strS id indeps]
+  pure
+    ( indeps
+    , \lemma -> do
+        target <- pure $ set target loc' $ FOL.orf [target `get` loc, step lemma]
+    -- Remark: we do not use independent variables here , as their constrains are expected to be 
+    -- found otherwise in the invariant generation iteration. This is beneficial as
+    -- otherwise we usually do an underapproximating projection
+        (stAcc, prog) <- iterA conf heur player arena target loc' prog
+        let res = unprime lemma $ stAcc `get` loc
+        res <- SMT.simplify conf res
+        lemmaCond conf arena loc target lemma res prog)
+
+-- | 'iterA' underappoximating computation of an attractor
 iterA :: Config -> Heur -> Player -> Arena -> SymSt -> Loc -> SyBo -> IO (SymSt, SyBo)
-iterA _ heur player arena attr shadow = go (noVisits arena) (OL.fromSet (preds arena shadow)) attr
+iterA conf heur player arena attr shadow =
+  go (noVisits arena) (OL.fromSet (preds arena shadow)) attr
   where
     go vcnt open attr prog =
       case OL.pop open of
         Nothing -> pure (attr, prog)
         Just (l, open)
           | visits l vcnt < H.iterAMaxCPres heur -> do
-            -- TODO add nesting
             let new = cpre player arena attr l
+            -- Remark: here we could still only add the predcessors locations if 
+            -- things changed however, it will often not be relevant in most cases
             go
               (visit l vcnt)
               (preds arena l `OL.push` open)
               (SymSt.disj attr l new)
               (Synt.enforceTo l new attr prog)
+          | visits l vcnt == H.iterAMaxCPres heur && extendAcceleration conf && arena `cyclicIn` l -> do
+            lg conf ["Nest acceleration in", locName arena l]
+            attr <- SymSt.simplify conf attr
+            (accelRes, accelProg) <- accelReach conf heur player arena l attr
+            if accelRes == FOL.false
+              then do
+                lg conf ["Nesting failed"]
+                go (visit l vcnt) open attr prog
+              else do
+                lg conf ["Nesting succeeded"]
+                go
+                  (visit l vcnt)
+                  (preds arena l `OL.push` open)
+                  (SymSt.disj attr l accelRes)
+                  (Synt.callOn l accelRes accelProg prog)
           | otherwise -> go vcnt open attr prog
 
 ---------------------------------------------------------------------------------------------------
@@ -216,7 +233,6 @@ polyLemmaToStr = combToStr $ SMTLib.toString . ineqToTerm
 guessLemmaSimple :: Heur -> Set Symbol -> Term -> [PolyLemma]
 guessLemmaSimple heur indeps = concatMap (fromPolyhedron heur indeps) . nontrivialPolyhedra
 
--- TODO use heuristic better
 guessLemma :: Heur -> Set Symbol -> Term -> [PolyLemma]
 guessLemma heur indeps trg =
   case filter (not . null) $ map gen (nontrivialPolyhedra trg) of
@@ -231,7 +247,6 @@ guessLemma heur indeps trg =
         . filter (not . null)
         . permutationsUpTo (H.ggaMaxLexiUnionSize heur)
 
--- TODO: this neeeds to be documents why stuff happens
 fromPolyhedron :: Heur -> Set Symbol -> (Polyhedron, Set Term) -> [PolyLemma]
 fromPolyhedron heur indeps (poly, sideConstr) =
   let (rankIneqs, invIneqs) = List.partition (potentialGAL indeps) $ toIneqs poly

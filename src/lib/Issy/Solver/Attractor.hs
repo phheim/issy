@@ -74,8 +74,8 @@ attractorEx cfg solst player arena stopCheck target = do
 -- | 'attractorFull' does the complete attractor computation and is later used for the different
 -- type of attractor computations (with/without extraction)
 attractorFull :: Config -> SolSt -> Player -> Arena -> StopCheck -> SymSt -> IO (SymSt, SolSt, SyBo)
-attractorFull cfg solst player arena stopCheck target =
-  attrState cfg solst stopCheck player arena target >>= fullAttr cfg >>= attrResult cfg
+attractorFull cfg solst player arena stopCheck =
+  attrState cfg solst stopCheck player arena >=> fullAttr cfg >=> attrResult cfg
 
 ---------------------------------------------------------------------------------------------------
 -- Attractors are computed as chaotic fixpoints

@@ -7,6 +7,9 @@
 -- License     : The Unlicense
 --
 ---------------------------------------------------------------------------------------------------
+{-# LANGUAGE Safe #-}
+
+---------------------------------------------------------------------------------------------------
 module Issy.Prelude
   ( -- Configuration
     Config
@@ -60,6 +63,7 @@ module Issy.Prelude
   , swap
   , -- Monad operations
     (<=<)
+  , (>=>)
   , filterM
   , foldM
   , unless
@@ -91,6 +95,6 @@ import Data.Maybe (fromJust, fromMaybe, mapMaybe)
 import Data.Ratio ((%), denominator, numerator)
 import Data.Tuple (swap)
 
-import Control.Monad ((<=<), filterM, foldM, unless, when)
+import Control.Monad ((<=<), (>=>), filterM, foldM, unless, when)
 
 import System.Exit (die)
