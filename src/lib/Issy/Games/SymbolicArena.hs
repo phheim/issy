@@ -341,9 +341,14 @@ inducedSubArena arena locs
     let locsC = Set.unions (Set.map (succs arena) locs) `Set.union` locs
         (arena0, oldToNew) =
           createLocsFor (empty (variables arena)) (locName arena) (domain arena) locsC
+        -- Equality contraint
+        eqTrans =
+          FOL.andfL (Vars.stateVarL (variables arena)) $ \v ->
+            let s = Vars.sortOf (variables arena) v
+             in FOL.var v s `FOL.equal` FOL.var (Vars.prime v) s
         -- Add transitions 
         arena1 =
-          foldl (\ar old -> setTrans ar (oldToNew old) (oldToNew old) FOL.true) arena0
+          foldl (\ar old -> setTrans ar (oldToNew old) (oldToNew old) eqTrans) arena0
             $ locsC `Set.difference` locs
         arena2 =
           foldl
