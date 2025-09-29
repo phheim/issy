@@ -23,8 +23,8 @@ accelCoBuechi conf player arena loc fset wopp = do
   lg conf ["Accelerate in", locName arena loc, "on", strSt arena fset]
   let (base, step, conc, stepFun, prime, lsym) = lemmaSymbols arena
   (arena, loc') <- pure $ loopArena arena loc
-  fset <- pure $ SymSt.set (extendSt fset id arena) loc' $ FOL.neg step
-  wopp <- pure $ extendSt wopp id arena
+  fset <- pure $ SymSt.set (extendSt fset Just arena) loc' $ FOL.neg step
+  wopp <- pure $ extendSt wopp Just arena
   let idMap = Map.fromSet id (locations arena)
   let stratO = Synt.returnOn wopp $ Synt.loopSyBo conf arena loc loc' prime idMap
   (constrRec, rec, stratO) <- pure $ iterB conf arena player fset wopp stratO

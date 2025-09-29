@@ -390,10 +390,9 @@ inducedSubGame arena locs
                            else selfLoop new)))
             arena0
             locsC
-        -- Create mappings for restricting locations only, not for the sinks
         mOldToNew l
-          | l `elem` locs = oldToNew l
-          | otherwise = error "assert: cannot map non-restricing location"
+          | l `elem` locsC = oldToNew l
+          | otherwise = error "assert: cannot map location"
      in (arena1, mOldToNew)
 
 independentProgVars :: Config -> Game -> IO (Set Symbol)

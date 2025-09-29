@@ -359,10 +359,9 @@ inducedSubArena arena locs
                  (succs arena old))
             arena1
             locs
-        -- Create mappings for restricting locations only, not for the sinks
         mOldToNew l
-          | l `elem` locs = oldToNew l
-          | otherwise = error "assert: cannot map non-restricing location"
+          | l `elem` locsC = oldToNew l
+          | otherwise = error "assert: cannot map location"
      in (arena2, mOldToNew)
 
 independentProgVars :: Config -> Arena -> IO (Set Symbol)

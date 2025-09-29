@@ -70,26 +70,28 @@ type Attr = Config -> Player -> Arena -> SymSt -> IO (SymSt, SyBo)
 --------------------------------------------------------------------------------------------------- 
 -- High Level Procedure
 --------------------------------------------------------------------------------------------------- 
--- TODO: document, do not QELIM result, that is resposibility of caller
 trySummary ::
      Config -> Attr -> Player -> Arena -> Loc -> EnfSt -> SymSt -> IO (EnfSt, Maybe (Term, SyBo))
 trySummary conf attr player arena loc enfst reach = do
   conf <- pure $ setName "Summaries" conf
-  lgd conf ["Try to apply summary"]
+  lg
+    conf
+    ["Summaries failed/success", show (length (failed enfst)), show (length (summaries enfst))]
+  lg conf ["Try to apply summary in", locName arena loc, "on", strSt arena reach]
   case find (matchKey player arena loc . fst) (summaries enfst) of
     Just (key, content) -> do
-      lgd conf ["Use existing summary"] -- TODO: details
-      let res = applyIn (vars (sumArena key)) content reach
-      lgd conf ["Applied summary:", SMTLib.toString (fst res)]
+      lg conf ["Use existing summary"] -- TODO: details
+      res <- applyIn conf (vars (sumArena key)) content reach
+      lg conf ["Applied summary:", SMTLib.toString (fst res)]
       pure (enfst, Just res)
     Nothing ->
       case find (matchKey player arena loc) (failed enfst) of
         Just _ -> do
-          lgd conf ["Existence of valid summary already ruled out"]
+          lg conf ["Existence of valid summary already ruled out"]
           pure (enfst, Nothing)
         Nothing -> do
           lg conf ["Compute summary"]
-          (key, content) <- computeSum conf attr player arena loc
+          (key, content) <- computeSum conf attr player arena loc reach
           case content of
             Nothing -> do
               lg conf ["Summary computation failed"]
@@ -97,52 +99,51 @@ trySummary conf attr player arena loc enfst reach = do
             Just content -> do
               lg conf ["Summary computation succeeded"] -- TODO: details
               enfst <- pure $ enfst {summaries = summaries enfst ++ [(key, content)]}
-              let res = applyIn (vars (sumArena key)) content reach
-              lgd conf ["Applied summary:", SMTLib.toString (fst res)]
+              res <- applyIn conf (vars (sumArena key)) content reach
+              lg conf ["Applied summary:", SMTLib.toString (fst res)]
               pure (enfst, Just res)
 
 matchKey :: Player -> Arena -> Loc -> SummaryKey -> Bool
-matchKey player arena loc key
-  | player == sumPlayer key =
-    case isSubarenaFrom (sumLoc key, sumArena key) (loc, arena) of
-      Nothing -> False
-      Just _ -> True -- TODO: this has to be used!!!
-  | otherwise = False
+matchKey player arena loc key =
+  player == sumPlayer key && loc == sumLoc key && arena == sumArena key
 
 ---------------------------------------------------------------------------------------------------
 -- Application
 ---------------------------------------------------------------------------------------------------
--- TODO: Add correspondence of locations!!!
 -- make applicability a DOCUMENTED precondition!!!
-applyIn :: Variables -> SummaryContent -> SymSt -> (Term, SyBo)
-applyIn vars summary reach =
+applyIn :: Config -> Variables -> SummaryContent -> SymSt -> IO (Term, SyBo)
+applyIn conf vars summary reach =
   let condImpl =
         FOL.andfL (SymSt.toList (targets summary)) $ \(l, next) ->
-          Vars.forallX vars $ FOL.impl (get reach l) next
+          Vars.forallX vars $ FOL.impl next (get reach l)
      -- ^ condition that the current target 'reach' is part of the symbolic target
       constr = FOL.exists (map fst (metaVars summary)) $ FOL.andf [condImpl, enforcable summary]
      -- ^ overall summary
       skolemConstr = error "TODO"
       prog = Synt.summarySyBo (metaVars summary) (constr, skolemConstr) (sybo summary)
      -- ^ programm computation
-   in (constr, prog)
+   in do
+        constr <- SMT.simplify conf constr
+        pure (constr, prog)
 
 ---------------------------------------------------------------------------------------------------
 -- Computation
 --------------------------------------------------------------------------------------------------- 
-computeSum :: Config -> Attr -> Player -> Arena -> Loc -> IO (SummaryKey, Maybe SummaryContent)
-computeSum conf attr player arena loc = do
+computeSum ::
+     Config -> Attr -> Player -> Arena -> Loc -> SymSt -> IO (SummaryKey, Maybe SummaryContent)
+computeSum conf attr player arena loc reach = do
   conf <- pure $ setName "SummaryGen" conf
-  -- Remark: This is very crude and restricted as a heuristic, 
-  -- besides that there might be dublicates
-  -- within the computation of loop games/sceneraios!
-  let subs = Set.insert loc $ succs arena loc
-  (arena, oldToNew) <- pure $ inducedSubArena arena subs
-  loc <- pure $ oldToNew loc
-  -- Remark: For the key we do not add the meta-equality-constraints as this
-  -- would make the isomorphy test even more difficult!
   let key = SummaryKey {sumPlayer = player, sumArena = arena, sumLoc = loc}
-  template <- computeTemplate conf arena
+  let oldArena = arena
+  let oldSubLocs = Set.insert loc $ succs oldArena loc --TODO: make nicer!
+  (arena, oldToNew) <- pure $ inducedSubArena arena $ Set.singleton loc
+  let oldToNewM l =
+        if l `elem` oldSubLocs
+          then Just (oldToNew l)
+          else Nothing
+  reach <- pure $ extendSt reach oldToNewM arena
+  loc <- pure $ oldToNew loc
+  template <- generalize conf arena reach loc
   let metas =
         Map.toList
           $ Map.filterWithKey (\var _ -> var `notElem` stateVars arena)
@@ -161,36 +162,38 @@ computeSum conf attr player arena loc = do
     else do
       let content =
             SummaryContent
-              {metaVars = metas, enforcable = enforce, targets = template, sybo = templProg}
+              { metaVars = metas
+              , enforcable = enforce
+              , targets = backmapSt template oldToNewM oldArena
+              , sybo = templProg
+              }
+      lg conf ["Computed summary:"]
+      lg conf [" - meta: ", strL fst metas]
+      lg conf [" - enf:  ", SMTLib.toString enforce]
+      lg conf [" - temp: ", strSt arena template]
       pure (key, Just content)
 
-computeTemplate :: Config -> Arena -> IO SymSt
-computeTemplate conf arena = do
-  indeps <- independentProgVars conf arena
-  let deps = Set.toList $ stateVars arena `Set.difference` indeps
-  pure
-    $ SymSt.symSt (locations arena)
-    $ \loc -> FOL.andf [FOL.andfL (Set.toList indeps) (condIDep loc), FOL.andfL deps (condDep loc)]
+generalize :: Config -> Arena -> SymSt -> Loc -> IO SymSt
+generalize conf arena reach loc = do
+  lgd conf ["Generalize in", locName arena loc, "from", strSt arena reach]
+  indeps <- independentProgVars conf arena -- TODO: use better heuristic with other variables!
+  lgd conf ["Indepedents", strS id indeps]
+  let eqVars = Set.toList indeps
+  let subLocs = Set.delete loc $ succs arena loc -- TODO: remove loc except if singelton loc?
+  foldM
+    (\st subloc -> set st subloc <$> projectFor eqVars (reach `get` subloc) subloc)
+    (emptySt arena)
+    subLocs
   where
-    prefix = FOL.uniquePrefix "meta_summary_" $ usedSymbols arena
-    condIDep _ var =
-      let s = sortOf arena var
-       in FOL.var var s `FOL.equal` FOL.var (prefix ++ var) s
-    condDep _ var
-      | sortOf arena var `notElem` [FOL.SInt, FOL.SReal] =
-        let s = sortOf arena var
-         in FOL.var var s `FOL.equal` FOL.var (prefix ++ var) s
-      | otherwise =
-        let s = sortOf arena var
-            varT = FOL.var var s
-            up = FOL.var (prefix ++ var ++ "_up_bound") s
-            upOn = FOL.var (prefix ++ var ++ "_up_on") FOL.SBool
-            low = FOL.var (prefix ++ var ++ "_low_bound") s
-            lowOn = FOL.var (prefix ++ var ++ "_low_on") FOL.SBool
-         in FOL.andf
-              [ FOL.orf [upOn, lowOn]
-              , up `FOL.geqT` low
-              , FOL.impl upOn (FOL.leqT varT up)
-              , FOL.impl lowOn (FOL.geqT varT low)
-              ]
+    projectFor eqVars term subloc = do
+      let prefix = FOL.uniquePrefix ("meta_" ++ locName arena subloc) $ usedSymbols arena
+      let metas = map (prefix ++) eqVars
+      let eqConstr =
+            FOL.andfL eqVars $ \v ->
+              FOL.var v (sortOf arena v) `FOL.equal` FOL.var (prefix ++ v) (sortOf arena v)
+      psi <- SMT.simplify conf $ FOL.exists metas $ FOL.forAll eqVars $ eqConstr `FOL.impl` term
+      let next = FOL.andf [eqConstr, psi]
+      check <- SMT.sat conf $ Vars.forallX (vars arena) $ next `FOL.impl` term
+      unless check $ error "assert: this should always be true"
+      pure next
 ---------------------------------------------------------------------------------------------------

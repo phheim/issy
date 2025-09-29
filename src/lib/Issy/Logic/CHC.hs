@@ -20,6 +20,7 @@ import System.Process (readProcessWithExitCode)
 import Text.Read (readMaybe)
 
 import Issy.Config (Config, chcMaxScript, chcMaxTimeOut, chcTimeout, z3cmd)
+
 ---------------------------------------------------------------------------------------------------
 import Issy.Games.Variables (Variables)
 import qualified Issy.Games.Variables as Vars
