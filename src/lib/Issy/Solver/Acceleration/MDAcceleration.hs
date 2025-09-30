@@ -12,7 +12,6 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Issy.Prelude
 
-import Issy.Config (extendAcceleration)
 import qualified Issy.Games.SymbolicState as SymSt
 import qualified Issy.Games.Variables as Vars
 import qualified Issy.Logic.FOL as FOL
@@ -95,7 +94,6 @@ tryFindInv conf heur prime player arena (base, step, conc) (loc, loc') fixInv re
         case res of
           Right res -> pure $ Just res
           Left invar -> iter (cnt + 1) invar
-      | extendAcceleration conf = pure Nothing -- TODO IMPLEMENT or DEPRECATE?
       | otherwise = do
         lg conf ["Try to strenghten smartly"]
         let prefix =
@@ -375,7 +373,6 @@ boxVars conf player arena reach =
     $ Set.toList
     $ FOL.frees reach
 
--- TODO: These can be computed once and then used
 usefullTargetVar :: Config -> Player -> Arena -> Symbol -> IO Bool
 usefullTargetVar conf player arena var =
   andM (varProgress conf arena var)

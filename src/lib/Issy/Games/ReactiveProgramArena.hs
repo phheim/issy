@@ -352,7 +352,7 @@ replaceByE src trg = h
                   else (upd, l))
                <$> choices)
 
-inducedSubGame :: Game -> Set Loc -> (Game, Loc -> Loc)
+inducedSubGame :: Game -> Set Loc -> (Game, (Loc -> Loc, Set Loc))
 inducedSubGame arena locs
   | not (locs `Set.isSubsetOf` locations arena) =
     error "assert: can only induce subgame on subset of locations!"
@@ -393,7 +393,7 @@ inducedSubGame arena locs
         mOldToNew l
           | l `elem` locsC = oldToNew l
           | otherwise = error "assert: cannot map location"
-     in (arena1, mOldToNew)
+     in (arena1, (mOldToNew, locsC))
 
 independentProgVars :: Config -> Game -> IO (Set Symbol)
 independentProgVars _ arena = do

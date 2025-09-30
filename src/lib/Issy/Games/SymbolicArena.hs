@@ -333,7 +333,7 @@ moveTrans old new arena l
           , predRel = Map.adjust (Set.delete l) old $ predRel arena'
           }
 
-inducedSubArena :: Arena -> Set Loc -> (Arena, Loc -> Loc)
+inducedSubArena :: Arena -> Set Loc -> (Arena, (Loc -> Loc, Set Loc))
 inducedSubArena arena locs
   | not (locs `Set.isSubsetOf` locSet arena) =
     error "assert: can only induced sub-arena on subset of locations!"
@@ -362,7 +362,7 @@ inducedSubArena arena locs
         mOldToNew l
           | l `elem` locsC = oldToNew l
           | otherwise = error "assert: cannot map location"
-     in (arena2, mOldToNew)
+     in (arena2, (mOldToNew, locsC))
 
 independentProgVars :: Config -> Arena -> IO (Set Symbol)
 independentProgVars cfg arena = do

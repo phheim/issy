@@ -43,7 +43,7 @@ reducedLoopArena ::
 reducedLoopArena conf heur arena loc target prime =
   let (rawLoopAr, rawLoc') = loopArena arena loc
       subs = subArena heur rawLoopAr (loc, rawLoc')
-      (loopAr, oldToNew) = inducedSubArena rawLoopAr subs
+      (loopAr, (oldToNew, _)) = inducedSubArena rawLoopAr subs
       newLoc = oldToNew loc
       newLoc' = oldToNew rawLoc'
       loopTarget =

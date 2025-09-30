@@ -70,6 +70,7 @@ type Attr = Config -> Player -> Arena -> SymSt -> IO (SymSt, SyBo)
 --------------------------------------------------------------------------------------------------- 
 -- High Level Procedure
 --------------------------------------------------------------------------------------------------- 
+-- TODO: streamline logging
 trySummary ::
      Config -> Attr -> Player -> Arena -> Loc -> EnfSt -> SymSt -> IO (EnfSt, Maybe (Term, SyBo))
 trySummary conf attr player arena loc enfst reach = do
@@ -80,7 +81,7 @@ trySummary conf attr player arena loc enfst reach = do
   lg conf ["Try to apply summary in", locName arena loc, "on", strSt arena reach]
   case find (matchKey player arena loc . fst) (summaries enfst) of
     Just (key, content) -> do
-      lg conf ["Use existing summary"] -- TODO: details
+      lg conf ["Use existing summary"]
       res <- applyIn conf (vars (sumArena key)) content reach
       lg conf ["Applied summary:", SMTLib.toString (fst res)]
       pure (enfst, Just res)
@@ -97,7 +98,7 @@ trySummary conf attr player arena loc enfst reach = do
               lg conf ["Summary computation failed"]
               pure (enfst {failed = failed enfst ++ [key]}, Nothing)
             Just content -> do
-              lg conf ["Summary computation succeeded"] -- TODO: details
+              lg conf ["Summary computation succeeded"]
               enfst <- pure $ enfst {summaries = summaries enfst ++ [(key, content)]}
               res <- applyIn conf (vars (sumArena key)) content reach
               lg conf ["Applied summary:", SMTLib.toString (fst res)]
@@ -119,7 +120,7 @@ applyIn conf vars summary reach =
      -- ^ condition that the current target 'reach' is part of the symbolic target
       constr = FOL.exists (map fst (metaVars summary)) $ FOL.andf [condImpl, enforcable summary]
      -- ^ overall summary
-      skolemConstr = error "TODO"
+      skolemConstr = error "TODO IMPLEMENT"
       prog = Synt.summarySyBo (metaVars summary) (constr, skolemConstr) (sybo summary)
      -- ^ programm computation
    in do
@@ -135,8 +136,7 @@ computeSum conf attr player arena loc reach = do
   conf <- pure $ setName "SummaryGen" conf
   let key = SummaryKey {sumPlayer = player, sumArena = arena, sumLoc = loc}
   let oldArena = arena
-  let oldSubLocs = Set.insert loc $ succs oldArena loc --TODO: make nicer!
-  (arena, oldToNew) <- pure $ inducedSubArena arena $ Set.singleton loc
+  (arena, (oldToNew, oldSubLocs)) <- pure $ inducedSubArena arena $ Set.singleton loc
   let oldToNewM l =
         if l `elem` oldSubLocs
           then Just (oldToNew l)
@@ -179,7 +179,9 @@ generalize conf arena reach loc = do
   indeps <- independentProgVars conf arena -- TODO: use better heuristic with other variables!
   lgd conf ["Indepedents", strS id indeps]
   let eqVars = Set.toList indeps
-  let subLocs = Set.delete loc $ succs arena loc -- TODO: remove loc except if singelton loc?
+  let subLocs
+        | succs arena loc == Set.singleton loc = Set.singleton loc
+        | otherwise = Set.delete loc $ succs arena loc
   foldM
     (\st subloc -> set st subloc <$> projectFor eqVars (reach `get` subloc) subloc)
     (emptySt arena)

@@ -127,7 +127,7 @@ loopArena :: Arena -> Loc -> (Arena, Loc)
 loopArena (RPG g) = first RPG . RPG.loopGame g
 loopArena (Sym a) = first Sym . Sym.loopArena a
 
-inducedSubArena :: Arena -> Set Loc -> (Arena, Loc -> Loc)
+inducedSubArena :: Arena -> Set Loc -> (Arena, (Loc -> Loc, Set Loc))
 inducedSubArena (RPG g) = first RPG . RPG.inducedSubGame g
 inducedSubArena (Sym a) = first Sym . Sym.inducedSubArena a
 

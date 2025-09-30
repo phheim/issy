@@ -246,7 +246,6 @@ configParser = go defaultConfig
               go (cfg {ufAcceleration = False, extendAcceleration = False, genGeomAccel = True}) ar
             "gen-geom-ext" ->
               go (cfg {ufAcceleration = False, extendAcceleration = True, genGeomAccel = True}) ar
-            "geom-ext" -> go (cfg {ufAcceleration = False, extendAcceleration = True}) ar
             "unint" -> go (cfg {ufAcceleration = True, extendAcceleration = False}) ar
             "unint-ext" -> go (cfg {ufAcceleration = True, extendAcceleration = True}) ar
             _ -> Left $ "found invalid attractor acceleration mode: " ++ arg
