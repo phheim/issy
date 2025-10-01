@@ -20,6 +20,7 @@ data Mode
   | EncodeMuCLP
   | EncodeRPG
   | EncodeLTLMT
+  | EncodeSweap
 
 data InputFormat
   = HighLevel
@@ -110,6 +111,16 @@ main = do
       putStrLn $ specToLTLMT spec
     (EncodeLTLMT, _) ->
       die "invalid arguments: can only encode Issy/LLissy as Syntheos LTLMT at the moment"
+    (EncodeSweap, LowLevel) -> do
+      spec <- liftErr $ parseLLIssyFormat input
+      checkSpecification cfg spec >>= liftErr
+      putStrLn $ specToSweap spec
+    (EncodeSweap, HighLevel) -> do
+      input <- liftErr $ compile input
+      spec <- liftErr $ parseLLIssyFormat input
+      checkSpecification cfg spec >>= liftErr
+      putStrLn $ specToSweap spec
+    (EncodeSweap, _) -> die "invalid arguments: can only encode Issy/LLissy for Sweap at the moment"
 
 printRes :: Config -> (Bool, Stats, Maybe (IO String)) -> IO ()
 printRes conf (res, stats, printProg) = do
@@ -165,6 +176,7 @@ getMode =
     "--encode-muclp" -> Just EncodeMuCLP
     "--encode-rpg-as-sg" -> Just EncodeRPG
     "--encode-ltlmt" -> Just EncodeLTLMT
+    "--encode-sweap" -> Just EncodeSweap
     _ -> Nothing
 
 getInputFormat :: String -> Maybe InputFormat
@@ -307,6 +319,7 @@ help =
   , "   --encode-tslmt : encode a RPG spec to TSLMT"
   , "   --encode-muclp : encode a RPG spec to MuCLP used by 'muval'"
   , "   --encode-ltlmt : encode issy/llissy spec as LTLMT formula used by 'Syntheos'"
+  , "   --encode-sweap : encode issy/llissy spec as specification used by 'Sweap'"
   , ""
   , " Logging:"
   , "   --quiet    : no logging at all"

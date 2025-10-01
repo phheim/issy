@@ -41,6 +41,8 @@ library
     , Issy.Config
     , Issy.Encoders.LTLMT
     , Issy.Encoders.MuCLP
+    , Issy.Encoders.Sweap
+    , Issy.Encoders.ToFormula
     , Issy.Encoders.TSLT
     , Issy.Games.Locations
     , Issy.Games.Objectives

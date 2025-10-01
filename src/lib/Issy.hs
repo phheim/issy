@@ -34,6 +34,7 @@ module Issy
     checkSpecification
   , -- Encoding
     specToLTLMT
+  , specToSweap
   , rpgToMuCLP
   , rpgToSG
   , rpgToTSLT
@@ -50,6 +51,7 @@ import Issy.Statistics (Stats, emptyStats, printStats)
 -- Encoding
 import Issy.Encoders.LTLMT (specToLTLMT)
 import Issy.Encoders.MuCLP (rpgToMuCLP)
+import Issy.Encoders.Sweap (specToSweap)
 import Issy.Encoders.TSLT (rpgToTSLT)
 
 -- Parsers 

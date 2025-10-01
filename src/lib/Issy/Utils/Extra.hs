@@ -19,6 +19,9 @@ module Issy.Utils.Extra
   , mapFromSetWith
   , runTO
   , noTimeout
+  , paraInbetween
+  , inbetween
+  , enclose
   ) where
 
 import Data.Map.Strict (Map)
@@ -129,3 +132,27 @@ noTimeout comp = do
   case res of
     Just res -> pure res
     Nothing -> error "assumed computation could not timeout!"
+
+-- TODO: check usage!
+paraInbetween :: String -> [String] -> String
+paraInbetween sep elems = enclose '(' (inbetween sep elems)
+
+-- TODO: check usage!
+inbetween :: String -> [String] -> String
+inbetween sep =
+  \case
+    [] -> []
+    [s] -> s
+    s:sr -> s ++ sep ++ inbetween sep sr
+
+-- TODO: check usage!
+enclose :: Char -> String -> String
+enclose c str =
+  case c of
+    '(' -> "(" ++ str ++ ")"
+    ')' -> "(" ++ str ++ ")"
+    '[' -> "[" ++ str ++ "]"
+    ']' -> "[" ++ str ++ "]"
+    '{' -> "{" ++ str ++ "}"
+    '}' -> "{" ++ str ++ "}"
+    _ -> c : str ++ [c]
