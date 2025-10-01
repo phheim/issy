@@ -42,10 +42,10 @@ stateChangeVar :: Symbol -> String
 stateChangeVar = ("change_" ++) . Vars.unprime
 
 envEvents :: [String]
-envEvents = ["ENVIRONMENT EVENTS {", "eval_env, next_var_env, add_var_env, sub_var_env", "}"]
+envEvents = ["ENVIRONMENT EVENTS {", "eval_env, next_var_env, add_var_env", "}"]
 
 sysEvents :: [String]
-sysEvents = ["CONTROLLER EVENTS {", "eval_sys, next_var_sys, add_var_sys, sub_var_sys", "}"]
+sysEvents = ["CONTROLLER EVENTS {", "eval_sys, next_var_sys, add_var_sys", "}"]
 
 encVarDec :: Variables -> [String]
 encVarDec vars =
@@ -73,15 +73,14 @@ encVar vars var
 encTrans :: Variables -> [String]
 encTrans vars =
   [ "TRANSITIONS {"
-  , "fail_sys -> fail_sys []"
-  , "fail_env -> fail_env []"
-  , tenc "eval_soon" "evaled" "[eval_sys & eval_env $ ]" ""
-  , tenc "eval_soon" "fail_sys" "[!eval_sys $ ]" ""
-  , tenc "eval_soon" "fail_env" "[eval_sys & !eval_env $ ]" ""
+  , tenc "eval_soon" "evaled" "eval_sys & eval_env" ""
+  , tenc "eval_soon" "fail_sys" "!eval_sys" ""
+  , tenc "eval_soon" "fail_env" "eval_sys & !eval_env" ""
   , tenc "evaled" first_state "!eval_sys & !eval_env" encCopy
   ]
     ++ encFailure "evaled"
     ++ concatMap (uncurry (encTransFor vars)) (zip varsToEncode nextStates)
+    ++ ["fail_sys -> fail_sys [],", "fail_env -> fail_env []"]
     ++ ["}"]
   where
     varsToEncode = Vars.inputL vars ++ Vars.stateVarL' vars
@@ -96,12 +95,14 @@ encFailure state =
 
 encTransFor :: Variables -> Symbol -> String -> [String]
 encTransFor vars var next_state =
-  [ tenc state state ("!eval_sys & !eval_env & add_var" ++ moveOf) addVar
-  , tenc state state ("!eval_sys & !eval_env & sub_var" ++ moveOf) subVar
-  , tenc state next_state ("!eval_sys & !eval_env & next_var" ++ moveOf) ""
+  [ tenc state state ("!eval_sys & !eval_env &  " ++ addvar ++ "& !" ++ nextvar) addVar
+  , tenc state state ("!eval_sys & !eval_env & !" ++ addvar ++ "& !" ++ nextvar) subVar
+  , tenc state next_state ("!eval_sys & !eval_env &" ++ nextvar) ""
   ]
     ++ encFailure state
   where
+    addvar = "add_var" ++ moveOf
+    nextvar = "next_var" ++ moveOf
     moveOf
       | Vars.isInput vars var = "_env"
       | otherwise = "_sys"
@@ -117,7 +118,7 @@ encTransFor vars var next_state =
 
 -- | Generic transition encoding function
 tenc :: String -> String -> String -> String -> String
-tenc src trg cond effect = src ++ " -> " ++ trg ++ " [ " ++ cond ++ " $ " ++ effect ++ " ]"
+tenc src trg cond effect = src ++ " -> " ++ trg ++ " [ " ++ cond ++ " $ " ++ effect ++ " ],"
 
 encFormula :: Variables -> TL.Formula Term -> [String]
 encFormula vars formula =
@@ -160,7 +161,13 @@ encTerm vars = go
           | otherwise -> "false"
         Const _ -> error "only ints and bools supported"
         Func FAdd fs -> paraInbetween " + " $ map go fs
-        Func FMul fs -> paraInbetween " * " $ map go fs
+        Func FMul [Const (CInt a), Const (CInt b)] -> show $ a * b
+        Func FMul [t, Const (CInt c)] -> go $ Func FMul [Const (CInt c), t]
+        Func FMul [Const (CInt c), t]
+          | c == 0 -> "0"
+          | c < 0 -> "(0 - " ++ go (Func FMul [Const (CInt (-c)), t]) ++ ")"
+          | otherwise -> go $ Func FAdd [t, Func FMul [Const (CInt (c - 1)), t]]
+        Func FMul _ -> error "asser: other forms of multiplication are not supported here"
         Func FAnd fs -> paraInbetween " && " $ map go fs
         Func FOr fs -> paraInbetween " || " $ map go fs
         Func FNot [f] -> "(!" ++ go f ++ ")"
