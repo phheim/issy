@@ -34,7 +34,7 @@ import Issy.Solver.Synthesis (SyBo)
 import qualified Issy.Solver.Synthesis as Synt
 import Issy.Statistics (Stats)
 import qualified Issy.Statistics as Stats
-import Issy.Utils.Extra
+import Issy.Utils.Extra (ifM, justOn, orM)
 import Issy.Utils.OpenList (OpenList)
 import qualified Issy.Utils.OpenList as OL
 
@@ -70,7 +70,7 @@ attractorEx cfg solst player arena stopCheck target = do
     pure
       $ if generateProgram cfg
           then setName "AttrE" cfg
-          else setName "Attr " cfg
+          else setName "Attr" cfg
   attractorFull cfg solst player arena stopCheck target
 
 ---------------------------------------------------------------------------------------------------
@@ -78,7 +78,7 @@ attractorEx cfg solst player arena stopCheck target = do
 -- type of attractor computations (with/without extraction)
 attractorFull :: Config -> SolSt -> Player -> Arena -> StopCheck -> SymSt -> IO (SymSt, SolSt, SyBo)
 attractorFull cfg solst player arena stopCheck =
-  attrState cfg solst stopCheck player arena >=> fullAttr cfg >=> attrResult cfg
+  attrState cfg solst stopCheck Nothing player arena >=> fullAttr cfg >=> attrResult cfg
 
 ---------------------------------------------------------------------------------------------------
 -- Attractors are computed as chaotic fixpoints
@@ -163,9 +163,9 @@ accelStep conf ast loc = do
         fromMaybe ast <$> accel conf ast loc
       | otherwise -> pure ast
 
-accelAttractor :: Config -> Player -> Arena -> SymSt -> IO (SymSt, SyBo)
-accelAttractor conf player arena reach =
-  attrState conf emptySolSt Nothing player arena reach
+accelAttractor :: Maybe Int -> Config -> Player -> Arena -> SymSt -> IO (SymSt, SyBo)
+accelAttractor limit conf player arena reach =
+  attrState conf emptySolSt Nothing limit player arena reach
     >>= accelAttr conf
     >>= attrResult conf <&> (\(reach, _, prog) -> (reach, prog))
 
@@ -182,7 +182,7 @@ class AccAttrSt a =>
 accelSum :: AccSumAttrSt a => Config -> a -> Loc -> IO (a, Bool)
 accelSum conf ast l = do
   (enfstRes, msum) <-
-    trySummary conf accelAttractor (player ast) (arena ast) l (getEnfst ast) (reach ast)
+    trySummary conf (accelAttractor sumSteps) (player ast) (arena ast) l (getEnfst ast) (reach ast)
   ast <- pure $ setEnfst enfstRes ast
   case msum of
     Nothing -> pure (ast, False) -- Summary was not found and could not be computed either
@@ -230,15 +230,19 @@ data AttrState = AttrState
   , stStats :: Stats
   , stEnfst :: EnfSt
   , stopCheck :: StopCheck
+  , visitLimit :: Maybe Int
   }
 
 instance FixPointSt AttrState where
   open ast = second (\ol -> ast {stOpen = ol}) <$> OL.pop (stOpen ast)
   addOpen locs ast = ast {stOpen = OL.push locs (stOpen ast)}
   doStop loc ast =
-    case stopCheck ast of
-      Nothing -> pure False
-      Just check -> check loc $ reach ast
+    let reachedTarget =
+          case stopCheck ast of
+            Nothing -> pure False
+            Just check -> check loc $ reach ast
+        reachedVistitLimit = pure $ maybe False (totalVisits (vsCnt ast) >=) (visitLimit ast)
+     in reachedVistitLimit `orM` reachedTarget
   markVisit loc ast = ast {vsCnt = visit loc (vsCnt ast)}
   visitCnt loc = visits loc . vsCnt -- REMAKR previous herusitc had old /= FOL.false addionally
 
@@ -260,8 +264,8 @@ instance AccSumAttrSt AttrState where
   setEnfst enfst ast = ast {stEnfst = enfst}
   markSumApp _ ast = ast {stStats = Stats.summaryApp (stStats ast)}
 
-attrState :: Config -> SolSt -> StopCheck -> Player -> Arena -> SymSt -> IO AttrState
-attrState conf solst stopCheck player arena reach = do
+attrState :: Config -> SolSt -> StopCheck -> Maybe Int -> Player -> Arena -> SymSt -> IO AttrState
+attrState conf solst stopCheck visitLimit player arena reach = do
   satLocs <- Set.fromList . map fst <$> filterM (SMT.sat conf . snd) (SymSt.toList reach)
   lg conf ["Attractor for", show player, "from", strLocs satLocs, "to reach", strStA reach]
   let prog = Synt.returnOn reach $ Synt.normSyBo conf arena
@@ -276,6 +280,7 @@ attrState conf solst stopCheck player arena reach = do
         , stStats = stats solst
         , stEnfst = enfst solst
         , stopCheck = stopCheck
+        , visitLimit = visitLimit
         }
   where
     strLocs = strS (locName arena)
@@ -293,6 +298,9 @@ attrResult conf ast = do
 --accelNow l f vcnt = (f /= FOL.false) && visits2accel (visits l vcnt)
 accelerationDist :: Int
 accelerationDist = 4
+
+sumSteps :: Maybe Int
+sumSteps = Just $ accelerationDist * 2
 
 visits2accel :: Int -> Bool
 visits2accel k = (k >= accelerationDist) && (k `mod` accelerationDist == 0)

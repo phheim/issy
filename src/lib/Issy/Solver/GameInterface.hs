@@ -50,6 +50,7 @@ module Issy.Solver.GameInterface
   , noVisits
   , visit
   , visits
+  , totalVisits
   ) where
 
 ---------------------------------------------------------------------------------------------------
@@ -234,4 +235,7 @@ visit l (VC vc) = VC $ Map.insertWith (+) l 1 vc
 
 visits :: Loc -> VisitCounter -> Int
 visits l (VC vc) = Map.findWithDefault 0 l vc
+
+totalVisits :: VisitCounter -> Int
+totalVisits (VC vc) = sum $ Map.elems vc
 ---------------------------------------------------------------------------------------------------

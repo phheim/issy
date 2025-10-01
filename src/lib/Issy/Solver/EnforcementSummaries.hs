@@ -29,6 +29,7 @@ import qualified Issy.Printers.SMTLib as SMTLib
 import Issy.Solver.GameInterface
 import Issy.Solver.Synthesis (SyBo)
 import qualified Issy.Solver.Synthesis as Synt
+import Issy.Utils.Extra (allM)
 
 ---------------------------------------------------------------------------------------------------
 -- Definitions
@@ -75,20 +76,18 @@ trySummary ::
      Config -> Attr -> Player -> Arena -> Loc -> EnfSt -> SymSt -> IO (EnfSt, Maybe (Term, SyBo))
 trySummary conf attr player arena loc enfst reach = do
   conf <- pure $ setName "Summaries" conf
-  lg
-    conf
-    ["Summaries failed/success", show (length (failed enfst)), show (length (summaries enfst))]
+  lgd conf ["Currently", show (length (failed enfst)), "failed"]
+  lgd conf ["Currently", show (length (summaries enfst)), "suceeded"]
   lg conf ["Try to apply summary in", locName arena loc, "on", strSt arena reach]
   case find (matchKey player arena loc . fst) (summaries enfst) of
     Just (key, content) -> do
-      lg conf ["Use existing summary"]
       res <- applyIn conf (vars (sumArena key)) content reach
-      lg conf ["Applied summary:", SMTLib.toString (fst res)]
+      lg conf ["Used existing summary and got", SMTLib.toString (fst res)]
       pure (enfst, Just res)
     Nothing ->
       case find (matchKey player arena loc) (failed enfst) of
         Just _ -> do
-          lg conf ["Existence of valid summary already ruled out"]
+          lgd conf ["Existence of valid summary already ruled out"]
           pure (enfst, Nothing)
         Nothing -> do
           lg conf ["Compute summary"]
@@ -98,10 +97,9 @@ trySummary conf attr player arena loc enfst reach = do
               lg conf ["Summary computation failed"]
               pure (enfst {failed = failed enfst ++ [key]}, Nothing)
             Just content -> do
-              lg conf ["Summary computation succeeded"]
               enfst <- pure $ enfst {summaries = summaries enfst ++ [(key, content)]}
               res <- applyIn conf (vars (sumArena key)) content reach
-              lg conf ["Applied summary:", SMTLib.toString (fst res)]
+              lg conf ["Use newly computed summary:", SMTLib.toString (fst res)]
               pure (enfst, Just res)
 
 matchKey :: Player -> Arena -> Loc -> SummaryKey -> Bool
@@ -143,7 +141,7 @@ computeSum conf attr player arena loc reach = do
           else Nothing
   reach <- pure $ extendSt reach oldToNewM arena
   loc <- pure $ oldToNew loc
-  template <- generalize conf arena reach loc
+  template <- generalize conf player arena reach loc
   let metas =
         Map.toList
           $ Map.filterWithKey (\var _ -> var `notElem` stateVars arena)
@@ -152,9 +150,9 @@ computeSum conf attr player arena loc reach = do
           $ map snd
           $ SymSt.toList template
   arena <- pure $ addConstants metas arena
-    -- TODO: add underapproximation restriction!!!
+  conf <- pure $ setName "AttrSumGen" conf
   (attrRes, templProg) <- attr conf player arena template
-    -- This program somehow needs the backmapping as wall as the summary content, no?
+  conf <- pure $ setName "SummaryGen" conf
   enforce <- SMT.simplify conf $ attrRes `get` loc
   sat <- SMT.sat conf enforce
   if not sat
@@ -167,18 +165,17 @@ computeSum conf attr player arena loc reach = do
               , targets = backmapSt template oldToNewM oldArena
               , sybo = templProg
               }
-      lg conf ["Computed summary:"]
+      lg conf ["Summary computation succeeded with:"]
       lg conf [" - meta: ", strL fst metas]
       lg conf [" - enf:  ", SMTLib.toString enforce]
       lg conf [" - temp: ", strSt arena template]
       pure (key, Just content)
 
-generalize :: Config -> Arena -> SymSt -> Loc -> IO SymSt
-generalize conf arena reach loc = do
+generalize :: Config -> Player -> Arena -> SymSt -> Loc -> IO SymSt
+generalize conf player arena reach loc = do
   lgd conf ["Generalize in", locName arena loc, "from", strSt arena reach]
-  indeps <- independentProgVars conf arena -- TODO: use better heuristic with other variables!
-  lgd conf ["Indepedents", strS id indeps]
-  let eqVars = Set.toList indeps
+  eqVars <- Set.toList <$> selectVars conf player arena
+  lgd conf ["Equality variables", strL id eqVars]
   let subLocs
         | succs arena loc == Set.singleton loc = Set.singleton loc
         | otherwise = Set.delete loc $ succs arena loc
@@ -198,4 +195,25 @@ generalize conf arena reach loc = do
       check <- SMT.sat conf $ Vars.forallX (vars arena) $ next `FOL.impl` term
       unless check $ error "assert: this should always be true"
       pure next
+
+selectVars :: Config -> Player -> Arena -> IO (Set Symbol)
+selectVars conf player arena = do
+  indeps <- independentProgVars conf arena
+  control <-
+    filterM (\var -> allM (isControlableIn var) (locationL arena))
+      $ filter (`notElem` indeps)
+      $ Vars.stateVarL
+      $ vars arena
+  pure $ Set.fromList control `Set.union` indeps
+  where
+    checkVar = FOL.uniquePrefix "meta_target_value" $ usedSymbols arena
+    isControlableIn var loc =
+      let sort = sortOf arena var
+          st =
+            SymSt.symSt (locations arena) $ \l ->
+              if l `elem` succs arena loc
+                then FOL.var var sort `FOL.equal` FOL.var checkVar sort
+                else FOL.false
+          res = cpre player arena st loc
+       in SMT.valid conf $ FOL.forAll [checkVar] $ Vars.existsX (vars arena) res
 ---------------------------------------------------------------------------------------------------

@@ -82,50 +82,57 @@ addInvar _ inv lemma =
     , step = FOL.andf [step lemma, inv]
     }
 
--- | TODO condition: all priming is the same!, main first
 chain :: Variables -> AccelLemma -> AccelLemma -> AccelLemma
-chain vars main sub =
-  AccelLemma
-    { base = base main
-    , conc = FOL.andf [conc main, conc sub]
-    , stay = FOL.andf [stay main, stay sub]
-    , step =
-        FOL.orf
-          [FOL.andf [step main, conc sub], FOL.andf [prm (FOL.neg (base sub)), stay main, step sub]]
-    , prime = prime main
-    }
+chain vars main sub
+  | prime main /= prime sub = error "assert: prime needs to be the same"
+  | otherwise =
+    AccelLemma
+      { base = base main
+      , conc = conc main
+      , stay = FOL.andf [stay main, stay sub]
+      , step =
+          FOL.orf
+            [step main, FOL.andf [stay main, prm (conc sub), prm (FOL.neg (base sub)), step sub]]
+      , prime = prime main
+      }
   where
     prm = primeT vars (prime main)
 
--- | TODO condition: all priming is the same!
-lexiUnion :: AccelLemma -> AccelLemma -> AccelLemma
-lexiUnion lemmaA lemmaB =
-  AccelLemma
-    { base = FOL.orf [base lemmaA, base lemmaB]
-    , conc = FOL.orf [conc lemmaA, conc lemmaB]
-    , stay = FOL.andf [stay lemmaA, stay lemmaB]
-    , step = FOL.orf [step lemmaA, FOL.andf [stay lemmaA, step lemmaB]]
-    , prime = prime lemmaA
-    }
+lexiUnion :: Variables -> AccelLemma -> AccelLemma -> AccelLemma
+lexiUnion vars lemmaA lemmaB
+  | prime lemmaA /= prime lemmaB = error "assert: prime needs to be the same"
+  | otherwise =
+    AccelLemma
+      { base = FOL.orf [base lemmaA, base lemmaB]
+      , conc = FOL.orf [conc lemmaA, conc lemmaB]
+      , stay = FOL.andf [stay lemmaA, stay lemmaB]
+      , step =
+          FOL.orf
+            [ FOL.andf [prm (conc lemmaA), step lemmaA]
+            , FOL.andf [stay lemmaA, step lemmaB, prm (conc lemmaB)]
+            ]
+      , prime = prime lemmaA
+      }
+  where
+    prm = primeT vars (prime lemmaA)
 
--- TODO condition: all priming is the same!, list not empty
-lexiUnions :: [AccelLemma] -> AccelLemma
-lexiUnions = foldr1 lexiUnion
+lexiUnions :: Variables -> [AccelLemma] -> AccelLemma
+lexiUnions = foldr1 . lexiUnion
 
--- TODO condition: all priming is the same!, list not empty
 intersections :: Variables -> [AccelLemma] -> AccelLemma
-intersections vars lemmas =
-  let newConc = FOL.andfL lemmas conc
-      newStep =
-        FOL.orfL (singleOut lemmas) $ \(gal, others) ->
-          FOL.andf [step gal, prm (FOL.neg (base gal)), FOL.andfL others stay]
-   in AccelLemma
-        { base = FOL.andfL lemmas base
-        , stay = FOL.andfL lemmas stay
-        , step = FOL.andf [newConc, newStep]
-        , conc = newConc
-        , prime = prime (head lemmas)
-        }
+intersections vars lemmas
+  | null lemmas = error "assert: list of lemmas cannot be empty"
+  | any ((/= prime (head lemmas)) . prime) (tail lemmas) = error "assert: prime has to be the same"
+  | otherwise =
+    AccelLemma
+      { prime = prime (head lemmas)
+      , base = FOL.andfL lemmas base
+      , conc = FOL.andfL lemmas conc
+      , stay = FOL.andfL lemmas stay
+      , step =
+          FOL.orfL (singleOut lemmas) $ \(gal, others) ->
+            FOL.andf [step gal, prm (FOL.neg (base gal)), FOL.andfL others stay]
+      }
   where
     prm = primeT vars (prime (head lemmas))
     --
@@ -156,7 +163,7 @@ toLemma vars mkGAL = go
         CBase a -> mkGAL a
         CInv inv a -> addInvar vars inv (go a)
         CChain a b -> chain vars (go a) (go b)
-        CLexiUnion gs -> lexiUnions (map go gs)
+        CLexiUnion gs -> lexiUnions vars (map go gs)
         CIntersection gs -> intersections vars (map go gs)
 
 combBase :: a -> Combinator a

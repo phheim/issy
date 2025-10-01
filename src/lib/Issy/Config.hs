@@ -138,6 +138,6 @@ defaultConfig =
 -- sub-part of the code.
 setName :: String -> Config -> Config
 setName name conf =
-  let padName = "[" ++ name ++ "]" ++ replicate (5 - length name) ' '
+  let padName = "[" ++ name ++ "]" ++ replicate (12 - length name) ' '
    in conf {logName = padName}
 ---------------------------------------------------------------------------------------------------
