@@ -77,8 +77,9 @@ encTrans vars =
   , tenc "eval_soon" "fail_sys" "!eval_sys" ""
   , tenc "eval_soon" "fail_env" "eval_sys & !eval_env" ""
   , tenc "evaled" first_state "!eval_sys & !eval_env" encCopy
+  , tenc "evaled" "fail_sys" "eval_sys" ""
+  , tenc "evaled" "fail_env" "!eval_sys & eval_env" ""
   ]
-    ++ encFailure "evaled"
     ++ concatMap (uncurry (encTransFor vars)) (zip varsToEncode nextStates)
     ++ ["fail_sys -> fail_sys [],", "fail_env -> fail_env []"]
     ++ ["}"]
@@ -89,18 +90,15 @@ encTrans vars =
     encCopy = concatMap encCopyVar $ Vars.stateVarL vars
     encCopyVar var = encVar vars var ++ " := " ++ encVar vars (Vars.prime var) ++ ";"
 
-encFailure :: String -> [String]
-encFailure state =
-  [tenc state "fail_sys" "eval_sys" "", tenc state "fail_env" "!eval_sys & eval_env" ""]
-
 encTransFor :: Variables -> Symbol -> String -> [String]
 encTransFor vars var next_state =
-  [ tenc state state ("!eval_sys & !eval_env &  " ++ addvar ++ "& !" ++ nextvar) addVar
-  , tenc state state ("!eval_sys & !eval_env & !" ++ addvar ++ "& !" ++ nextvar) subVar
-  , tenc state next_state ("!eval_sys & !eval_env &" ++ nextvar) ""
+  [ tenc state state (noteval ++ " &  " ++ addvar ++ "& !" ++ nextvar) addVar
+  , tenc state state (noteval ++ " & !" ++ addvar ++ "& !" ++ nextvar) subVar
+  , tenc state next_state (noteval ++ " & " ++ nextvar) ""
+  , tenc state ("fail" ++ moveOf) ("eval" ++ moveOf) ""
   ]
-    ++ encFailure state
   where
+    noteval = "!eval" ++ moveOf
     addvar = "add_var" ++ moveOf
     nextvar = "next_var" ++ moveOf
     moveOf
@@ -129,12 +127,20 @@ encFormula vars formula =
   , "}"
   ]
 
+-- Boolean are applied pointwise
+-- [ap]     := !eval U (eval && [ap])
+-- [X t]    := !eval U (eval && X [t])
+-- [a U b]  := (!eval || a) U (eval && b)
+-- [F t]    := F (eval && t)
+-- [G t]    := G (!eval || t)
 encFormulaTerm :: Variables -> TL.Formula Term -> String
 encFormulaTerm vars = go
   where
+    eval = "(eval_sys && eval_env)"
+    notEvalU t = "((!" ++ eval ++ ") U (" ++ eval ++ "&&(" ++ t ++ ")))"
     go =
       \case
-        Atom t -> enclose '(' $ encTerm vars t
+        Atom t -> notEvalU $ encTerm vars t
         And [] -> "true"
         And [f] -> go f
         And fs -> paraInbetween " && " $ map go fs
@@ -142,10 +148,11 @@ encFormulaTerm vars = go
         Or [f] -> go f
         Or fs -> paraInbetween " || " $ map go fs
         Not f -> enclose '(' $ "! " ++ go f
-        UExp Next f -> enclose '(' $ "X " ++ go f
-        UExp Globally f -> enclose '(' $ "G " ++ go f
-        UExp Eventually f -> enclose '(' $ "F " ++ go f
-        BExp Until f g -> enclose '(' $ go f ++ " U " ++ go g
+        UExp Next f -> notEvalU $ "X " ++ go f
+        UExp Globally f -> "(G (!" ++ eval ++ ") || " ++ go f ++ ")"
+        UExp Eventually f -> "(F " ++ eval ++ " && " ++ go f ++ ")"
+        BExp Until f g ->
+          "(((!" ++ eval ++ ") || " ++ go f ++ ") U (" ++ eval ++ " && " ++ go g ++ "))"
         BExp WeakUntil f g -> go $ Or [BExp Until f g, UExp Globally f]
         BExp Release f g -> go $ BExp WeakUntil g (And [f, g])
 
