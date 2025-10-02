@@ -20,6 +20,7 @@ module Issy.Specification
   , addFormula
   , addGame
   , specFromSymbolicGame
+  , specFromRPLTL
   , -- checking
     checkSpecification
   ) where
@@ -90,6 +91,13 @@ checkSpecification conf = go (1 :: Int) . games
 specFromSymbolicGame :: SG.Arena -> Objective -> Specification
 specFromSymbolicGame arena obj =
   case addGame (empty (SG.variables arena)) arena obj of
+    Left err -> error $ "assert: found impossible error: " ++ err
+    Right spec -> spec
+
+-- | DOCUMENT
+specFromRPLTL :: TL.Spec Term -> Specification
+specFromRPLTL formula =
+  case addFormula (empty (TL.variables formula)) formula of
     Left err -> error $ "assert: found impossible error: " ++ err
     Right spec -> spec
 ---------------------------------------------------------------------------------------------------

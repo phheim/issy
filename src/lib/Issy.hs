@@ -23,6 +23,7 @@ module Issy
   , fromSG
   , -- Translation
     tslToRPG
+  , tslToRPLTL
   , specToSG
   , -- Printing
     printLLIssyFormat
@@ -33,7 +34,8 @@ module Issy
   , parseTSL
   , parseLLIssyFormat
   , -- Converting
-    specFromSymbolicGame
+    specFromRPLTL
+  , specFromSymbolicGame
   , -- Sanitizing
     checkSpecification
   , -- Encoding
@@ -73,8 +75,8 @@ import Issy.Solver.GameInterface (fromRPG, fromSG)
 import Issy.Solver.ObjectiveSolver (solve)
 
 -- Translation (with and without pruning)
-import Issy.Translation (rpgToSG, specToSG, tslToRPG)
+import Issy.Translation (rpgToSG, specToSG, tslToRPG, tslToRPLTL)
 
 -- Checking
-import Issy.Specification (Specification, checkSpecification, specFromSymbolicGame)
+import Issy.Specification (Specification, checkSpecification, specFromRPLTL, specFromSymbolicGame)
 ---------------------------------------------------------------------------------------------------

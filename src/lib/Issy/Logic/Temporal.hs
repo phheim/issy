@@ -40,6 +40,14 @@ data Formula a
   | BExp BOp (Formula a) (Formula a)
   deriving (Eq, Ord, Show)
 
+instance Functor Formula where
+  fmap m (Atom a) = Atom (m a)
+  fmap m (And fs) = And $ map (fmap m) fs
+  fmap m (Or fs) = Or $ map (fmap m) fs
+  fmap m (Not f) = Not $ fmap m f
+  fmap m (UExp op f) = UExp op $ fmap m f
+  fmap m (BExp op f g) = BExp op (fmap m f) (fmap m g)
+
 data Spec a = Spec
   { variables :: Variables
   , assumptions :: [Formula a]

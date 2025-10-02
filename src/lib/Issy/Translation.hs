@@ -8,6 +8,7 @@
 ---------------------------------------------------------------------------------------------------
 module Issy.Translation
   ( tslToRPG
+  , tslToRPLTL
   , specToSG
   , rpgToSG
   ) where
@@ -28,6 +29,7 @@ import qualified Issy.Specification as Spec
 import Issy.Translation.RPG2SG (rpgToSG)
 import qualified Issy.Translation.RPLTL2SG as RPLTL2SG
 import qualified Issy.Translation.TSL2RPG as TSL2RPG
+import Issy.Translation.TSL2RPLTL (tslToRPLTL)
 
 ---------------------------------------------------------------------------------------------------
 -- | DOCUMENT

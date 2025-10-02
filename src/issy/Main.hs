@@ -17,6 +17,7 @@ data Mode
   | ToGame
   | Solve
   | EncodeTSLMT
+  | EncodeTSLMTLissy
   | EncodeMuCLP
   | EncodeRPG
   | EncodeLTLMT
@@ -71,6 +72,9 @@ main = do
         printRes cfg =<< (solve cfg emptyStats . fromRPG) =<< tslToRPG cfg =<< parseTSL input
       (EncodeTSLMT, RPG) -> uncurry rpgToTSLT <$> liftErr (parseRPG input)
       (EncodeTSLMT, _) -> die "invalid arguments: can only encode RPGs to TSLMT at the moment"
+      (EncodeTSLMTLissy, TSLMT) ->
+        printLLIssyFormat . specFromRPLTL <$> (tslToRPLTL cfg =<< parseTSL input)
+      (EncodeTSLMTLissy, _) -> die "invalid arguments: this encoding works only on TSLMT"
       (EncodeMuCLP, RPG) -> uncurry rpgToMuCLP <$> liftErr (parseRPG input)
       (EncodeMuCLP, _) -> die "invalid arguments: can only encode RPGs to MuCLP at the moment"
       (EncodeRPG, RPG) -> printSG . rpgToSG <$> liftErr (parseRPG input)
@@ -146,7 +150,8 @@ getMode =
     "--to-game" -> Just ToGame
     "--encode-tslmt" -> Just EncodeTSLMT
     "--encode-muclp" -> Just EncodeMuCLP
-    "--encode-rpg-as-sg" -> Just EncodeRPG
+    "--encode-rpg-llissy" -> Just EncodeRPG
+    "--encode-tslmt-llissy" -> Just EncodeTSLMTLissy
     "--encode-ltlmt" -> Just EncodeLTLMT
     "--encode-sweap" -> Just EncodeSweap
     _ -> Nothing
@@ -289,11 +294,12 @@ help =
   , "   --to-game : translate the input specification to a game without temporal logic"
   , "   --print   : pretty print a llissy or RPG spec"
   , ""
-  , "   --encode-tslmt     : encode a RPG spec to TSLMT"
-  , "   --encode-muclp     : encode a RPG spec to MuCLP used by 'muval'"
-  , "   --encode-rpg-as-sg : encode a RPG spec to llissy"
-  , "   --encode-ltlmt     : encode issy/llissy spec as LTLMT formula used by 'Syntheos'"
-  , "   --encode-sweap     : encode issy/llissy spec as specification used by 'Sweap'"
+  , "   --encode-tslmt       : encode a RPG spec to TSLMT"
+  , "   --encode-muclp       : encode a RPG spec to MuCLP used by 'muval'"
+  , "   --encode-rpg-llissy  : encode a RPG spec to llissy"
+  , "   --encode-tslmt-lissy : encode a TSLMT spec to llissy"
+  , "   --encode-ltlmt       : encode issy/llissy spec as LTLMT formula used by 'Syntheos'"
+  , "   --encode-sweap       : encode issy/llissy spec as specification used by 'Sweap'"
   , ""
   , " Logging:"
   , "   --quiet    : no logging at all"

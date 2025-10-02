@@ -105,6 +105,7 @@ library
     , Issy.Translation.RPG2SG
     , Issy.Translation.RPLTL2SG
     , Issy.Translation.TSL2RPG
+    , Issy.Translation.TSL2RPLTL
     , Issy.Utils.Concurrent
     , Issy.Utils.Extra
     , Issy.Utils.Logging
