@@ -28,109 +28,81 @@ data InputFormat
   | RPG
   | TSLMT
 
+getSpec :: Config -> String -> InputFormat -> IO Specification
+getSpec cfg input =
+  \case
+    LowLevel -> do
+      spec <- liftErr $ parseLLIssyFormat input
+      checkSpecification cfg spec >>= liftErr
+      pure spec
+    HighLevel -> do
+      input <- liftErr $ compile input
+      spec <- liftErr $ parseLLIssyFormat input
+      checkSpecification cfg spec >>= liftErr
+      pure spec
+    _ -> error "assert: this function should only be called for Issy/Lissy stuff"
+
 main :: IO ()
 main = do
   (mode, inputFormat, cfg, input) <- argParser
-  case (mode, inputFormat) of
-    -- Compiling
-    (Compile, HighLevel) -> liftErr (compile input) >>= putStrLn
-    (Compile, _) -> die "invalid arguments: can only compile issy format"
-    -- Printing
-    (Print, LowLevel) -> do
-      spec <- liftErr $ parseLLIssyFormat input
-      checkSpecification cfg spec >>= liftErr
-      putStrLn $ printLLIssyFormat spec
-    (Print, RPG) -> do
-      game <- liftErr $ parseRPG input
-      putStrLn $ printRPG game
-    (Print, _) -> die "invalid arguments: can only print low-level format and rpg-format"
-    -- Game transformation
-    (ToGame, LowLevel) -> do
-      spec <- liftErr $ parseLLIssyFormat input
-      checkSpecification cfg spec >>= liftErr
-      game <- specToSG cfg spec
-      putStrLn $ printSG game
-    (ToGame, HighLevel) -> do
-      input <- liftErr $ compile input
-      spec <- liftErr $ parseLLIssyFormat input
-      checkSpecification cfg spec >>= liftErr
-      game <- specToSG cfg spec
-      putStrLn $ printSG game
-    (ToGame, RPG) -> do
-      game <- liftErr $ parseRPG input
-      putStrLn $ printRPG game
-    (ToGame, TSLMT) -> do
-      spec <- parseTSL input
-      game <- tslToRPG cfg spec
-      putStrLn $ printRPG game
-    -- Solving
-    (Solve, LowLevel) -> do
-      spec <- liftErr $ parseLLIssyFormat input
-      checkSpecification cfg spec >>= liftErr
-      game <- specToSG cfg spec
-      res <- solve cfg emptyStats (fromSG game)
-      printRes cfg res
-    (Solve, HighLevel) -> do
-      input <- liftErr $ compile input
-      spec <- liftErr $ parseLLIssyFormat input
-      checkSpecification cfg spec >>= liftErr
-      game <- specToSG cfg spec
-      res <- solve cfg emptyStats (fromSG game)
-      printRes cfg res
-    (Solve, RPG) -> do
-      game <- liftErr $ parseRPG input
-      res <- solve cfg emptyStats (fromRPG game)
-      printRes cfg res
-    (Solve, TSLMT) -> do
-      spec <- parseTSL input
-      game <- tslToRPG cfg spec
-      res <- solve cfg emptyStats (fromRPG game)
-      printRes cfg res
-    -- Encode
-    (EncodeTSLMT, RPG) -> do
-      game <- liftErr $ parseRPG input
-      putStrLn $ uncurry rpgToTSLT game
-    (EncodeTSLMT, _) -> die "invalid arguments: can only encode RPGs to TSLMT at the moment"
-    (EncodeMuCLP, RPG) -> do
-      game <- liftErr $ parseRPG input
-      putStrLn $ uncurry rpgToMuCLP game
-    (EncodeMuCLP, _) -> die "invalid arguments: can only encode RPGs to MuCLP at the moment"
-    (EncodeRPG, RPG) -> do
-      game <- liftErr $ parseRPG input
-      putStrLn $ printSG $ rpgToSG game
-    (EncodeRPG, _) ->
-      die "invalid arguments: can only encode RPGs/TSLMT to Symbolic Games at the moment"
-    (EncodeLTLMT, LowLevel) -> do
-      spec <- liftErr $ parseLLIssyFormat input
-      checkSpecification cfg spec >>= liftErr
-      putStrLn $ specToLTLMT spec
-    (EncodeLTLMT, HighLevel) -> do
-      input <- liftErr $ compile input
-      spec <- liftErr $ parseLLIssyFormat input
-      checkSpecification cfg spec >>= liftErr
-      putStrLn $ specToLTLMT spec
-    (EncodeLTLMT, _) ->
-      die "invalid arguments: can only encode Issy/LLissy as Syntheos LTLMT at the moment"
-    (EncodeSweap, LowLevel) -> do
-      spec <- liftErr $ parseLLIssyFormat input
-      checkSpecification cfg spec >>= liftErr
-      putStrLn $ specToSweap spec
-    (EncodeSweap, HighLevel) -> do
-      input <- liftErr $ compile input
-      spec <- liftErr $ parseLLIssyFormat input
-      checkSpecification cfg spec >>= liftErr
-      putStrLn $ specToSweap spec
-    (EncodeSweap, _) -> die "invalid arguments: can only encode Issy/LLissy for Sweap at the moment"
+  res <-
+    case (mode, inputFormat) of
+      (Compile, HighLevel) -> liftErr (compile input)
+      (Compile, _) -> die "invalid arguments: can only compile issy format"
+      (Print, LowLevel) -> printLLIssyFormat <$> getSpec cfg input LowLevel
+      (Print, RPG) -> printRPG <$> liftErr (parseRPG input)
+      (Print, _) -> die "invalid arguments: can only print low-level format and rpg-format"
+      (ToGame, LowLevel) -> printSG <$> (specToSG cfg =<< getSpec cfg input LowLevel)
+      (ToGame, HighLevel) -> printSG <$> (specToSG cfg =<< getSpec cfg input HighLevel)
+      (ToGame, RPG) -> printRPG <$> liftErr (parseRPG input)
+      (ToGame, TSLMT) -> printRPG <$> (tslToRPG cfg =<< parseTSL input)
+      (Solve, LowLevel) ->
+        printRes cfg
+          =<< (solve cfg emptyStats . fromSG)
+          =<< specToSG cfg
+          =<< getSpec cfg input LowLevel
+      (Solve, HighLevel) ->
+        printRes cfg
+          =<< (solve cfg emptyStats . fromSG)
+          =<< specToSG cfg
+          =<< getSpec cfg input HighLevel
+      (Solve, RPG) -> printRes cfg =<< (solve cfg emptyStats . fromRPG) =<< liftErr (parseRPG input)
+      (Solve, TSLMT) -> do
+        printRes cfg =<< (solve cfg emptyStats . fromRPG) =<< tslToRPG cfg =<< parseTSL input
+      (EncodeTSLMT, RPG) -> uncurry rpgToTSLT <$> liftErr (parseRPG input)
+      (EncodeTSLMT, _) -> die "invalid arguments: can only encode RPGs to TSLMT at the moment"
+      (EncodeMuCLP, RPG) -> uncurry rpgToMuCLP <$> liftErr (parseRPG input)
+      (EncodeMuCLP, _) -> die "invalid arguments: can only encode RPGs to MuCLP at the moment"
+      (EncodeRPG, RPG) -> printSG . rpgToSG <$> liftErr (parseRPG input)
+      (EncodeRPG, _) ->
+        die "invalid arguments: can only encode RPGs/TSLMT to Symbolic Games at the moment"
+      (EncodeLTLMT, LowLevel) -> specToLTLMT <$> getSpec cfg input LowLevel
+      (EncodeLTLMT, HighLevel) -> specToLTLMT <$> getSpec cfg input HighLevel
+      (EncodeLTLMT, RPG) -> do
+        game <- liftErr (parseRPG input)
+        let spec = uncurry specFromSymbolicGame $ rpgToSG game
+        checkSpecification cfg spec >>= liftErr
+        pure $ specToLTLMT spec
+      (EncodeLTLMT, TSLMT) ->
+        die "invalid arguments: cannot encode TSLMT as Syntheos LTLMT at the moment"
+      (EncodeSweap, LowLevel) -> specToSweap <$> getSpec cfg input LowLevel
+      (EncodeSweap, HighLevel) -> specToSweap <$> getSpec cfg input HighLevel
+      (EncodeSweap, RPG) -> do
+        game <- liftErr $ parseRPG input
+        let spec = uncurry specFromSymbolicGame $ rpgToSG game
+        checkSpecification cfg spec >>= liftErr
+        pure $ specToSweap spec
+      (EncodeSweap, TSLMT) -> die "invalid arguments: cannot encode TSLMT for Sweap at the moment"
+  putStrLn res
 
-printRes :: Config -> (Bool, Stats, Maybe (IO String)) -> IO ()
+printRes :: Config -> (Bool, Stats, Maybe (IO String)) -> IO String
 printRes conf (res, stats, printProg) = do
   printStats conf stats
-  if res
-    then putStrLn "Realizable"
-    else putStrLn "Unrealizable"
-  case printProg of
-    Nothing -> pure ()
-    Just printProg -> printProg >>= putStrLn
+  let resStr
+        | res = "Realizable"
+        | otherwise = "Unrealizable"
+  progStr <- maybe (pure "") (fmap ('\n' :)) printProg
+  pure $ resStr ++ progStr
 
 liftErr :: Either String b -> IO b
 liftErr res =
@@ -316,10 +288,12 @@ help =
   , "   --compile : compiles a issy spec into the llissy format"
   , "   --to-game : translate the input specification to a game without temporal logic"
   , "   --print   : pretty print a llissy or RPG spec"
-  , "   --encode-tslmt : encode a RPG spec to TSLMT"
-  , "   --encode-muclp : encode a RPG spec to MuCLP used by 'muval'"
-  , "   --encode-ltlmt : encode issy/llissy spec as LTLMT formula used by 'Syntheos'"
-  , "   --encode-sweap : encode issy/llissy spec as specification used by 'Sweap'"
+  , ""
+  , "   --encode-tslmt     : encode a RPG spec to TSLMT"
+  , "   --encode-muclp     : encode a RPG spec to MuCLP used by 'muval'"
+  , "   --encode-rpg-as-sg : encode a RPG spec to llissy"
+  , "   --encode-ltlmt     : encode issy/llissy spec as LTLMT formula used by 'Syntheos'"
+  , "   --encode-sweap     : encode issy/llissy spec as specification used by 'Sweap'"
   , ""
   , " Logging:"
   , "   --quiet    : no logging at all"

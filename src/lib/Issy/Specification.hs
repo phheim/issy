@@ -19,6 +19,7 @@ module Issy.Specification
     empty
   , addFormula
   , addGame
+  , specFromSymbolicGame
   , -- checking
     checkSpecification
   ) where
@@ -83,4 +84,12 @@ checkSpecification conf = go (1 :: Int) . games
       case check of
         Nothing -> go (n + 1) gr
         Just err -> pure $ Left $ "game number " ++ show n ++ " is invalid: " ++ err
+
+---------------------------------------------------------------------------------------------------
+-- | DOCUMENT
+specFromSymbolicGame :: SG.Arena -> Objective -> Specification
+specFromSymbolicGame arena obj =
+  case addGame (empty (SG.variables arena)) arena obj of
+    Left err -> error $ "assert: found impossible error: " ++ err
+    Right spec -> spec
 ---------------------------------------------------------------------------------------------------

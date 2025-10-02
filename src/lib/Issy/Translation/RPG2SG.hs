@@ -48,4 +48,8 @@ transToCond vars = Map.toList . fmap (FOL.orf . map FOL.andf) . go
 
 updToCond :: Variables -> Map Symbol Term -> Term
 updToCond vars upd =
-  FOL.andfL (Map.toList upd) $ \(v, u) -> FOL.equal (Vars.primeT vars (Vars.mk vars v)) u
+  FOL.andfL (Vars.stateVarL vars) $ \v ->
+    let var = Vars.mk vars v
+     in case upd !? v of
+          Just u -> Vars.primeT vars var `FOL.equal` u
+          Nothing -> Vars.primeT vars var `FOL.equal` var

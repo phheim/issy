@@ -8,6 +8,8 @@
 ---------------------------------------------------------------------------------------------------
 module Issy
   ( compile
+  , -- Data
+    Specification
   , -- Config
     Config(..)
   , defaultConfig
@@ -30,6 +32,8 @@ module Issy
     parseRPG
   , parseTSL
   , parseLLIssyFormat
+  , -- Converting
+    specFromSymbolicGame
   , -- Sanitizing
     checkSpecification
   , -- Encoding
@@ -72,5 +76,5 @@ import Issy.Solver.ObjectiveSolver (solve)
 import Issy.Translation (rpgToSG, specToSG, tslToRPG)
 
 -- Checking
-import Issy.Specification (checkSpecification)
+import Issy.Specification (Specification, checkSpecification, specFromSymbolicGame)
 ---------------------------------------------------------------------------------------------------
