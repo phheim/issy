@@ -83,12 +83,13 @@ main = do
       (EncodeLTLMT, LowLevel) -> specToLTLMT <$> getSpec cfg input LowLevel
       (EncodeLTLMT, HighLevel) -> specToLTLMT <$> getSpec cfg input HighLevel
       (EncodeLTLMT, RPG) -> do
-        game <- liftErr (parseRPG input)
-        let spec = uncurry specFromSymbolicGame $ rpgToSG game
+        spec <- uncurry specFromSymbolicGame. rpgToSG <$> liftErr (parseRPG input)
         checkSpecification cfg spec >>= liftErr
         pure $ specToLTLMT spec
-      (EncodeLTLMT, TSLMT) ->
-        die "invalid arguments: cannot encode TSLMT as Syntheos LTLMT at the moment"
+      (EncodeLTLMT, TSLMT) -> do
+        spec <- specFromRPLTL <$> (tslToRPLTL cfg =<< parseTSL input)
+        checkSpecification cfg spec >>= liftErr 
+        pure $ specToLTLMT spec
       (EncodeSweap, LowLevel) -> specToSweap <$> getSpec cfg input LowLevel
       (EncodeSweap, HighLevel) -> specToSweap <$> getSpec cfg input HighLevel
       (EncodeSweap, RPG) -> do
@@ -96,7 +97,10 @@ main = do
         let spec = uncurry specFromSymbolicGame $ rpgToSG game
         checkSpecification cfg spec >>= liftErr
         pure $ specToSweap spec
-      (EncodeSweap, TSLMT) -> die "invalid arguments: cannot encode TSLMT for Sweap at the moment"
+      (EncodeSweap, TSLMT) -> do 
+        spec <- specFromRPLTL <$> (tslToRPLTL cfg =<< parseTSL input)
+        checkSpecification cfg spec >>= liftErr 
+        pure $ specToSweap spec
   putStrLn res
 
 printRes :: Config -> (Bool, Stats, Maybe (IO String)) -> IO String
