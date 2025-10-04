@@ -12,13 +12,14 @@ import Issy.Games.SymbolicArena (Arena)
 import qualified Issy.Games.SymbolicArena as SG
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.Temporal as TL
+import qualified Issy.Logic.RPLTL as RPLTL
 import qualified Issy.Translation.DOA as DOA
 import qualified Issy.Translation.LTL2DOA as LTL2DOA
 import Issy.Utils.Extra (intmapSet)
 
 translate :: Config -> TL.Spec Term -> IO (Arena, Objective)
 translate cfg spec = do
-  let formula = TL.toFormula spec
+  let formula = RPLTL.pullBoolF $ TL.toFormula spec
   let (atoms2ap, ap2atoms) = rpltlToltlMap formula
   doa <- LTL2DOA.translate cfg atoms2ap formula
   lg cfg ["DOA:", show doa]
