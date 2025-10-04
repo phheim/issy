@@ -19,15 +19,16 @@ import Issy.Logic.Temporal (Formula(..), Spec(..))
 
 type Atom = Term
 
-preds :: TL.Spec Term -> Set Term
+preds :: Spec Atom -> Set Atom
 preds spec = Set.unions $ map TL.atoms $ assumptions spec ++ guarantees spec
 
-pullBool :: TL.Spec Term -> TL.Spec Term
-pullBool spec =
-  spec
-    {assumptions = map pullBoolF $ assumptions spec, guarantees = map pullBoolF $ guarantees spec}
+pullBool :: Spec Atom -> Spec Atom
+pullBool = TL.mapF pullBoolF
 
-pullBoolF :: Formula Term -> Formula Term
+pushBool :: Spec Atom -> Spec Atom
+pushBool = TL.mapF pushBoolF
+
+pullBoolF :: Formula Atom -> Formula Atom
 pullBoolF = go
   where
     go =
@@ -59,12 +60,7 @@ pullBoolF = go
         Atom f:xr -> (f :) <$> allAtoms xr
         _ -> Nothing
 
-pushBool :: TL.Spec Term -> TL.Spec Term
-pushBool spec =
-  spec
-    {assumptions = map pushBoolF $ assumptions spec, guarantees = map pushBoolF $ guarantees spec}
-
-pushBoolF :: Formula Term -> Formula Term
+pushBoolF :: Formula Atom -> Formula Atom
 pushBoolF = go
   where
     go =

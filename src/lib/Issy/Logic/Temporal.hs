@@ -5,6 +5,7 @@ module Issy.Logic.Temporal
   , UOp(..)
   , Formula(..)
   , Spec(..)
+  , mapF
   , next
   , globally
   , eventually
@@ -53,6 +54,14 @@ data Spec a = Spec
   , assumptions :: [Formula a]
   , guarantees :: [Formula a]
   } deriving (Eq, Ord, Show)
+
+mapF :: (Formula a -> Formula b) -> Spec a -> Spec b
+mapF m spec =
+  Spec
+    { variables = variables spec
+    , assumptions = map m (assumptions spec)
+    , guarantees = map m (guarantees spec)
+    }
 
 toFormula :: Spec a -> Formula a
 toFormula spec = Or [Not (And (assumptions spec)), And (guarantees spec)]

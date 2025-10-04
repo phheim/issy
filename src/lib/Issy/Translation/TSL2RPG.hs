@@ -128,7 +128,7 @@ doatran2tran stateVars locOf atomOf = go
 
 tsl2rpg :: Config -> TL.Spec TSL.Atom -> IO (Game, Objective)
 tsl2rpg cfg spec = do
-  let tsl = TL.toFormula spec
+  let tsl = TSL.pullBoolF $ TL.toFormula spec
   let vars = TL.variables spec
   cfg <- pure $ setName "RPG2TSL" cfg
   lg cfg ["VARS:", show vars]
