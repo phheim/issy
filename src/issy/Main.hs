@@ -83,12 +83,12 @@ main = do
       (EncodeLTLMT, LowLevel) -> specToLTLMT <$> getSpec cfg input LowLevel
       (EncodeLTLMT, HighLevel) -> specToLTLMT <$> getSpec cfg input HighLevel
       (EncodeLTLMT, RPG) -> do
-        spec <- uncurry specFromSymbolicGame. rpgToSG <$> liftErr (parseRPG input)
+        spec <- uncurry specFromSymbolicGame . rpgToSG <$> liftErr (parseRPG input)
         checkSpecification cfg spec >>= liftErr
         pure $ specToLTLMT spec
       (EncodeLTLMT, TSLMT) -> do
         spec <- specFromRPLTL <$> (tslToRPLTL cfg =<< parseTSL input)
-        checkSpecification cfg spec >>= liftErr 
+        checkSpecification cfg spec >>= liftErr
         pure $ specToLTLMT spec
       (EncodeSweap, LowLevel) -> specToSweap <$> getSpec cfg input LowLevel
       (EncodeSweap, HighLevel) -> specToSweap <$> getSpec cfg input HighLevel
@@ -97,9 +97,9 @@ main = do
         let spec = uncurry specFromSymbolicGame $ rpgToSG game
         checkSpecification cfg spec >>= liftErr
         pure $ specToSweap spec
-      (EncodeSweap, TSLMT) -> do 
+      (EncodeSweap, TSLMT) -> do
         spec <- specFromRPLTL <$> (tslToRPLTL cfg =<< parseTSL input)
-        checkSpecification cfg spec >>= liftErr 
+        checkSpecification cfg spec >>= liftErr
         pure $ specToSweap spec
   putStrLn res
 

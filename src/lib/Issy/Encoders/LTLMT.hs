@@ -14,13 +14,14 @@ import qualified Issy.Games.Variables as Vars
 import Issy.Games.Variables (Type(..))
 import qualified Issy.Logic.FOL as FOL
 import Issy.Logic.FOL (Constant(..), Function(..), Sort(..), Term(..))
+import qualified Issy.Logic.RPLTL as RPLTL
 import Issy.Logic.Temporal (BOp(..), Formula(..), UOp(..))
 import qualified Issy.Logic.Temporal as TL
 import Issy.Specification (Specification)
 import Issy.Utils.Extra (enclose, paraInbetween)
 
 specToLTLMT :: Specification -> String
-specToLTLMT = uncurry formulaToLTLMT . shiftInTime . toFormula
+specToLTLMT = uncurry formulaToLTLMT . second RPLTL.pushBoolF . shiftInTime . toFormula
 
 formulaToLTLMT :: Variables -> TL.Formula Term -> String
 formulaToLTLMT vars term =
