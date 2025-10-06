@@ -117,13 +117,13 @@ searchKeyInit :: SearchKey
 searchKeyInit = SearchKey {refinementCnt = 0, nestingCnt = 0}
 
 doRefine :: Heur -> SearchKey -> Bool
-doRefine heur sk = refinementCnt sk <= H.ggaIters heur
+doRefine heur sk = refinementCnt sk < H.ggaIters heur
 
 skRefine :: SearchKey -> SearchKey
 skRefine sk = sk {refinementCnt = refinementCnt sk + 1}
 
 doNest :: Heur -> SearchKey -> Bool
-doNest heur sk = nestingCnt sk <= H.ggaDepth heur
+doNest heur sk = nestingCnt sk < H.ggaDepth heur
 
 skNest :: SearchKey -> SearchKey
 skNest sk = sk {nestingCnt = nestingCnt sk + 1}

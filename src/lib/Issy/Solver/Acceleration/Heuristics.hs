@@ -83,16 +83,24 @@ invSatModelTO _ = Just 20
 -- General Geometric Acceleration
 ---
 ggaIters :: Heur -> Int
-ggaIters _ = 1
+ggaIters heur
+  | visitCnt heur <= 4 = 0
+  | otherwise = 1
 
 ggaDepth :: Heur -> Int
-ggaDepth _ = 1
+ggaDepth heur
+  | visitCnt heur <= 2 = 0
+  | otherwise = 1
 
 ggaMaxIntersect :: Heur -> Int
-ggaMaxIntersect _ = 2
+ggaMaxIntersect heur
+  | visitCnt heur <= 1 = 2
+  | otherwise = 3
 
 ggaMaxLexiUnionSize :: Heur -> Int
-ggaMaxLexiUnionSize _ = 2
+ggaMaxLexiUnionSize heur
+  | visitCnt heur <= 1 = 2
+  | otherwise = 2
 
 ggaMaxLexiUnion :: Heur -> Int
 ggaMaxLexiUnion _ = 10

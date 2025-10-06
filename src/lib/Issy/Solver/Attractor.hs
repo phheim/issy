@@ -303,5 +303,5 @@ sumSteps :: Maybe Int
 sumSteps = Just $ accelerationDist * 2
 
 visits2accel :: Int -> Bool
-visits2accel k = (k >= accelerationDist) && (k `mod` accelerationDist == 0)
+visits2accel k = k <= accelerationDist || (k >= accelerationDist) && (k `mod` accelerationDist == 0)
 ---------------------------------------------------------------------------------------------------
