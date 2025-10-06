@@ -228,6 +228,8 @@ parseGroundTerm =
     pars
     (\t ts ->
        case tval t of
+         "true" -> pure (AConstBool True, ts)
+         "false" -> pure (AConstBool False, ts)
          name ->
            case parseInteger (tpos t) name of
              Right n -> pure (AConstInt n, ts)
@@ -237,10 +239,15 @@ parseGroundTerm =
                  _ -> do
                    check isId name (tpos t) "identifier"
                    pure (AGVar name, ts))
-    (unPred (AGUexp . UOP) [(["-"], 6), (["abs"], 7)])
+    (unPred (AGUexp . UOP) [(["!"], 5), (["-"], 12), (["abs"], 13)])
     (binPred
        (AGBexp . BOP)
-       [(["=", "<", ">", ">=", "<="], 0, 1), (["+", "-"], 2, 3), (["mod", "/", "*"], 4, 5)])
+       [ (["||"], 0, 1)
+       , (["&&"], 2, 3)
+       , (["=", "<", ">", ">=", "<="], 6, 7)
+       , (["+", "-"], 8, 9)
+       , (["mod", "/", "*"], 10, 11)
+       ])
     (posStr . tpos)
 
 pars :: (Token -> Bool, Token -> Bool)

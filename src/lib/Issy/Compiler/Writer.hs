@@ -158,6 +158,9 @@ keepTerm =
 writeGround :: Defs -> AstGround -> String
 writeGround defs =
   \case
+    AConstBool b
+      | b -> "true"
+      | otherwise -> "false"
     AConstInt n -> show n
     AConstReal n -> sexpr ["/", show (numerator n), show (denominator n)]
     AGVar name ->
@@ -167,8 +170,11 @@ writeGround defs =
         _ -> changeName name
     AGUexp (UOP "-") t -> sexpr ["-", "0", writeGround defs t]
     AGUexp (UOP "abs") t -> sexpr ["abs", writeGround defs t]
+    AGUexp (UOP "!") t -> sexpr ["not", writeGround defs t]
     AGUexp _ _ -> error "assert: this should have been already checked!"
     AGBexp (BOP op) t1 t2
+      | op == "&&" -> sexpr ["and", writeGround defs t1, writeGround defs t2]
+      | op == "||" -> sexpr ["or", writeGround defs t1, writeGround defs t2]
       | op `elem` [">", "<", "=", "<=", ">=", "+", "-", "*", "/", "mod"] ->
         sexpr [op, writeGround defs t1, writeGround defs t2]
       | otherwise -> error "assert: this should have been already checked!"

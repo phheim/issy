@@ -164,6 +164,7 @@ data AstAtom
 data AstGround
   = AConstInt Integer
   | AConstReal Rational
+  | AConstBool Bool
   | AGVar String
   | AGBexp BOP AstGround AstGround
   | AGUexp UOP AstGround
