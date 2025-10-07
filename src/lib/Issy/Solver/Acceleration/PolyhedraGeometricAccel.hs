@@ -291,7 +291,7 @@ ineqGal vars primeSym epsilon (linComb, bounds) =
   where
     ltEpsilon t1 t2
       | (FOL.sorts t1 `Set.union` FOL.sorts t2) == Set.singleton FOL.SInt = t1 `FOL.ltT` t2
-      | otherwise = t1 `FOL.ltT` FOL.addT [FOL.numberT epsilon, t2]
+      | otherwise = FOL.addT [FOL.numberT epsilon, t1] `FOL.ltT` t2
 
 ---------------------------------------------------------------------------------------------------
 -- Generic Functions

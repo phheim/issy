@@ -20,12 +20,10 @@ module Issy.Logic.SMT
   ) where
 
 ---------------------------------------------------------------------------------------------------
-import Data.Functor (($>))
 import Data.Map ((!?))
 import Data.Maybe (fromMaybe)
 import qualified Data.Set as Set
 import System.Exit (die)
-import qualified System.Timeout as Sys (timeout)
 
 import Issy.Config (Config, debug, z3cmd)
 import Issy.Logic.FOL (Model, Sort, Symbol, Term)
@@ -111,27 +109,13 @@ simplifyWith term -- TODO: add case for only doing the polyhedra stuff, i.e. if 
   | FOL.quantifierFree term = z3SimplifyQEFree
   | otherwise = z3Simplify
 
-simplifyPoly :: Config -> Term -> IO (Maybe Term)
-simplifyPoly conf term = do
-  lgv conf ["Polyhedra simplification on", SMTLib.toString term]
-  simpTerm <-
-    Sys.timeout
-      (5 * (10 ^ (6 :: Int)))
-      (do
-         pure $! Poly.normalize term -- TODO: make proper parameter here!
-       )
-  case simpTerm of
-    Nothing -> lgv conf ["Polyhedra simplification seems to expensive"] $> Nothing
-    Just term -> lgv conf ["Polyhedra simplified to", SMTLib.toString term] $> Just term
-
 trySimplify :: Config -> Maybe Int -> Term -> IO (Maybe Term)
 trySimplify conf to term = do
   simpTerm <- simplifyTacs conf to (simplifyWith term) term
   case simpTerm of
     Nothing -> pure Nothing
     Just simpTerm -> do
-      mSimpTerm <- simplifyPoly conf simpTerm
-      simpTerm <- pure $ fromMaybe (Poly.normalizeFast simpTerm) mSimpTerm
+      simpTerm <- pure $ Poly.normalizeFast simpTerm
       Just
         <$> assertM
               conf
