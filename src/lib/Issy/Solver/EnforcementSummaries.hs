@@ -186,15 +186,15 @@ generalize conf player arena reach loc = do
   where
     projectFor eqVars term subloc = do
       let prefix = FOL.uniquePrefix ("meta_" ++ locName arena subloc) $ usedSymbols arena
-      let metas = map (prefix ++) eqVars
       let eqConstr =
             FOL.andfL eqVars $ \v ->
               FOL.var v (sortOf arena v) `FOL.equal` FOL.var (prefix ++ v) (sortOf arena v)
-      psi <- SMT.simplify conf $ FOL.exists metas $ FOL.forAll eqVars $ eqConstr `FOL.impl` term
+      psi <- SMT.simplify conf $ FOL.exists eqVars term
       let next = FOL.andf [eqConstr, psi]
       check <- SMT.sat conf $ Vars.forallX (vars arena) $ next `FOL.impl` term
-      unless check $ error "assert: this should always be true"
-      pure next
+      if check
+        then pure next
+        else pure FOL.false
 
 selectVars :: Config -> Player -> Arena -> IO (Set Symbol)
 selectVars conf player arena = do
