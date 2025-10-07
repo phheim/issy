@@ -49,4 +49,4 @@ gameToFormula locVar (arena, obj) =
   where
     locNums = Map.fromList $ zip (Set.toList $ SG.locSet arena) [1 ..]
     encLoc loc = FOL.ivarT locVar `FOL.equal` FOL.intConst (locNums ! loc)
-    encLoc' = Vars.primeT (SG.variables arena) . encLoc
+    encLoc' loc = FOL.ivarT (Vars.prime locVar) `FOL.equal` FOL.intConst (locNums ! loc)
