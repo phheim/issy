@@ -6,7 +6,7 @@ module Issy.Encoders.Sweap
 
 import Issy.Prelude
 
-import Issy.Encoders.ToFormula (shiftInTime, toFormula)
+import Issy.Encoders.ToFormula (toFormula)
 import qualified Issy.Games.Variables as Vars
 import Issy.Logic.FOL (Constant(..), Function(..), Sort(..), Term(..))
 import qualified Issy.Logic.FOL as FOL
@@ -16,7 +16,7 @@ import Issy.Specification (Specification)
 import Issy.Utils.Extra (enclose, paraInbetween)
 
 specToSweap :: Specification -> String
-specToSweap = uncurry formulaToSweap . shiftInTime . toFormula
+specToSweap = uncurry formulaToSweap . toFormula
 
 formulaToSweap :: Variables -> TL.Formula Term -> String
 formulaToSweap vars formula =

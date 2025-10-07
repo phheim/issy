@@ -1,5 +1,3 @@
--- TODO Document and restructure places
---
 {-# LANGUAGE Safe, LambdaCase #-}
 
 module Issy.Encoders.LTLMT
@@ -9,7 +7,7 @@ module Issy.Encoders.LTLMT
 
 import Issy.Prelude
 
-import Issy.Encoders.ToFormula (shiftInTime, toFormula)
+import Issy.Encoders.ToFormula (toFormula)
 import qualified Issy.Games.Variables as Vars
 import Issy.Games.Variables (Type(..))
 import qualified Issy.Logic.FOL as FOL
@@ -21,7 +19,7 @@ import Issy.Specification (Specification)
 import Issy.Utils.Extra (enclose, paraInbetween)
 
 specToLTLMT :: Specification -> String
-specToLTLMT = uncurry formulaToLTLMT . second RPLTL.pushBoolF . shiftInTime . toFormula
+specToLTLMT = uncurry formulaToLTLMT . second RPLTL.pushBoolF . toFormula
 
 formulaToLTLMT :: Variables -> TL.Formula Term -> String
 formulaToLTLMT vars term =
