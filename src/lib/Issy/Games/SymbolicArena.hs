@@ -59,8 +59,6 @@ import qualified Issy.Games.Variables as Vars
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.Reasoning as FOLR
 import qualified Issy.Logic.SMT as SMT
-import qualified Issy.Printers.SMTLib as SMTLib
-import Issy.Utils.Extra hiding (reachables)
 import qualified Issy.Utils.OpenList as OL
 
 ---------------------------------------------------------------------------------------------------
@@ -398,9 +396,9 @@ addConstants cvars arena =
 syntCPre ::
      Config -> Arena -> Symbol -> (Loc -> Term) -> Loc -> Term -> SymSt -> IO [(Symbol, Term)]
 syntCPre conf arena locVar toLoc loc cond targ = do
+  lgd conf ["Synthesize in", locName arena loc, "on", SymSt.toString (locName arena) targ]
   let vs = variables arena
-  let skolem = skolemFuncs arena locVar cond targ
-  preCond <- SMT.simplify conf $ FOL.andf [validInput arena loc, cond, domain arena loc]
+  let preCond = FOL.andf [validInput arena loc, cond, domain arena loc]
   let postCond =
         FOL.orfL (succL arena loc) $ \loc' ->
           FOL.andf
@@ -409,81 +407,12 @@ syntCPre conf arena locVar toLoc loc cond targ = do
             , Vars.primeT vs (domain arena loc')
             , Vars.primeT vs (SymSt.get targ loc')
             ]
-  lgd conf ["Synthesize in", locName arena loc, "on", SymSt.toString (locName arena) targ]
-  let doElim (elimRes, skolemRes, postCond) var
-        | var `notElem` FOL.frees postCond = pure (elimRes, skolemRes, postCond)
-        | otherwise = do
-          t <- syntElim conf vs var preCond postCond
-          case t of
-            Nothing -> pure (elimRes, (Vars.unprime var, skolem var) : skolemRes, postCond)
-            Just t -> do
-              postCond <- SMT.simplify conf $ FOL.mapTerm (\v _ -> justOn (v == var) t) postCond
-              pure ((Vars.unprime var, t) : elimRes, skolemRes, postCond)
-  (elimRes, skolemRes, postCond) <- foldM doElim ([], [], postCond) (locVar : Vars.stateVarL' vs)
-  postCond <-
-    pure $ FOL.mapTerm (\v _ -> justOn (Vars.isPrimed v || v == locVar) (skolem v)) postCond
-  let f = FOL.impl preCond postCond
-  let query = FOL.pushdownQE $ FOL.forAll (Set.toList (FOL.frees f)) f
-  if null skolemRes
-    then pure elimRes
-    else do
-      model <- SMT.satModel conf query
-      case model of
-        Nothing -> die "synthesis failure: could not compute skolem function!"
-        Just model -> do
-          lgv conf ["Skolem model", show model]
-          pure $ elimRes ++ map (second (FOL.setModel model)) skolemRes
-
-syntElim :: Config -> Variables -> Symbol -> Term -> Term -> IO (Maybe Term)
-syntElim conf vars var preCond postCond = do
-  let equals = Set.filter (not . any Vars.isPrimed . FOL.frees) $ FOLR.equalitiesFor var postCond
-  lgd conf ["For", var, "use equalties", strS SMTLib.toString equals]
-  res <- go preCond $ Set.toList equals
-  case res of
-    Nothing -> lgd conf ["Failed to derive skolem function"]
-    Just res -> lgd conf ["Derive skolem function", var, ":=", SMTLib.toString res]
-  pure res
-  where
-    go preCond =
-      \case
-        [] -> pure Nothing
-        eq:eqr -> do
-          let condSet = Vars.existsX' vars $ FOL.mapTerm (\v _ -> justOn (v == var) eq) postCond
-          condSet <- SMT.simplify conf condSet
-          satT <- SMT.sat conf condSet
-          preCond' <- SMT.simplify conf $ FOL.andf [preCond, FOL.neg condSet]
-          satE <- SMT.sat conf preCond'
-          if satT
-            then if satE
-                   then fmap (FOL.ite condSet eq) <$> go preCond' eqr
-                   else pure $ Just eq
-            else go preCond eqr
-
-skolemFuncs :: Arena -> Symbol -> Term -> SymSt -> Symbol -> Term
-skolemFuncs arena locVar cond targ =
-  let syms =
-        Set.insert locVar
-          $ Set.union (FOL.symbols cond)
-          $ usedSymbols arena `Set.union` SymSt.symbols targ
-      skolemPref = FOL.uniquePrefix "skolem_" syms
-    -- Build type and arguments for skolem functions
-      vs = variables arena
-      inputSL = (\v -> (v, Vars.sortOf vs v)) <$> Vars.inputL vs
-      stateSL = (\v -> (v, Vars.sortOf vs v)) <$> Vars.stateVarL vs
-      newSL = getNewVars vs targ
-      args = stateSL ++ inputSL ++ newSL
-    -- Build skolem functions for variables and location
-      skolem var
-        | Vars.isPrimed var =
-          FOL.unintFunc (skolemPref ++ Vars.unprime var) (Vars.sortOf vs var) args
-        | var == locVar = FOL.unintFunc (skolemPref ++ locVar) FOL.SInt args
-        | otherwise = error "assert: unreachable code"
-   in skolem
-
-getNewVars :: Variables -> SymSt -> [(Symbol, Sort)]
-getNewVars vars =
-  filter (\(v, _) -> not (Vars.isInput vars v || Vars.isStateVar vars v))
-    . Set.toList
-    . Set.fromList
-    . concatMap (Map.toList . FOL.bindings . snd)
-    . SymSt.toList
+  let skolemVars = (locVar, FOL.SInt) : map (\v -> (v, Vars.sortOf vs v)) (Vars.stateVarL' vs)
+  skolems <- FOLR.skolemize conf skolemVars preCond postCond
+  pure
+    $ map
+        (\(var, _) ->
+           if var == locVar
+             then (var, skolems ! var)
+             else (Vars.unprime var, skolems ! var))
+        skolemVars
