@@ -50,6 +50,7 @@ module Issy.Logic.FOL
   , exactlyOne
   , atMostOne
   , var
+  , invertC
   , numberT
   , constT
   , boolConst
@@ -103,6 +104,7 @@ module Issy.Logic.FOL
   ) where
 
 -------------------------------------------------------------------------------
+import Data.Bifunctor (first, second)
 import Data.List (isPrefixOf)
 import Data.Map (Map, (!?))
 import qualified Data.Map as Map
@@ -350,7 +352,25 @@ replaceUF name argVars body = go
             CustomF n _ _
               | n == name -> mapTermM (Map.fromList (zip argVars args)) body
               | otherwise -> Func fun $ map go args
-            _ -> Func fun $ map go args
+            _ ->
+              case (fun, map go args) of
+                (FAnd, fs) -> andf fs
+                (FOr, fs) -> orf fs
+                (FNot, [f]) -> neg f
+                (FDistinct, fs) -> distinct fs
+                (FImply, [a, b]) -> implyT a b
+                (FIte, [a, b, c]) -> ite a b c
+                (FAdd, fs) -> addT fs
+                (FMul, fs) -> multT fs
+                (FDivReal, [a, b]) -> realdivT a b
+                (FEq, [a, b]) -> a `equal` b
+                (FLt, [a, b]) -> a `ltT` b
+                (FLte, [a, b]) -> a `leqT` b
+                (FAbs, [t]) -> absT t
+                (FToReal, [t]) -> toRealT t
+                (FMod, [a, b]) -> modT a b
+                (FDivInt, [a, b]) -> intdivT a b
+                (f, args) -> Func f args
         QVar k -> QVar k
         Const c -> Const c
         Var v t -> Var v t
@@ -543,12 +563,23 @@ equalitiesFor var = go
   where
     go =
       \case
-        Func FEq [Var v _, t]
-          | v == var -> Set.singleton t
-          | otherwise -> go t
-        Func FEq [t, Var v _]
-          | v == var -> Set.singleton t
-          | otherwise -> go t
+        Func FEq [st1, st2]
+          | var `elem` frees st1 && var `elem` frees st2 -> go st1 `Set.union` go st2 -- While there might be casese like 2x = x + 1 that could also be handled, this should be taken care of by simplification operations
+          | var `elem` frees st2 -> go $ Func FEq [st2, st1]
+          | var `elem` frees st1 ->
+            case st1 of
+              Var v _
+                | v == var -> Set.singleton st2
+                | otherwise -> error "assert: this should not be reachable"
+              Func FMul [Const c, Var v _]
+                | v == var -> Set.singleton $ multT [Const (invertC c), st2]
+                | otherwise -> error "assert: this should not be reachable"
+              Func FAdd [] -> error "assert: this should not be reachable"
+              Func FAdd (t:ts)
+                | var `elem` frees t -> go $ Func FEq [t, minusT [st2, Func FAdd ts]]
+                | otherwise -> go $ Func FEq [Func FAdd ts, minusT [st2, t]]
+              _ -> Set.empty
+          | otherwise -> Set.empty
         Func _ args -> Set.unions $ map go args
         Quant _ _ f -> go f
         Lambda _ f -> go f
@@ -583,6 +614,40 @@ removePref pref =
 -------------------------------------------------------------------------------
 var :: Symbol -> Sort -> Term
 var = Var
+
+filterC :: [Term] -> ([Constant], [Term])
+filterC =
+  \case
+    [] -> ([], [])
+    Const c:ts -> first (c :) $ filterC ts
+    t:ts -> second (t :) $ filterC ts
+
+sumC :: [Constant] -> Constant
+sumC = foldl go (CInt 0)
+  where
+    go (CInt m) (CInt n) = CInt $ m + n
+    go (CReal m) (CReal n) = CReal $ m + n
+    go (CInt m) (CReal n) = CReal $ (m % 1) + n
+    go (CReal m) (CInt n) = CReal $ m + (n % 1)
+    go _ _ = error "assert: can only sum integers and reals"
+
+multC :: [Constant] -> Constant
+multC = foldl go (CInt 1)
+  where
+    go (CInt m) (CInt n) = CInt $ m * n
+    go (CReal m) (CReal n) = CReal $ m * n
+    go (CInt m) (CReal n) = CReal $ (m % 1) * n
+    go (CReal m) (CInt n) = CReal $ m * (n % 1)
+    go _ _ = error "assert: can only sum integers and reals"
+
+invertC :: Constant -> Constant
+invertC =
+  \case
+    CBool b -> CBool $ not b
+    CReal r -> CReal $ 1 / r
+    CInt n
+      | n == 1 || n == -1 -> CInt n
+      | otherwise -> CReal $ 1 % n
 
 numberT :: Real a => a -> Term
 numberT num =
@@ -707,19 +772,35 @@ multT :: [Term] -> Term
 multT =
   \case
     [] -> oneT
-    Const (CInt 1):ts -> multT ts
-    Const (CReal 1):ts -> multT ts
     [t] -> t
-    ts -> func FMul ts
+    ts ->
+      case first multC (filterC (flatten ts)) of
+        (c, []) -> Const c
+        (CInt 1, [t]) -> t
+        (CReal 1, [t]) -> t
+        (CInt 1, ts) -> Func FMul ts
+        (CReal 1, ts) -> Func FMul ts
+        (CInt 0, _) -> zeroT
+        (CReal 0, _) -> zeroT
+        (c, ts) -> Func FMul $ Const c : ts
+  where
+    flatten [] = []
+    flatten (Func FMul sts:tr) = flatten $ sts ++ tr
+    flatten (t:tr) = t : flatten tr
 
 addT :: [Term] -> Term
 addT =
   \case
     [] -> zeroT
-    Const (CInt a):Const (CInt b):ar -> addT $ Const (CInt (a + b)) : ar
-    Const (CReal a):Const (CReal b):ar -> addT $ Const (CReal (a + b)) : ar
     [t] -> t
-    ts -> func FAdd $ flatten ts
+    ts ->
+      case first sumC (filterC (flatten ts)) of
+        (c, []) -> Const c
+        (CInt 0, [t]) -> t
+        (CReal 0, [t]) -> t
+        (CInt 0, ts) -> Func FAdd ts
+        (CReal 0, ts) -> Func FAdd ts
+        (c, ts) -> Func FAdd $ Const c : ts
   where
     flatten [] = []
     flatten (Func FAdd sts:tr) = flatten $ sts ++ tr

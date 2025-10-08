@@ -413,7 +413,7 @@ syntCPre ::
 syntCPre conf arena locVar toLoc loc cond targ = do
   let vs = variables arena
   let skolem = skolemFuncs arena locVar cond targ
-  let preCond = FOL.andf [validInput arena loc, cond, domain arena loc]
+  preCond <- SMT.simplify conf $ FOL.andf [validInput arena loc, cond, domain arena loc]
   let postCond =
         FOL.orfL (succL arena loc) $ \loc' ->
           FOL.andf
