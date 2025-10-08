@@ -41,7 +41,6 @@ module Issy.Games.SymbolicArena
   , removeAttrEnv
   , independentProgVars
   , inducedSubArena
-  , isSubarenaFrom
   , addConstants
   , -- Synthesis
     syntCPre
@@ -58,6 +57,7 @@ import qualified Issy.Games.Objectives as Obj
 import qualified Issy.Games.SymbolicState as SymSt
 import qualified Issy.Games.Variables as Vars
 import qualified Issy.Logic.FOL as FOL
+import qualified Issy.Logic.Reasoning as FOLR
 import qualified Issy.Logic.SMT as SMT
 import qualified Issy.Printers.SMTLib as SMTLib
 import Issy.Utils.Extra hiding (reachables)
@@ -385,19 +385,6 @@ independentProgVars cfg arena = do
               then depends
               else Set.insert v depends
 
-isSubarenaFrom :: (Loc, Arena) -> (Loc, Arena) -> Maybe (Loc -> Loc)
-isSubarenaFrom (ls, arenaS) (l, arena) =
-  case go Set.empty (OL.pushOne (ls, l) OL.empty) of
-    Nothing -> Nothing
-    Just mp -> Just (mp !)
-  where
-    go isos ol =
-      case OL.pop ol of
-        Nothing -> Just $ mapFromSet isos
-        Just ((ls, l), _)
-          | domain arenaS ls /= domain arena l -> Nothing
-          | otherwise -> error "TODO This is not trivial after all!"
-
 addConstants :: [(Symbol, Sort)] -> Arena -> Arena
 addConstants cvars arena =
   let newVars = foldl (uncurry . Vars.addStateVar) (variables arena) cvars
@@ -449,7 +436,7 @@ syntCPre conf arena locVar toLoc loc cond targ = do
 
 syntElim :: Config -> Variables -> Symbol -> Term -> Term -> IO (Maybe Term)
 syntElim conf vars var preCond postCond = do
-  let equals = Set.filter (not . any Vars.isPrimed . FOL.frees) $ FOL.equalitiesFor var postCond
+  let equals = Set.filter (not . any Vars.isPrimed . FOL.frees) $ FOLR.equalitiesFor var postCond
   lgd conf ["For", var, "use equalties", strS SMTLib.toString equals]
   res <- go preCond $ Set.toList equals
   case res of

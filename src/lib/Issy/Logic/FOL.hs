@@ -91,7 +91,6 @@ module Issy.Logic.FOL
   , ufFree
   , symbols
   , nonBoolTerms
-  , equalitiesFor
   , --
     uniqueName
   , uniquePrefix
@@ -557,33 +556,6 @@ nonBoolTerms =
       | f `elem` booleanFunctions -> Set.unions $ map nonBoolTerms args
       | otherwise -> Set.singleton $ Func f args
     f -> Set.singleton f
-
-equalitiesFor :: Symbol -> Term -> Set Term
-equalitiesFor var = go
-  where
-    go =
-      \case
-        Func FEq [st1, st2]
-          | var `elem` frees st1 && var `elem` frees st2 -> go st1 `Set.union` go st2 -- While there might be casese like 2x = x + 1 that could also be handled, this should be taken care of by simplification operations
-          | var `elem` frees st2 -> go $ Func FEq [st2, st1]
-          | var `elem` frees st1 ->
-            case st1 of
-              Var v _
-                | v == var -> Set.singleton st2
-                | otherwise -> error "assert: this should not be reachable"
-              Func FMul [Const c, Var v _]
-                | v == var -> Set.singleton $ multT [Const (invertC c), st2]
-                | otherwise -> error "assert: this should not be reachable"
-              Func FAdd [] -> error "assert: this should not be reachable"
-              Func FAdd (t:ts)
-                | var `elem` frees t -> go $ Func FEq [t, minusT [st2, Func FAdd ts]]
-                | otherwise -> go $ Func FEq [Func FAdd ts, minusT [st2, t]]
-              _ -> Set.empty
-          | otherwise -> Set.empty
-        Func _ args -> Set.unions $ map go args
-        Quant _ _ f -> go f
-        Lambda _ f -> go f
-        _ -> Set.empty
 
 -------------------------------------------------------------------------------
 uniqueName :: Symbol -> Set Symbol -> Symbol

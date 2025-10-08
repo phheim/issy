@@ -71,7 +71,6 @@ type Attr = Config -> Player -> Arena -> SymSt -> IO (SymSt, SyBo)
 --------------------------------------------------------------------------------------------------- 
 -- High Level Procedure
 --------------------------------------------------------------------------------------------------- 
--- TODO: streamline logging
 trySummary ::
      Config -> Attr -> Player -> Arena -> Loc -> EnfSt -> SymSt -> IO (EnfSt, Maybe (Term, SyBo))
 trySummary conf attr player arena loc enfst reach = do
@@ -111,19 +110,15 @@ matchKey player arena loc key =
 ---------------------------------------------------------------------------------------------------
 -- make applicability a DOCUMENTED precondition!!!
 applyIn :: Config -> Variables -> SummaryContent -> SymSt -> IO (Term, SyBo)
-applyIn conf vars summary reach =
+applyIn conf vars summary reach = do
   let condImpl =
         FOL.andfL (SymSt.toList (targets summary)) $ \(l, next) ->
           Vars.forallX vars $ FOL.impl next (get reach l)
      -- ^ condition that the current target 'reach' is part of the symbolic target
-      constr = FOL.exists (map fst (metaVars summary)) $ FOL.andf [condImpl, enforcable summary]
-     -- ^ overall summary
-      skolemConstr = error "TODO IMPLEMENT"
-      prog = Synt.summarySyBo (metaVars summary) (constr, skolemConstr) (sybo summary)
-     -- ^ programm computation
-   in do
-        constr <- SMT.simplify conf constr
-        pure (constr, prog)
+  let possibleSource = FOL.andf [condImpl, enforcable summary]
+  constr <- SMT.simplify conf $ FOL.exists (map fst (metaVars summary)) possibleSource
+  let prog = Synt.summarySyBo (metaVars summary) (constr, possibleSource) (sybo summary)
+  pure (constr, prog)
 
 ---------------------------------------------------------------------------------------------------
 -- Computation

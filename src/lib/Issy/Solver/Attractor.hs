@@ -187,11 +187,9 @@ accelSum conf ast l = do
   case msum of
     Nothing -> pure (ast, False) -- Summary was not found and could not be computed either
     Just (sum, subProg) -> do
-      sum <- SMT.simplify conf sum -- do QELIM!
       extended <- SMT.sat conf $ FOL.andf [sum, FOL.neg (get (reach ast) l)]
       if extended
         then do
-          subProg <- Synt.skolemize conf subProg
           new <- SMT.simplify conf $ FOL.orf [get (reach ast) l, sum]
           ast <-
             pure $ markSumApp l $ setProg (Synt.callOn l sum subProg (prog ast)) $ setIn l new ast

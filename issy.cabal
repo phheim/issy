@@ -55,6 +55,7 @@ library
     , Issy.Logic.Interval
     , Issy.Logic.Polyhedra 
     , Issy.Logic.Propositional
+    , Issy.Logic.Reasoning
     , Issy.Logic.RPLTL
     , Issy.Logic.SMT
     , Issy.Logic.Temporal

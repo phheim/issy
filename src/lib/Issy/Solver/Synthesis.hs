@@ -24,7 +24,6 @@ module Issy.Solver.Synthesis
   , replaceUF
   , mapTerms
   , fromStayIn
-  , skolemize
   , -- Extraction
     extractProg
   ) where
@@ -39,6 +38,7 @@ import qualified Issy.Games.Locations as Locs
 import qualified Issy.Games.SymbolicState as SymSt
 import qualified Issy.Games.Variables as Vars
 import qualified Issy.Logic.FOL as FOL
+import Issy.Logic.Reasoning (skolemize)
 import qualified Issy.Logic.SMT as SMT
 import qualified Issy.Printers.SMTLib as SMTLib
 import Issy.Solver.GameInterface
@@ -50,6 +50,21 @@ data SyBo
   = SyBoNone
   | SyBoNorm Arena [(Loc, Term, BookType)]
   | SyBoLoop Arena LoopSyBo
+  | SyBoSummary SummarySyBo
+
+data SummarySyBo = SummarySyBo
+  { metaVars :: [(Symbol, Sort)]
+  , preCond :: Term
+        -- ^ condition on the state variables 
+        -- which this summary can be called and for which
+        -- we need to compute the skolem functions
+  , metaCond :: Term
+        -- ^ condition on the skolem function for the meta variables that has to 
+        -- hold for all states which satisfy 'preCond'
+  , subProg :: SyBo
+        -- ^ program that archive the sub condition. Note that this should only 
+        -- contain the constrains that the meta variables do not change
+  }
 
 data LoopSyBo = LoopSyBo
   { loopLoc :: Loc
@@ -88,6 +103,7 @@ addTrans loc cond tran =
     SyBoNone -> SyBoNone
     SyBoNorm arena trans -> SyBoNorm arena $ (loc, cond, tran) : trans
     SyBoLoop arena prog -> SyBoLoop arena $ prog {loopTrans = (loc, cond, tran) : loopTrans prog}
+    SyBoSummary _ -> error "assert: summaries have to be called immediatley"
 
 chainOn :: (Loc -> Term -> SyBo -> SyBo) -> SymSt -> SyBo -> SyBo
 chainOn f st =
@@ -121,6 +137,7 @@ mapTerms f =
     SyBoNone -> SyBoNone
     SyBoNorm arena trans -> SyBoNorm arena $ map mapTrans trans
     SyBoLoop arena prog -> SyBoLoop arena $ prog {loopTrans = map mapTrans (loopTrans prog)}
+    SyBoSummary sum -> SyBoSummary $ sum {subProg = mapTerms f (subProg sum)}
   where
     mapTrans (loc, cond, pt) =
       case pt of
@@ -144,6 +161,13 @@ symbols =
         $ usedSymbols arena
             : Set.map (loopPrime prog ++) (stateVars arena)
             : map (\(_, cond, tran) -> FOL.symbols cond `Set.union` symbolsBT tran) (loopTrans prog)
+    SyBoSummary sum ->
+      Set.unions
+        [ Set.fromList (map fst (metaVars sum))
+        , FOL.symbols (preCond sum)
+        , FOL.symbols (metaCond sum)
+        , symbols (subProg sum)
+        ]
 
 symbolsBT :: BookType -> Set Symbol
 symbolsBT =
@@ -157,16 +181,15 @@ getVars =
   \case
     SyBoNone -> error "assert: unreachable code"
     SyBoNorm arena _ -> vars arena
-    SyBoLoop arena _ -> vars arena
+    SyBoLoop _ _ -> error "assert: as this is meant to be called, this is proably bad"
+    SyBoSummary _ -> error "assert: as this is meant to be called, this is proably bad"
 
 -- | DOCUMENT relationship between skolem functions and constraints!
 summarySyBo :: [(Symbol, Sort)] -> (Term, Term) -> SyBo -> SyBo
 summarySyBo _ _ SyBoNone = SyBoNone
-summarySyBo _ _ _ = error "TODO"
-
-skolemize :: Config -> SyBo -> IO SyBo
-skolemize _ SyBoNone = pure SyBoNone
-skolemize _ _ = error "TODO IMPLEMENT"
+summarySyBo metaVars (preCond, metaCond) subProg =
+  SyBoSummary
+    $ SummarySyBo {metaVars = metaVars, preCond = preCond, metaCond = metaCond, subProg = subProg}
 
 ---------------------------------------------------------------------------------------------------
 -- Extraction
@@ -214,6 +237,13 @@ extractPG conf locVar =
       trans <- mapM (extractTT conf locVar arena (Just mapLoc)) $ reverse $ loopTrans prog
       let loop = InfLoop $ Sequence $ loopBack : copyVars : trans ++ [Abort]
       pure $ Sequence $ copyVarDecs ++ [loop]
+    SyBoSummary sum -> do
+      lgd conf ["Skolemize", SMTLib.toString (metaCond sum)]
+      skolems <- skolemize conf (metaVars sum) (preCond sum) (metaCond sum)
+      let metaDec = map (uncurry Declare) $ metaVars sum
+      let metaCopy = map (\(v, _) -> Assign v (skolems ! v)) $ metaVars sum
+      subProg <- extractPG conf locVar $ subProg sum
+      pure $ Sequence $ metaDec ++ metaCopy ++ [subProg]
 
 extractTT :: Config -> Symbol -> Arena -> Maybe (Loc -> Loc) -> (Loc, Term, BookType) -> IO Prog
 extractTT conf locVar arena mapLoc (loc, cond, pt) = do
