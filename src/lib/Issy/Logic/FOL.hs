@@ -26,6 +26,7 @@ module Issy.Logic.FOL
   , sanitizeModel
   , setModel
   , mapTerm
+  , mapTermFor
   , mapTermM
   , mapSymbol
   , setTerm
@@ -272,6 +273,13 @@ betaReduce func arg =
         Func f args -> Func f (map (red d) args)
         Quant q s t -> Quant q s (red (d + 1) t)
         Lambda s t -> Lambda s (red (d + 1) t)
+
+mapTermFor :: Symbol -> Term -> Term -> Term
+mapTermFor var term =
+  mapTerm $ \v _ ->
+    if v == var
+      then Just term
+      else Nothing
 
 mapTerm :: (Symbol -> Sort -> Maybe Term) -> Term -> Term
 mapTerm m =
