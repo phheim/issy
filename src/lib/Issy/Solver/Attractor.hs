@@ -18,6 +18,7 @@ module Issy.Solver.Attractor
   ) where
 
 ---------------------------------------------------------------------------------------------------
+import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Issy.Prelude
 
@@ -134,12 +135,15 @@ class AttrSt a =>
   markAccelTry :: Loc -> a -> a
   markAccelSuc :: Loc -> a -> a
   doAccel :: Loc -> a -> Bool
+  markEnforcementChange :: Loc -> a -> a
+  reachAccel :: Loc -> a -> SymSt
+  reachAccelNum :: Loc -> a -> Int
 
 accel :: AccAttrSt a => Config -> a -> Loc -> IO (Maybe a)
 accel conf ast l = do
-  lg conf ["Attempt reachability acceleration"]
-  (acc, progSub) <- accelReach conf (visitCnt l ast) (player ast) (arena ast) l (reach ast)
-  ast <- pure $ markAccelTry l ast
+  let tries = reachAccelNum l ast
+  lg conf ["Try acceleration in", locName (arena ast) l, "(", show tries, "times)"]
+  (acc, progSub) <- accelReach conf tries (player ast) (arena ast) l (reachAccel l ast)
   lg conf ["Accleration formula", SMTLib.toString acc]
   res <- SMT.simplify conf $ FOL.orf [get (reach ast) l, acc]
   succ <- not <$> SMT.valid conf (res `FOL.impl` get (reach ast) l)
@@ -150,17 +154,19 @@ accel conf ast l = do
     $ setProg (Synt.callOn l acc progSub (prog ast))
     $ markAccelSuc l ast
 
+tryAccel :: AccAttrSt a => Config -> a -> Loc -> IO a
+tryAccel conf ast l = markAccelTry l . fromMaybe ast <$> accel conf ast l
+
 accelAttr :: AccAttrSt a => Config -> a -> IO a
 accelAttr = attrFP . accelStep
 
 accelStep :: AccAttrSt a => Config -> a -> Loc -> IO a
 accelStep conf ast loc = do
-  mast <- enforce conf ast loc
+  mast <- fmap (markEnforcementChange loc) <$> enforce conf ast loc
   case mast of
     Nothing -> pure ast
     Just ast
-      | accelerate conf && canAccel (arena ast) loc && doAccel loc ast ->
-        fromMaybe ast <$> accel conf ast loc
+      | accelerate conf && canAccel (arena ast) loc && doAccel loc ast -> tryAccel conf ast loc
       | otherwise -> pure ast
 
 accelAttractor :: Maybe Int -> Config -> Player -> Arena -> SymSt -> IO (SymSt, SyBo)
@@ -182,7 +188,14 @@ class AccAttrSt a =>
 accelSum :: AccSumAttrSt a => Config -> a -> Loc -> IO (a, Bool)
 accelSum conf ast l = do
   (enfstRes, msum) <-
-    trySummary conf (accelAttractor sumSteps) (player ast) (arena ast) l (getEnfst ast) (reach ast)
+    trySummary
+      conf
+      (accelAttractor sumSteps)
+      (player ast)
+      (arena ast)
+      l
+      (getEnfst ast)
+      (reachAccel l ast)
   ast <- pure $ setEnfst enfstRes ast
   case msum of
     Nothing -> pure (ast, False) -- Summary was not found and could not be computed either
@@ -201,7 +214,7 @@ fullAttr = attrFP . fullStep
 
 fullStep :: AccSumAttrSt a => Config -> a -> Loc -> IO a
 fullStep conf ast loc = do
-  mast <- enforce conf ast loc
+  mast <- fmap (markEnforcementChange loc) <$> enforce conf ast loc
   case mast of
     Nothing -> pure ast
     Just ast
@@ -211,8 +224,8 @@ fullStep conf ast loc = do
             (ast, succ) <- accelSum conf ast loc
             if succ
               then pure ast
-              else fromMaybe ast <$> accel conf ast loc
-          else fromMaybe ast <$> accel conf ast loc
+              else tryAccel conf ast loc
+          else tryAccel conf ast loc
       | otherwise -> pure ast
 
 ---------------------------------------------------------------------------------------------------
@@ -229,6 +242,8 @@ data AttrState = AttrState
   , stEnfst :: EnfSt
   , stopCheck :: StopCheck
   , visitLimit :: Maybe Int
+  , history :: Map Loc [SymSt]
+  , accelsIn :: Map Loc Int
   }
 
 instance FixPointSt AttrState where
@@ -253,9 +268,25 @@ instance AttrSt AttrState where
   setProg prog ast = ast {stProg = prog}
 
 instance AccAttrSt AttrState where
-  markAccelTry _ ast = ast {stStats = Stats.accel (stStats ast)}
+  markAccelTry loc ast =
+    ast {stStats = Stats.accel (stStats ast), accelsIn = Map.insertWith (+) loc 1 (accelsIn ast)}
   markAccelSuc _ ast = ast {stStats = Stats.accelSucc (stStats ast)}
   doAccel loc = visits2accel . visitCnt loc
+  markEnforcementChange loc ast =
+    case history ast !? loc of
+      Nothing -> ast {history = Map.insert loc [reach ast] (history ast)}
+            -- This could turn sour for longer running times!!
+            -- Both in terms of time and memory efficency!
+      Just hist -> ast {history = Map.insert loc (hist ++ [reach ast]) (history ast)}
+  reachAccel loc ast =
+    case history ast !? loc of
+      Nothing -> error "assert: only accelerate after marking an enforcement change"
+      Just history ->
+        let k = reachAccelNum loc ast
+         in if k >= length history
+              then error "assert: acceleration should not happend that oftern"
+              else history !! k
+  reachAccelNum loc ast = Map.findWithDefault 0 loc (accelsIn ast)
 
 instance AccSumAttrSt AttrState where
   getEnfst = stEnfst
@@ -279,6 +310,8 @@ attrState conf solst stopCheck visitLimit player arena reach = do
         , stEnfst = enfst solst
         , stopCheck = stopCheck
         , visitLimit = visitLimit
+        , history = Map.empty
+        , accelsIn = Map.empty
         }
   where
     strLocs = strS (locName arena)
@@ -301,5 +334,5 @@ sumSteps :: Maybe Int
 sumSteps = Just $ accelerationDist * 2
 
 visits2accel :: Int -> Bool
-visits2accel k = k <= accelerationDist || (k >= accelerationDist) && (k `mod` accelerationDist == 0)
+visits2accel k = (k >= accelerationDist) && (k `mod` accelerationDist == 0)
 ---------------------------------------------------------------------------------------------------

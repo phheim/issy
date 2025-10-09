@@ -84,23 +84,23 @@ invSatModelTO _ = Just 20
 ---
 ggaIters :: Heur -> Int
 ggaIters heur
-  | visitCnt heur <= 4 = 0
+  | visitCnt heur < 4 = 0
   | otherwise = 1
 
 ggaDepth :: Heur -> Int
 ggaDepth heur
-  | visitCnt heur <= 2 = 0
+  | visitCnt heur < 2 = 0
   | otherwise = 1
 
 ggaMaxIntersect :: Heur -> Int
 ggaMaxIntersect heur
-  | visitCnt heur <= 1 = 2
+  | visitCnt heur == 0 = 2
   | otherwise = 3
 
 ggaMaxLexiUnionSize :: Heur -> Int
 ggaMaxLexiUnionSize heur
-  | visitCnt heur <= 1 = 2
-  | otherwise = 2
+  | visitCnt heur == 0 = 2
+  | otherwise = 3
 
 ggaMaxLexiUnion :: Heur -> Int
 ggaMaxLexiUnion _ = 10
