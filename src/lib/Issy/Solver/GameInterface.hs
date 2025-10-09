@@ -139,7 +139,7 @@ independentProgVars cfg (Sym a) = Sym.independentProgVars cfg a
 -- | 'addConstants' adds state variables that are guaranteed not to change
 -- to the arena. Note that if a variable is already assigned this will fail!
 addConstants :: [(Symbol, Sort)] -> Arena -> Arena
-addConstants _ (RPG _) = RPG $ error "TODO IMPLEMENT"
+addConstants cvars (RPG g) = RPG $ RPG.addConstants cvars g
 addConstants cvars (Sym a) = Sym $ Sym.addConstants cvars a
 
 syntCPre ::

@@ -34,6 +34,7 @@ module Issy.Games.ReactiveProgramArena
   , addTransition
   , addSink
   , createLocsFor
+  , addConstants
   , -- Analysis
     cyclicIn
   , isSelfUpdate
@@ -89,6 +90,12 @@ mapTerms m =
   \case
     TIf p tt te -> TIf (m p) (mapTerms m tt) (mapTerms m te)
     TSys upds -> TSys $ map (first (fmap m)) upds
+
+mapUpdates :: (Map Symbol Term -> Map Symbol Term) -> Transition -> Transition
+mapUpdates m = go
+  where
+    go (TIf p tt te) = TIf p (go tt) (go te)
+    go (TSys upds) = TSys $ map (first m) upds
 
 selfLoop :: Loc -> Transition
 selfLoop l = TSys [(Map.empty, l)]
@@ -186,6 +193,15 @@ addSink g name =
           , predecessors = Map.insert sink (Set.singleton sink) (predecessors g')
           }
       , sink)
+
+addConstants :: [(Symbol, Sort)] -> Game -> Game
+addConstants cvars arena =
+  arena
+    { variables = foldl (uncurry . Vars.addStateVar) (variables arena) cvars
+    , transRel = Map.map (mapUpdates addEqUpd) $ transRel arena
+    }
+  where
+    addEqUpd upd = foldr (\(v, s) -> Map.insert v (FOL.var v s)) upd cvars
 
 ---------------------------------------------------------------------------------------------------
 -- Anaysis
