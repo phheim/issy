@@ -113,7 +113,7 @@ defaultConfig =
     -- Game solving
     , accelerate = True
     , accelerateObjective = False
-    , genGeomAccel = False
+    , genGeomAccel = True
     , ufAcceleration = False
     , extendAcceleration = False
     , accelerationLevel = 1

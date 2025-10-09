@@ -7,7 +7,9 @@
 --
 ---------------------------------------------------------------------------------------------------
 module Issy
-  ( compile
+  ( issyVersion
+  , -- Compilation
+    compile
   , -- Data
     Specification
   , -- Config
@@ -79,4 +81,7 @@ import Issy.Translation (rpgToSG, specToSG, tslToRPG, tslToRPLTL)
 
 -- Checking
 import Issy.Specification (Specification, checkSpecification, specFromRPLTL, specFromSymbolicGame)
+
+issyVersion :: Word
+issyVersion = 2
 ---------------------------------------------------------------------------------------------------

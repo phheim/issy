@@ -128,6 +128,9 @@ argParser = do
   when ("--help" `elem` args) $ do
     putStrLn $ unlines help
     exitSuccess
+  when ("--version" `elem` args) $ do
+    print issyVersion
+    exitSuccess
   (mode, args) <- pure $ retriveArg getMode Solve args
   (inputFormat, args) <- pure $ retriveArg getInputFormat HighLevel args
   (filename, args) <- getFileName args
@@ -235,9 +238,9 @@ configParser = go defaultConfig
         "--accel-attr":arg:ar ->
           case arg of
             "geom" -> go (cfg {ufAcceleration = False, extendAcceleration = False}) ar
-            "gen-geom" ->
+            "polycomp" ->
               go (cfg {ufAcceleration = False, extendAcceleration = False, genGeomAccel = True}) ar
-            "gen-geom-ext" ->
+            "polycomp-ext" ->
               go (cfg {ufAcceleration = False, extendAcceleration = True, genGeomAccel = True}) ar
             "unint" -> go (cfg {ufAcceleration = True, extendAcceleration = False}) ar
             "unint-ext" -> go (cfg {ufAcceleration = True, extendAcceleration = True}) ar
@@ -305,6 +308,8 @@ help =
   , "   --encode-ltlmt       : encode issy/llissy spec as LTLMT formula used by 'Syntheos'"
   , "   --encode-sweap       : encode issy/llissy spec as specification used by 'Sweap'"
   , ""
+  , "   --version : returns the version of Issy"
+  , ""
   , " Logging:"
   , "   --quiet    : no logging at all"
   , "   --info     : enable standard log messages (default)"
@@ -328,10 +333,10 @@ help =
   , "       full : enable additionally Büchi and parity acceleration"
   , ""
   , "   --accel-attr TYPE"
-  , "       geom         : geometric acceleration with invariant iteration (default)"
+  , "       polycomp     : compositional-polyhedra-based acceleration (default)"
+  , "       polycomp-ext : compositional-polyhedra-based acceleration and with nesting"
+  , "       geom         : geometric acceleration with invariant iteration"
   , "       geom-ext     : geometric acceleration with extended invariant computation"
-  , "       gen-geom     : generalized geometric acceleration"
-  , "       gen-geom-ext : generalized geometric acceleration and nesting"
   , "       unint        : acceleration with uninterpreted lemmas"
   , "       unint-ext    : acceleration with uninterpreted lemmas and nesting"
   , ""
