@@ -1,4 +1,4 @@
-{-# LANGUAGE Safe, LambdaCase #-}
+{-# LANGUAGE Safe #-}
 
 module Issy.Encoders.ToFixpoints
   ( FPSystem(..)

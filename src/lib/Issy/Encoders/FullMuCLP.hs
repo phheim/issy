@@ -27,13 +27,21 @@ encFPTerm name fpeq =
         case fpType fpeq of
           GFP -> "nu"
           LFP -> "mu"
-   in name ++ ": bool =" ++ fpop ++ " " ++ encTerm (term fpeq) ++ ";"
+   in name
+        ++ concatMap (\(v, s) -> "(" ++ v ++ ": " ++ encSort s ++ ")") (fpSignature fpeq)
+        ++ ": bool ="
+        ++ fpop
+        ++ " "
+        ++ encTerm (term fpeq)
+        ++ ";"
 
 encTerm :: Term -> String
-encTerm = error "TODO: copy, adapt, and improve from Monitor.Fixpoint"
+encTerm term =
+  let qpref = FOL.unusedPrefix "qvar" term
+   in encTermF (qpref, 0, Set.empty) False term
 
-encTermF :: Symbol -> (String, Int, Set Int) -> Bool -> Term -> String
-encTermF fpPred (qpref, qdepth, bvars) funarg =
+encTermF :: (String, Int, Set Int) -> Bool -> Term -> String
+encTermF (qpref, qdepth, bvars) funarg =
   \case
     Var v s
       | s == SBool && not funarg -> "(" ++ v ++ " = 1)"
@@ -46,9 +54,7 @@ encTermF fpPred (qpref, qdepth, bvars) funarg =
       | otherwise -> qpref ++ show (qdepth - k - 1)
     Func f args ->
       case f of
-        FOL.CustomF name _ _
-          | name == fpPred -> fpPred ++ concatMap ((" " ++) . recT) args
-          | otherwise -> error "assert: cannot use non-fixpoint uninterpreted function"
+        FOL.CustomF name _ _ -> "(" ++ name ++ concatMap ((" " ++) . recT) args ++ ")"
         FOL.FOr -> encOp rec "\\/" "false" args
         FOL.FAnd -> encOp rec "/\\" "true" args
         FOL.FNot -> "(not " ++ rec (head args) ++ ")"
@@ -57,6 +63,12 @@ encTermF fpPred (qpref, qdepth, bvars) funarg =
           case args of
             [Const (CInt c1), Const (CInt c2)] -> encConst funarg (CReal (c1 % c2))
             _ -> error "'/' only supported for constants"
+        FOL.FIte
+          | funarg -> error "ite in function argument not supported yet"
+          | otherwise ->
+            case args of
+              [c, t, e] -> rec $ FOL.orf [FOL.andf [c, t], FOL.andf [FOL.neg c, e]]
+              _ -> error "TODO do this better!"
         f
           | f `elem` [FOL.FMul, FOL.FEq, FOL.FLt, FOL.FLte] -> binOp (funcToString f) args
           | otherwise -> error (funcToString f ++ " not supported yet")
@@ -80,10 +92,10 @@ encTermF fpPred (qpref, qdepth, bvars) funarg =
         ++ ")"
     Lambda _ _ -> error "lambdas not supported"
   where
-    rec = encTermF fpPred (qpref, qdepth, bvars) funarg
-    recT = encTermF fpPred (qpref, qdepth, bvars) True
-    recNest SBool = encTermF fpPred (qpref, qdepth + 1, Set.insert qdepth bvars) funarg
-    recNest _ = encTermF fpPred (qpref, qdepth + 1, bvars) funarg
+    rec = encTermF (qpref, qdepth, bvars) funarg
+    recT = encTermF (qpref, qdepth, bvars) True
+    recNest SBool = encTermF (qpref, qdepth + 1, Set.insert qdepth bvars) funarg
+    recNest _ = encTermF (qpref, qdepth + 1, bvars) funarg
     --
     binOp :: String -> [Term] -> String
     binOp op =
