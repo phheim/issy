@@ -38,8 +38,8 @@ gameToFP arena obj =
     Safety safes -> encodeSafety arena (initialLoc obj) safes
     Reachability reach -> encodeReach arena (initialLoc obj) reach
     Buechi fset -> encodeBuechi arena (initialLoc obj) fset
-    CoBuechi _ -> error "TODO IMPLEMENT"
-    Parity _ -> error "TODO IMPLEMENT"
+    CoBuechi sset -> encodeCoBuechi arena (initialLoc obj) sset
+    Parity rank -> encodeParity arena (initialLoc obj) rank
 
 encTop :: Arena -> (Loc, Term) -> (Loc -> [(Symbol, FPTerm)]) -> FPSystem
 encTop arena (initLoc, initCond) encLoc =
@@ -80,7 +80,7 @@ encodeReach arena init reachs =
 
 encodeBuechi :: Arena -> Loc -> Set Loc -> FPSystem
 encodeBuechi arena init fset =
-  encTop arena (init, lfpPred init) $ \loc -> [(gfpName loc, encGFP loc), (lfpName loc, encLFP loc)]
+  encTop arena (init, gfpPred init) $ \loc -> [(gfpName loc, encGFP loc), (lfpName loc, encLFP loc)]
   where
     encGFP = gfp states . lfpPred
     encLFP loc =
@@ -92,6 +92,40 @@ encodeBuechi arena init fset =
     gfpName loc = prefix ++ "GFP" ++ "_" ++ locName arena loc
     lfpPred loc = FOL.unintFunc (lfpName loc) FOL.SBool states
     lfpName loc = prefix ++ "LFP" ++ "_" ++ locName arena loc
+    prefix = FOL.uniquePrefix "Pred" (usedSymbols arena)
+    states = map (\v -> (v, Vars.sortOf (vars arena) v)) $ Vars.stateVarL $ vars arena
+
+encodeCoBuechi :: Arena -> Loc -> Set Loc -> FPSystem
+encodeCoBuechi arena init sset =
+  encTop arena (init, lfpPred init) $ \loc -> [(lfpName loc, encLFP loc), (gfpName loc, encGFP loc)]
+  where
+    encLFP = lfp states . gfpPred
+    encGFP loc =
+      gfp states
+        $ if loc `elem` sset
+            then cpre Sys arena (SymSt.symSt (locations arena) lfpPred) loc
+            else cpre Sys arena (SymSt.symSt (locations arena) gfpPred) loc
+    gfpPred loc = FOL.unintFunc (gfpName loc) FOL.SBool states
+    gfpName loc = prefix ++ "GFP" ++ "_" ++ locName arena loc
+    lfpPred loc = FOL.unintFunc (lfpName loc) FOL.SBool states
+    lfpName loc = prefix ++ "LFP" ++ "_" ++ locName arena loc
+    prefix = FOL.uniquePrefix "Pred" (usedSymbols arena)
+    states = map (\v -> (v, Vars.sortOf (vars arena) v)) $ Vars.stateVarL $ vars arena
+
+encodeParity :: Arena -> Loc -> Map Loc Word -> FPSystem
+encodeParity arena init rank =
+  encTop arena (init, pred maxColor init) $ \loc ->
+    fpPair (0 :: Word) loc : map (`fpPair` loc) [1 .. maxColor]
+  where
+    maxColor = maximum $ Map.elems rank
+    fpPair col loc = (predName col loc, encFP col loc)
+    encFP col loc
+      | col == 0 =
+        lfp states $ cpre Sys arena (SymSt.symSt (locations arena) (pred (rank ! loc))) loc
+      | even col = lfp states $ pred (col - 1) loc
+      | otherwise = gfp states $ pred (col - 1) loc
+    pred col loc = FOL.unintFunc (predName col loc) FOL.SBool states
+    predName col loc = prefix ++ "_ " ++ show col ++ "_" ++ locName arena loc
     prefix = FOL.uniquePrefix "Pred" (usedSymbols arena)
     states = map (\v -> (v, Vars.sortOf (vars arena) v)) $ Vars.stateVarL $ vars arena
 
