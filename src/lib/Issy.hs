@@ -44,8 +44,10 @@ module Issy
     specToLTLMT
   , specToSweap
   , rpgToMuCLP
+  , fpToMuCLP
   , rpgToSG
   , rpgToTSLT
+  , gameToFP
   ) where
 
 ---------------------------------------------------------------------------------------------------
@@ -57,10 +59,12 @@ import Issy.Config (Config(..), defaultConfig)
 import Issy.Statistics (Stats, emptyStats, printStats)
 
 -- Encoding
+import Issy.Encoders.FullMuCLP (fpToMuCLP)
 import Issy.Encoders.LTLMT (specToLTLMT)
 import Issy.Encoders.MuCLP (rpgToMuCLP)
 import Issy.Encoders.Sweap (specToSweap)
 import Issy.Encoders.TSLT (rpgToTSLT)
+import Issy.Encoders.ToFixpoints (gameToFP)
 
 -- Parsers 
 import Issy.Parsers.LLIssyFormat (parseLLIssyFormat)

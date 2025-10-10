@@ -75,8 +75,13 @@ main = do
       (EncodeTSLMTLissy, TSLMT) ->
         printLLIssyFormat . specFromRPLTL <$> (tslToRPLTL cfg =<< parseTSL input)
       (EncodeTSLMTLissy, _) -> die "invalid arguments: this encoding works only on TSLMT"
-      (EncodeMuCLP, RPG) -> uncurry rpgToMuCLP <$> liftErr (parseRPG input)
-      (EncodeMuCLP, _) -> die "invalid arguments: can only encode RPGs to MuCLP at the moment"
+      (EncodeMuCLP, RPG) -> fpToMuCLP . uncurry gameToFP . fromRPG <$> liftErr (parseRPG input)
+      (EncodeMuCLP, TSLMT) ->
+        fpToMuCLP . uncurry gameToFP . fromRPG <$> (tslToRPG cfg =<< parseTSL input)
+      (EncodeMuCLP, LowLevel) ->
+        fpToMuCLP . uncurry gameToFP . fromSG <$> (specToSG cfg =<< getSpec cfg input LowLevel)
+      (EncodeMuCLP, HighLevel) ->
+        fpToMuCLP . uncurry gameToFP . fromSG <$> (specToSG cfg =<< getSpec cfg input HighLevel)
       (EncodeRPG, RPG) -> printSG . rpgToSG <$> liftErr (parseRPG input)
       (EncodeRPG, _) ->
         die "invalid arguments: can only encode RPGs/TSLMT to Symbolic Games at the moment"

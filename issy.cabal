@@ -39,9 +39,11 @@ library
     , Issy.Compiler.Parser
     , Issy.Compiler.Writer
     , Issy.Config
+    , Issy.Encoders.FullMuCLP
     , Issy.Encoders.LTLMT
     , Issy.Encoders.MuCLP
     , Issy.Encoders.Sweap
+    , Issy.Encoders.ToFixpoints
     , Issy.Encoders.ToFormula
     , Issy.Encoders.TSLT
     , Issy.Games.Locations
