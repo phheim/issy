@@ -82,7 +82,6 @@ invSatModelTO _ = Just 20
 ---
 -- Polyhedra Acceleration
 ---
-
 ggaIters :: Heur -> Int
 ggaIters heur
   | visitCnt heur == 0 = 0
