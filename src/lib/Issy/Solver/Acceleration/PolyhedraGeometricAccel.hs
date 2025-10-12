@@ -68,7 +68,9 @@ accelGAL conf heur player arena loc reach = do
             Just (sk, lemmaComb, queue) -> do
               let lemma = polyLemma (vars arena) prime (H.minEpsilon heur) lemmaComb
               better <- conc lemma `couldBeBetter` currSolution
-              if better
+              meaningfull <- isMeaningfull conf lemma
+              unless meaningfull $ lg conf ["Dicard", polyLemmaToStr lemmaComb]
+              if better && meaningfull
                 then do
                   lg conf ["Try", polyLemmaToStr lemmaComb]
                   check <- preComb lemma

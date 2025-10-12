@@ -674,6 +674,7 @@ implyT :: Term -> Term -> Term
 implyT a b = func FImply [a, b]
 
 realdivT :: Term -> Term -> Term
+realdivT (Const (CReal a)) (Const (CReal b)) = Const $ CReal (a / b)
 realdivT a b = func FDivReal [a, b]
 
 intdivT :: Term -> Term -> Term

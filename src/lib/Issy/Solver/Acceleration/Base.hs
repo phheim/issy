@@ -13,6 +13,7 @@ module Issy.Solver.Acceleration.Base
   ( AccelLemma(..)
   , unprime
   , primeT
+  , isMeaningfull
   , addInvar
   , chain
   , lexiUnions
@@ -32,6 +33,7 @@ import Issy.Prelude
 
 import qualified Issy.Games.Variables as Vars
 import qualified Issy.Logic.FOL as FOL
+import qualified Issy.Logic.SMT as SMT
 import qualified Issy.Printers.SMTLib as SMTLib (toString)
 
 ---------------------------------------------------------------------------------------------------
@@ -69,6 +71,9 @@ primeT vars prim =
        if Vars.isStateVar vars s
          then prim ++ s
          else s)
+
+isMeaningfull :: Config -> AccelLemma -> IO Bool
+isMeaningfull conf lemma = SMT.sat conf $ FOL.andf [conc lemma, FOL.neg (base lemma)]
 
 -- | 'addInvar' adds an invariant to an acceleration lemmas. In order for this
 -- to be correct the free variables in the invariant have to be state variables
