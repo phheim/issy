@@ -88,7 +88,7 @@ ggaIters heur
   | visitCnt heur == 1 = 0
   | visitCnt heur == 2 = 0
   | visitCnt heur == 3 = 1
-  | visitCnt heur < 10 = 1
+  | visitCnt heur == 4 = 1
   | otherwise = 1
 
 ggaDepth :: Heur -> Int
@@ -97,7 +97,7 @@ ggaDepth heur
   | visitCnt heur == 1 = 0
   | visitCnt heur == 2 = 1
   | visitCnt heur == 3 = 0
-  | visitCnt heur < 10 = 1
+  | visitCnt heur == 4 = 1
   | otherwise = 2
 
 ggaMaxIntersect :: Heur -> Int
@@ -106,7 +106,7 @@ ggaMaxIntersect heur
   | visitCnt heur == 1 = 2
   | visitCnt heur == 2 = 2
   | visitCnt heur == 3 = 2
-  | visitCnt heur < 10 = 2
+  | visitCnt heur == 4 = 2
   | otherwise = 3
 
 ggaMaxLexiUnionSize :: Heur -> Int
@@ -115,7 +115,7 @@ ggaMaxLexiUnionSize heur
   | visitCnt heur == 1 = 3
   | visitCnt heur == 2 = 2
   | visitCnt heur == 3 = 2
-  | visitCnt heur < 10 = 2
+  | visitCnt heur == 4 = 2
   | otherwise = 3
 
 ggaMaxLexiUnion :: Heur -> Int
