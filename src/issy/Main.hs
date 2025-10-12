@@ -242,7 +242,8 @@ configParser = go defaultConfig
             _ -> Left $ "found invalid acceleration mode: " ++ arg
         "--accel-attr":arg:ar ->
           case arg of
-            "geom" -> go (cfg {ufAcceleration = False, extendAcceleration = False}) ar
+            "geom" ->
+              go (cfg {ufAcceleration = False, extendAcceleration = False, genGeomAccel = False}) ar
             "polycomp" ->
               go (cfg {ufAcceleration = False, extendAcceleration = False, genGeomAccel = True}) ar
             "polycomp-ext" ->
@@ -341,7 +342,6 @@ help =
   , "       polycomp     : compositional-polyhedra-based acceleration (default)"
   , "       polycomp-ext : compositional-polyhedra-based acceleration and with nesting"
   , "       geom         : geometric acceleration with invariant iteration"
-  , "       geom-ext     : geometric acceleration with extended invariant computation"
   , "       unint        : acceleration with uninterpreted lemmas"
   , "       unint-ext    : acceleration with uninterpreted lemmas and nesting"
   , ""
