@@ -32,6 +32,7 @@ import Issy.Solver.Acceleration.LoopScenario (reducedLoopArena)
 import Issy.Solver.GameInterface
 import Issy.Solver.Synthesis (SyBo)
 import qualified Issy.Solver.Synthesis as Synt
+import Issy.Utils.Extra (andM)
 import qualified Issy.Utils.OpenList as OL
 import qualified Issy.Utils.PrioQueue as PQ
 
@@ -67,10 +68,11 @@ accelGAL conf heur player arena loc reach = do
                 Just sol -> pure sol
             Just (sk, lemmaComb, queue) -> do
               let lemma = polyLemma (vars arena) prime (H.minEpsilon heur) lemmaComb
-              better <- conc lemma `couldBeBetter` currSolution
-              meaningfull <- isMeaningfull conf lemma
-              unless meaningfull $ lg conf ["Dicard", polyLemmaToStr lemmaComb]
-              if better && meaningfull
+              better <-
+                andM (isMeaningfull conf lemma)
+                  $ andM (conc lemma `couldBeBetter` currSolution)
+                  $ SMT.sat conf (FOL.andf [conc lemma, FOL.neg (reach `get` loc)])
+              if better
                 then do
                   lg conf ["Try", polyLemmaToStr lemmaComb]
                   check <- preComb lemma
