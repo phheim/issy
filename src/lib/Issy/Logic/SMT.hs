@@ -28,7 +28,7 @@ import System.Exit (die)
 import Issy.Config (Config, debug, z3cmd)
 import Issy.Logic.FOL (Model, Sort, Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
-import qualified Issy.Logic.Polyhedra as Poly (normalize, normalizeFast)
+import qualified Issy.Logic.Polyhedra as Poly (normalize)
 import qualified Issy.Parsers.SMTLib as SMTLib
 import qualified Issy.Parsers.SMTLibLexer as SMTLib
 import qualified Issy.Printers.SMTLib as SMTLib
@@ -115,7 +115,7 @@ trySimplify conf to term = do
   case simpTerm of
     Nothing -> pure Nothing
     Just simpTerm -> do
-      simpTerm <- pure $ Poly.normalizeFast simpTerm
+      simpTerm <- pure $ Poly.normalize simpTerm
       Just
         <$> assertM
               conf

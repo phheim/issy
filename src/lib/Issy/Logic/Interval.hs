@@ -143,7 +143,6 @@ tryDisjunctInt i1 i2
       | (floor ur :: Integer) + 1 == ceiling lr = False
       | otherwise = True
 
-
 tryDisjunct :: Interval -> Interval -> Maybe Interval
 tryDisjunct i1 i2
   | isEmpty i1 = Just i2

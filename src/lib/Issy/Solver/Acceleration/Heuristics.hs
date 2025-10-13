@@ -56,7 +56,7 @@ loopArenaSize heur =
     _ -> 1 + (locCnt heur `div` (10 * accelerationDist heur))
 
 loopArenaIncludeSucc :: Heur -> Bool
-loopArenaIncludeSucc heur = visitCnt heur `mod` (2 * accelerationDist heur) == 0
+loopArenaIncludeSucc heur = visitCnt heur >= 1 -- && visitCnt heur `mod` 2 == 0
 
 iterAMaxCPres :: Heur -> Int
 iterAMaxCPres _ = 1

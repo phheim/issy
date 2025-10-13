@@ -150,6 +150,7 @@ accel conf ast l = do
   lg conf ["Accelerated:", show succ]
   pure
     $ justOn succ
+    $ addOpen (preds (arena ast) l)
     $ setIn l res
     $ setProg (Synt.callOn l acc progSub (prog ast))
     $ markAccelSuc l ast
@@ -278,16 +279,16 @@ instance AccAttrSt AttrState where
             -- This could turn sour for longer running times!!
             -- Both in terms of time and memory efficency!
       Just hist -> ast {history = Map.insert loc (hist ++ [reach ast]) (history ast)}
-  reachAccel loc ast =
-    case history ast !? loc of
-      Nothing -> error "assert: only accelerate after marking an enforcement change"
-      Just history ->
-        let k = reachAccelNum loc ast
-         in if k >= length history
-              then error "assert: acceleration should not happend that oftern"
-              else history !! k
+  reachAccel _ = reach
   reachAccelNum loc ast = Map.findWithDefault 0 loc (accelsIn ast)
 
+--    case history ast !? loc of
+--      Nothing -> error "assert: only accelerate after marking an enforcement change"
+--      Just history ->
+--        let k = reachAccelNum loc ast
+--         in if k >= length history
+--              then error "assert: acceleration should not happend that oftern"
+--              else history !! k
 instance AccSumAttrSt AttrState where
   getEnfst = stEnfst
   setEnfst enfst ast = ast {stEnfst = enfst}
@@ -331,8 +332,8 @@ accelerationDist :: Int
 accelerationDist = 4
 
 sumSteps :: Maybe Int
-sumSteps = Just $ accelerationDist * 10
+sumSteps = Just $ accelerationDist * 3
 
 visits2accel :: Int -> Bool
-visits2accel k = (k >= accelerationDist) && (k `mod` accelerationDist == 0)
+visits2accel k = (k < accelerationDist) || (k `mod` accelerationDist == 0)
 ---------------------------------------------------------------------------------------------------
