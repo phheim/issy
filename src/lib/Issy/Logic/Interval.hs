@@ -36,7 +36,7 @@ module Issy.Logic.Interval
   ) where
 
 ---------------------------------------------------------------------------------------------------
-import Data.Ratio (denominator)
+import Data.Ratio ((%), denominator)
 
 import Issy.Logic.FOL (Term)
 import qualified Issy.Logic.FOL as FOL
@@ -126,22 +126,19 @@ isFull intv =
     _ -> False
 
 tryDisjunctInt :: Interval -> Interval -> Maybe Interval
-tryDisjunctInt i1 i2
-  | isEmpty i1 = Just i2
-  | isEmpty i2 = Just i1
-  | untouchSmaller (upper i1) (lower i2) = Nothing
-  | untouchSmaller (upper i2) (lower i1) = Nothing
-  | otherwise =
-    Just $ Interval {upper = max (upper i1) (upper i2), lower = max (lower i1) (lower i2)}
+tryDisjunctInt i1 i2 = tryDisjunct (liftBorders i1) (liftBorders i2)
   where
-    untouchSmaller :: UBound -> LBound -> Bool
-    untouchSmaller PlusInfinity _ = False
-    untouchSmaller _ MinusInfinity = False
-    untouchSmaller (LTVal uinc ur) (GTVal linc lr)
-      | ur >= lr = False
-      | lr == ur && (uinc || linc || denominator lr /= 1) = False
-      | (floor ur :: Integer) + 1 == ceiling lr = False
-      | otherwise = True
+    liftBorders i = Interval {upper = liftUp (upper i), lower = liftLow (lower i)}
+    liftUp PlusInfinity = PlusInfinity
+    liftUp (LTVal inc r)
+      | denominator r /= 1 = LTVal False (ceiling r % 1)
+      | inc = LTVal False (r + 1)
+      | otherwise = LTVal False r
+    liftLow MinusInfinity = MinusInfinity
+    liftLow (GTVal inc r)
+      | denominator r /= 1 = GTVal False (floor r % 1)
+      | inc = GTVal False (r - 1)
+      | otherwise = GTVal False r
 
 tryDisjunct :: Interval -> Interval -> Maybe Interval
 tryDisjunct i1 i2
