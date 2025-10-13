@@ -247,10 +247,17 @@ intersectP p1 p2
 -- | TODO assumption same varOrder!
 tryDisjunctP :: Polyhedron -> Polyhedron -> Maybe Polyhedron
 tryDisjunctP p1 p2 =
-  case mergeOnceT tryDisjunct (linearConstraints p1) (linearConstraints p2) of
+  case mergeOnceT subDisj (linearConstraints p1) (linearConstraints p2) of
     Nothing -> Nothing
     Just lc ->
       Just $ Polyhedron {varOrder = varOrder p1, linearConstraints = filterT (not . isFull) lc}
+ where
+    subDisj
+        | isInteger p1 && isInteger p2 = tryDisjunctInt
+        | otherwise = tryDisjunct
+
+isInteger :: Polyhedron -> Bool
+isInteger = all (all ((==FOL.SInt). snd . fst) . fst) . toIneqs
 
 ---------------------------------------------------------------------------------------------------
 -- (In)equalities
