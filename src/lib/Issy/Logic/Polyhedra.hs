@@ -251,13 +251,13 @@ tryDisjunctP p1 p2 =
     Nothing -> Nothing
     Just lc ->
       Just $ Polyhedron {varOrder = varOrder p1, linearConstraints = filterT (not . isFull) lc}
- where
+  where
     subDisj
-        | isInteger p1 && isInteger p2 = tryDisjunctInt
-        | otherwise = tryDisjunct
+      | isInteger p1 && isInteger p2 = tryDisjunctInt
+      | otherwise = tryDisjunct
 
 isInteger :: Polyhedron -> Bool
-isInteger = all (all ((==FOL.SInt). snd . fst) . fst) . toIneqs
+isInteger = all (all ((== FOL.SInt) . snd . fst) . fst) . toIneqs
 
 ---------------------------------------------------------------------------------------------------
 -- (In)equalities
