@@ -9,17 +9,17 @@ RUN dnf config-manager addrepo --from-repofile=spot.repo \
  && dnf -y install spot unzip \
  && dnf -y clean all
 
-# Get Z3
-RUN curl -L --output out.zip https://github.com/Z3Prover/z3/releases/download/z3-4.13.3/z3-4.13.3-x64-glibc-2.35.zip \
+# Get Z3 (4.15.1)
+RUN curl -L --output out.zip https://github.com/Z3Prover/z3/releases/download/z3-4.15.1/z3-4.15.1-x64-glibc-2.39.zip \
  && unzip out.zip \
- && cp z3-4.13.3-x64-glibc-2.35/bin/z3 /usr/bin/z3-4.13.3 \
- && rm -r z3-4.13.3-x64-glibc-2.35 out.zip
+ && cp z3-4.15.1-x64-glibc-2.39/bin/z3 /usr/bin/z3-4.15.1 \
+ && rm -r z3-4.15.1-x64-glibc-2.39 out.zip
 
 # Get Issy & internal wrapper
-RUN curl -L --output out.zip https://github.com/phheim/issy/releases/download/v1.0-CAV25-AE/issy-v1.0.zip \
+RUN curl -L --output out.zip https://github.com/phheim/issy/releases/download/v2.0-TACAS26/issy-v2.zip \
  && unzip out.zip \
- && cp issy-v1.0/issy /usr/bin/issy-bin \
- && rm -rf issy-v1.0 
+ && cp issy-v2/issy /usr/bin/issy-bin \
+ && rm -rf issy-v2
 
 # Build Muval
 RUN dnf -y install \
@@ -62,3 +62,5 @@ COPY internal-wrapper.sh /usr/bin/issy
 COPY call-muval.sh /usr/bin/call-muval
 RUN chmod +x /usr/bin/issy  \
  && chmod +x /usr/bin/call-muval
+
+ENTRYPOINT ["/usr/bin/issy"]

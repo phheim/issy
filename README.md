@@ -13,9 +13,10 @@ For our container setups, you will need to build and run OCI containers. In our 
 
 The first setup is for you if you just want to get Issy quickly. It includes pre-built binaries for Issy, Z3, and Spot but not MuVal. To build the container image, run
 ```
-    podman build -t issy-runner containers/runner-simple
+    podman build -t issy-runner containers/version-2/runner-simple
 ```
-This should take around **3 minutes**.
+This should take around **3 minutes**. 
+Note that if you want you can also use an older version of Issy by replacing `version-2` by `version-1`.
 
 If you want to use the container, either use our call script
 ```
@@ -23,15 +24,16 @@ If you want to use the container, either use our call script
 ```
 or run the container directly
 ```
-    podman run -i --rm issy-runner /usr/bin/issy OPTIONS < INPUTFILE
+    podman run -i --rm issy-runner OPTIONS < INPUTFILE
 ```
 The usage and arguments are practically the same as with the Issy binary. The only differences are technical because we run inside a container (the input file is always passed via ``STDIN`` and the ``--caller-...`` options are overwritten in the container).
 
 **Restriction:** As this container setup is missing MuVal, for ``--pruning`` *only levels 0 and 1 work* properly. If you want to include MuVal, you can build the full container with
 ```
-    podman build -t issy-runner containers/runner-full
+    podman build -t issy-runner containers/version-2/runner-full
 ```
 Note that this will take **around 1 hour** and will use significantly more disk space.
+Similarly to above, if you want you can also use an older version of Issy by replacing `version-2` by `version-1`.
 
 ### Build from Source
 
@@ -42,7 +44,7 @@ To build Issy, just run
 ```
 in the top-level folder. Stack will get the respective source code libraries and the compiler, so you need internet access for that. The ``issy`` binary is placed in the project's top-level folder. To get a clean build, run ``make clean``.
 
-To run Issy, you also **must** get [Z3](https://github.com/Z3Prover/z3) with **version 4.13.0 or newer**. For now we recommend using [version 4.13.3](https://github.com/Z3Prover/z3/releases/tag/z3-4.13.3). If you want to get this specific version of Z3 or your packages manager does only have an older version of Z3, the easiest way got a difeerent version is to download the binary from its [GitHub releases](https://github.com/Z3Prover/z3/releases) and *tell Issy to use that* with the ``--caller-z3 <PATH_TO_Z3>`` option.
+To run Issy, you also **must** get [Z3](https://github.com/Z3Prover/z3) with **version 4.13.0 or newer**. For now we recommend using [version 4.15.1](https://github.com/Z3Prover/z3/releases/tag/z3-4.15.1). If you want to get this specific version of Z3 or your packages manager does only have an older version of Z3, the easiest way got a difeerent version is to download the binary from its [GitHub releases](https://github.com/Z3Prover/z3/releases) and *tell Issy to use that* with the ``--caller-z3 <PATH_TO_Z3>`` option.
 
 You also **should** get [Spot](https://spot.lre.epita.fr/) as we Issy needs ``ltl2tgba`` from Spots Omega-automata tool suite. To get it just, follow their installation instructions. Using spot will work by default if ``ltl2tgba`` can be found by Issy in your PATH. If you want a different setup check out the ``--caller-aut <PATH_TO_LTL2TGBA>`` option.
 

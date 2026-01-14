@@ -23,3 +23,5 @@ RUN curl -L --output out.zip https://github.com/phheim/issy/releases/download/v1
 
 COPY internal-wrapper.sh /usr/bin/issy
 RUN chmod +x /usr/bin/issy
+
+ENTRYPOINT ["/usr/bin/issy"]
