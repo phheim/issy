@@ -135,7 +135,7 @@ iterBuechi conf solst player arena accept init =
           $ Synt.enforceFromTo (SymSt.map FOL.neg cset) (SymSt.map FOL.neg fset) progOp
       -- Potential outer fixpoint acceleration
       (wset, progOp) <-
-        if accelerateObjective conf
+        if False -- TODO DEBUGGING accelerateObjective conf
           then do
             fset' <- SymSt.simplify conf $ fset `SymSt.difference` wset
             flocs <- Set.fromList . map fst <$> filterM (SMT.sat conf . snd) (SymSt.toList fset')
