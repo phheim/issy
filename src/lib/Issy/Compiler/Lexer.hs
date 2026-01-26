@@ -1,11 +1,25 @@
+---------------------------------------------------------------------------------------------------
+-- | 
+-- Module      : Issy.Compiler.Lexer
+-- Description : Lexer for the issy-format to llissy-format compiler
+-- Copyright   : (c) Philippe Heim, 2026
+-- License     : The Unlicense
+--
+-- This module contains the lexer for the issy-to-llissy compiler.
+---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
+---------------------------------------------------------------------------------------------------
 module Issy.Compiler.Lexer
   ( tokenize
   ) where
 
-import Issy.Compiler.Base
+---------------------------------------------------------------------------------------------------
+import Issy.Compiler.Base (PRes, Pos, Token, initPos, nextLine, nextSymbol, perr, token)
 
+---------------------------------------------------------------------------------------------------
+-- | 'tokenize' turns the content of an issy-formated specification into a 
+-- list of 'Token's
 tokenize :: String -> PRes [Token]
 tokenize = lexer initPos . cleanup
 
@@ -74,3 +88,4 @@ lexMLComment q p =
     '*':'/':sr -> lexer (nextSymbol (nextSymbol p)) sr
     '\n':sr -> lexMLComment q (nextLine p) sr
     _:sr -> lexMLComment q (nextSymbol p) sr
+---------------------------------------------------------------------------------------------------

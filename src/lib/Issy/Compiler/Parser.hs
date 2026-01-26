@@ -1,16 +1,49 @@
+---------------------------------------------------------------------------------------------------
+-- | 
+-- Module      : Issy.Compiler.Parser
+-- Description : Parser for the issy-format to llissy-format compiler
+-- Copyright   : (c) Philippe Heim, 2026
+-- License     : The Unlicense
+--
+-- This module contains the parser for the issy-to-llissy compiler.
+---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
+---------------------------------------------------------------------------------------------------
 module Issy.Compiler.Parser
   ( parse
   ) where
 
+---------------------------------------------------------------------------------------------------
 import Control.Monad (unless, when)
 import Data.Bifunctor (second)
 import Data.Ratio ((%))
 import Text.Read (readMaybe)
 
 import Issy.Compiler.Base
+  ( AstAtom(..)
+  , AstDef(..)
+  , AstGameStm(..)
+  , AstGround(..)
+  , AstIO(..)
+  , AstLogicStm(..)
+  , AstSort(..)
+  , AstSpec
+  , AstTF(..)
+  , AstTerm(..)
+  , AstWC(..)
+  , BOP(..)
+  , PRes
+  , Pos
+  , Token(..)
+  , UOP(..)
+  , perr
+  , perrGen
+  , posStr
+  )
 
+---------------------------------------------------------------------------------------------------
+-- | 'parse' turns a (linear) list of tokens into the tree shaped AST of a lissy specification
 parse :: [Token] -> PRes AstSpec
 parse = fmap fst . parseSpec
 
@@ -133,6 +166,38 @@ check pred name p id = unless (pred id) $ perr p $ "Found illegal " ++ name ++ "
 
 checkID :: Pos -> String -> PRes ()
 checkID = check isProperID "identifier"
+
+isKeyword :: String -> Bool
+isKeyword =
+  flip
+    elem
+    [ "assume"
+    , "assert"
+    , "input"
+    , "state"
+    , "loc"
+    , "from"
+    , "with"
+    , "game"
+    , "formula"
+    , "int"
+    , "bool"
+    , "real"
+    , "def"
+    , "F"
+    , "X"
+    , "G"
+    , "U"
+    , "W"
+    , "R"
+    , "Safety"
+    , "Reachability"
+    , "Buechi"
+    , "CoBuechi"
+    , "ParityMaxOdd"
+    , "keep"
+    , "havoc"
+    ]
 
 isProperID :: String -> Bool
 isProperID s =

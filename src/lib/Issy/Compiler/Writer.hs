@@ -1,9 +1,21 @@
+---------------------------------------------------------------------------------------------------
+-- | 
+-- Module      : Issy.Compiler.Writer
+-- Description : Writer for the issy-format to llissy-format compiler
+-- Copyright   : (c) Philippe Heim, 2026
+-- License     : The Unlicense
+--
+-- This module prints the AST of a issy specification as a llissy formatted string. This
+-- corresponds to the code-generation-phase of a more traditional compiler.
+---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
+---------------------------------------------------------------------------------------------------
 module Issy.Compiler.Writer
   ( write
   ) where
 
+---------------------------------------------------------------------------------------------------
 import Data.Map.Strict (Map, (!?))
 import qualified Data.Map.Strict as Map
 import Data.Maybe (mapMaybe)
@@ -11,6 +23,8 @@ import Data.Ratio (denominator, numerator)
 
 import Issy.Compiler.Base
 
+---------------------------------------------------------------------------------------------------
+-- | 'write' prints the AST of an issy-specification in the llissy format
 write :: AstSpec -> String
 write spec =
   let defs = getDefs spec
@@ -206,3 +220,4 @@ ps subs =
 
 indent :: String -> String
 indent = unlines . map ("  " ++) . lines
+---------------------------------------------------------------------------------------------------
