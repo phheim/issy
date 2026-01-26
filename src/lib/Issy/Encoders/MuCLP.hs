@@ -1,3 +1,11 @@
+---------------------------------------------------------------------------------------------------
+-- |
+-- Module      : Issy.Encoders.MuCLP
+-- Description : TODO DOCUMENT
+-- Copyright   : (c) Philippe Heim, 2026
+-- License     : The Unlicense
+--
+---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
 module Issy.Encoders.MuCLP
@@ -186,3 +194,4 @@ rpgToMuCLP g obj =
     Safety safe -> encSafety g (initialLoc obj) safe
     Buechi fset -> encBuechi g (initialLoc obj) fset
     _ -> error "Winning condition not supported"
+---------------------------------------------------------------------------------------------------

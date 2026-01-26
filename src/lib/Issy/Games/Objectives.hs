@@ -1,3 +1,11 @@
+---------------------------------------------------------------------------------------------------
+-- |
+-- Module      : Issy.Games.Objectives
+-- Description : TODO DOCUMENT
+-- Copyright   : (c) Philippe Heim, 2026
+-- License     : The Unlicense
+--
+---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
 module Issy.Games.Objectives
@@ -83,3 +91,4 @@ toTemporalLogic encLoc obj =
        in if even col
             then TL.Or [TL.globally (TL.eventually (encSet locs)), smallerColors]
             else TL.And [TL.eventually (TL.globally (TL.Not (encSet locs))), smallerColors]
+---------------------------------------------------------------------------------------------------

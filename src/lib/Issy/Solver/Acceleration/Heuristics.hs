@@ -1,3 +1,11 @@
+---------------------------------------------------------------------------------------------------
+-- |
+-- Module      : Issy.Solver.Acceleration.Heuristics
+-- Description : TODO DOCUMENT
+-- Copyright   : (c) Philippe Heim, 2026
+-- License     : The Unlicense
+--
+---------------------------------------------------------------------------------------------------
 module Issy.Solver.Acceleration.Heuristics
   ( Heur
   , forVisits
@@ -142,3 +150,4 @@ templatePattern :: Heur -> (Integer, [Integer])
 templatePattern heur =
   let dis = accelerationDist heur * accelerationDist heur
    in (3 + toInteger (visitCnt heur `div` dis), genericReplicate (visitCnt heur `div` dis) 2)
+---------------------------------------------------------------------------------------------------

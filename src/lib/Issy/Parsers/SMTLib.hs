@@ -1,3 +1,11 @@
+---------------------------------------------------------------------------------------------------
+-- |
+-- Module      : Issy.Parsers.SMTLib
+-- Description : TODO DOCUMENT
+-- Copyright   : (c) Philippe Heim, 2026
+-- License     : The Unlicense
+--
+---------------------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
@@ -248,3 +256,4 @@ parseModel frees ts = fst . fst <$> psexpr pFunDef (FOL.emptyModel, []) ts
       (s, ts) <- psort ts
       ts <- pread TRPar ts "pSortedVar"
       Right (acc ++ [(v, s)], ts)
+---------------------------------------------------------------------------------------------------

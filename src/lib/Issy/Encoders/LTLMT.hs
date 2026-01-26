@@ -1,3 +1,11 @@
+---------------------------------------------------------------------------------------------------
+-- |
+-- Module      : Issy.Encoders.LTLMT
+-- Description : TODO DOCUMENT
+-- Copyright   : (c) Philippe Heim, 2026
+-- License     : The Unlicense
+--
+---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
 module Issy.Encoders.LTLMT
@@ -97,3 +105,4 @@ toPythonZ3 = go
         QVar _ -> error "for now we do not support quantifiers here"
         Quant {} -> error "for now we do not support quantifiers here"
         Lambda _ _ -> error "for now we do not support lambdas here"
+---------------------------------------------------------------------------------------------------

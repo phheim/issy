@@ -1,3 +1,11 @@
+---------------------------------------------------------------------------------------------------
+-- |
+-- Module      : Issy.Parsers.SExpression
+-- Description : TODO DOCUMENT
+-- Copyright   : (c) Philippe Heim, 2026
+-- License     : The Unlicense
+--
+---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
 module Issy.Parsers.SExpression
@@ -114,3 +122,4 @@ parse str = do
   case rest of
     [] -> Right expr
     t:_ -> perr (getPosT t) "Found token after parsing. Did you use multiple S-expressions?"
+---------------------------------------------------------------------------------------------------

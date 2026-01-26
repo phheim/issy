@@ -1,3 +1,11 @@
+---------------------------------------------------------------------------------------------------
+-- |
+-- Module      : Issy.Encoders.ToFormula
+-- Description : TODO DOCUMENT
+-- Copyright   : (c) Philippe Heim, 2026
+-- License     : The Unlicense
+--
+---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe #-}
 
 module Issy.Encoders.ToFormula
@@ -50,3 +58,4 @@ gameToFormula locVar (arena, obj) =
     locNums = Map.fromList $ zip (Set.toList $ SG.locSet arena) [1 ..]
     encLoc loc = FOL.ivarT locVar `FOL.equal` FOL.intConst (locNums ! loc)
     encLoc' loc = FOL.ivarT (Vars.prime locVar) `FOL.equal` FOL.intConst (locNums ! loc)
+---------------------------------------------------------------------------------------------------

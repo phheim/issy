@@ -1,3 +1,11 @@
+---------------------------------------------------------------------------------------------------
+-- |
+-- Module      : Issy.Solver.Acceleration.UFLAcceleration
+-- Description : TODO DOCUMENT
+-- Copyright   : (c) Philippe Heim, 2026
+-- License     : The Unlicense
+--
+---------------------------------------------------------------------------------------------------
 {-# LANGUAGE LambdaCase #-}
 
 module Issy.Solver.Acceleration.UFLAcceleration
@@ -174,3 +182,4 @@ expandStep vars func = go
           | otherwise -> Func f $ map go args
         atom -> atom
 -------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------

@@ -1,3 +1,11 @@
+---------------------------------------------------------------------------------------------------
+-- |
+-- Module      : Issy.Translation.LTL2DOA
+-- Description : TODO DOCUMENT
+-- Copyright   : (c) Philippe Heim, 2026
+-- License     : The Unlicense
+--
+---------------------------------------------------------------------------------------------------
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ImplicitParams #-}
@@ -221,3 +229,4 @@ toDNF =
     FNot (FAnd fs) -> toDNF (FOr (map FNot fs))
     FNot (FOr fs) -> toDNF (FAnd (map FNot fs))
     FNot (FNot f) -> toDNF f
+---------------------------------------------------------------------------------------------------

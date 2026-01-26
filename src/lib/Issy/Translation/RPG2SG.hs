@@ -1,3 +1,11 @@
+---------------------------------------------------------------------------------------------------
+-- |
+-- Module      : Issy.Translation.RPG2SG
+-- Description : TODO DOCUMENT
+-- Copyright   : (c) Philippe Heim, 2026
+-- License     : The Unlicense
+--
+---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
 module Issy.Translation.RPG2SG
@@ -53,3 +61,4 @@ updToCond vars upd =
      in case upd !? v of
           Just u -> Vars.primeT vars var `FOL.equal` u
           Nothing -> Vars.primeT vars var `FOL.equal` var
+---------------------------------------------------------------------------------------------------

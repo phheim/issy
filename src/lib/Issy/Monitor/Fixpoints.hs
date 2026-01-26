@@ -1,3 +1,11 @@
+---------------------------------------------------------------------------------------------------
+-- |
+-- Module      : Issy.Monitor.Fixpoints
+-- Description : TODO DOCUMENT
+-- Copyright   : (c) Philippe Heim, 2026
+-- License     : The Unlicense
+--
+---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
 module Issy.Monitor.Fixpoints
@@ -140,3 +148,4 @@ callMuval cfg query = do
     'i':'n':'v':'a':'l':'i':'d':_ -> pure $ Just False
     'v':'a':'l':'i':'d':_ -> pure $ Just True
     _ -> pure Nothing
+---------------------------------------------------------------------------------------------------

@@ -1,3 +1,11 @@
+---------------------------------------------------------------------------------------------------
+-- |
+-- Module      : Issy.Solver.Acceleration.LemmaFinding
+-- Description : TODO DOCUMENT
+-- Copyright   : (c) Philippe Heim, 2026
+-- License     : The Unlicense
+--
+---------------------------------------------------------------------------------------------------
 module Issy.Solver.Acceleration.LemmaFinding
   ( Constraint
   , LemSyms(..)
@@ -238,3 +246,4 @@ resolve cfg
   | generateProgram cfg = resolveBoth cfg
   | otherwise = resolveQE cfg
 -------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------

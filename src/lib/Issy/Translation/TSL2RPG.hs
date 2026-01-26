@@ -1,3 +1,11 @@
+---------------------------------------------------------------------------------------------------
+-- |
+-- Module      : Issy.Translation.TSL2RPG
+-- Description : TODO DOCUMENT
+-- Copyright   : (c) Philippe Heim, 2026
+-- License     : The Unlicense
+--
+---------------------------------------------------------------------------------------------------
 {-# LANGUAGE LambdaCase #-}
 
 module Issy.Translation.TSL2RPG
@@ -137,3 +145,4 @@ tsl2rpg cfg spec = do
   doa <- LTL2DOA.translate cfg ap2str tsl
   lg cfg ["DOA:", show doa]
   RPG.simplifyRPG cfg $ doa2game vars str2ap doa
+---------------------------------------------------------------------------------------------------

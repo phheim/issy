@@ -1,3 +1,11 @@
+---------------------------------------------------------------------------------------------------
+-- |
+-- Module      : Issy.Utils.OpenList
+-- Description : TODO DOCUMENT
+-- Copyright   : (c) Philippe Heim, 2026
+-- License     : The Unlicense
+--
+---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
 module Issy.Utils.OpenList
@@ -51,3 +59,4 @@ toSet (OpenList (_, s)) = s
 
 toList :: Ord a => OpenList a -> [a]
 toList (OpenList (l, _)) = l
+---------------------------------------------------------------------------------------------------

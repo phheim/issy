@@ -1,3 +1,11 @@
+---------------------------------------------------------------------------------------------------
+-- |
+-- Module      : Issy.Products.SGMonitor
+-- Description : TODO DOCUMENT
+-- Copyright   : (c) Philippe Heim, 2026
+-- License     : The Unlicense
+--
+---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
 module Issy.Products.SGMonitor
@@ -166,3 +174,4 @@ newWC (winEnv, winSys) prods verdict toNew =
         SAFETY -> 1
         VALID -> 1
         UNSAFE -> 0
+---------------------------------------------------------------------------------------------------

@@ -1,3 +1,11 @@
+---------------------------------------------------------------------------------------------------
+-- |
+-- Module      : Issy.Translation.RPLTL2SG
+-- Description : TODO DOCUMENT
+-- Copyright   : (c) Philippe Heim, 2026
+-- License     : The Unlicense
+--
+---------------------------------------------------------------------------------------------------
 module Issy.Translation.RPLTL2SG
   ( translate
   ) where
@@ -65,3 +73,4 @@ doa2game vars atomOf doa =
                         then atomOf ap
                         else FOL.neg (atomOf ap)))
             dnf
+---------------------------------------------------------------------------------------------------

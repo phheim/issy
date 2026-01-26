@@ -1,3 +1,11 @@
+---------------------------------------------------------------------------------------------------
+-- |
+-- Module      : Issy.Solver.Acceleration.OuterFixPoint
+-- Description : TODO DOCUMENT
+-- Copyright   : (c) Philippe Heim, 2026
+-- License     : The Unlicense
+--
+---------------------------------------------------------------------------------------------------
 {-# LANGUAGE LambdaCase #-}
 
 module Issy.Solver.Acceleration.OuterFixPoint
@@ -121,3 +129,4 @@ outerFPIterABound = 2
 
 outerFPIterBBound :: Int
 outerFPIterBBound = 2
+---------------------------------------------------------------------------------------------------

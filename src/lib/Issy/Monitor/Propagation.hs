@@ -1,3 +1,11 @@
+---------------------------------------------------------------------------------------------------
+-- |
+-- Module      : Issy.Monitor.Propagation
+-- Description : TODO DOCUMENT
+-- Copyright   : (c) Philippe Heim, 2026
+-- License     : The Unlicense
+--
+---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe #-}
 
 module Issy.Monitor.Propagation
@@ -91,3 +99,4 @@ propagatedPredicatesTSL cfg constr upds = filterM propagate . Set.toList
       | all (`Map.member` mapping) (FOL.frees term) =
         SMT.valid cfg $ FOL.impl constr $ FOL.mapTermM mapping term
       | otherwise = pure False
+---------------------------------------------------------------------------------------------------

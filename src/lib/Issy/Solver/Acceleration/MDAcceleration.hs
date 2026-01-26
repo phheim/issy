@@ -1,3 +1,11 @@
+---------------------------------------------------------------------------------------------------
+-- |
+-- Module      : Issy.Solver.Acceleration.MDAcceleration
+-- Description : TODO DOCUMENT
+-- Copyright   : (c) Philippe Heim, 2026
+-- License     : The Unlicense
+--
+---------------------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------
 {-# LANGUAGE LambdaCase #-}
 
@@ -406,3 +414,4 @@ varProgress conf arena var
       $ Vars.existsX (vars arena)
       $ FOL.orfL (Set.toList (locations arena))
       $ \l -> FOL.andf [dom arena l, FOL.removePref prefix (pre arena st l)]
+---------------------------------------------------------------------------------------------------

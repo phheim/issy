@@ -1,3 +1,11 @@
+---------------------------------------------------------------------------------------------------
+-- |
+-- Module      : Issy.Parsers.SMTLibLexer
+-- Description : TODO DOCUMENT
+-- Copyright   : (c) Philippe Heim, 2026
+-- License     : The Unlicense
+--
+---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
 module Issy.Parsers.SMTLibLexer
@@ -38,3 +46,4 @@ tokenize =
         [] -> []
         '\n':s -> tokenize s
         _:s -> slComment s
+---------------------------------------------------------------------------------------------------

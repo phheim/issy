@@ -1,3 +1,11 @@
+---------------------------------------------------------------------------------------------------
+-- |
+-- Module      : Issy.Utils.Concurrent
+-- Description : TODO DOCUMENT
+-- Copyright   : (c) Philippe Heim, 2026
+-- License     : The Unlicense
+--
+---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe #-}
 
 module Issy.Utils.Concurrent
@@ -22,3 +30,4 @@ parallelStrictFirst xs
       (do
          pure $! value)
         >>= putMVar resMVar
+---------------------------------------------------------------------------------------------------

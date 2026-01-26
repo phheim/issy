@@ -1,3 +1,11 @@
+---------------------------------------------------------------------------------------------------
+-- |
+-- Module      : Issy.Printers.LLIssyFormat
+-- Description : TODO DOCUMENT
+-- Copyright   : (c) Philippe Heim, 2026
+-- License     : The Unlicense
+--
+---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
 module Issy.Printers.LLIssyFormat
@@ -135,3 +143,4 @@ ps subs =
 
 indent :: String -> String
 indent = unlines . map ("  " ++) . lines
+---------------------------------------------------------------------------------------------------

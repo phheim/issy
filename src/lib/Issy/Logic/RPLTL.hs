@@ -1,3 +1,11 @@
+---------------------------------------------------------------------------------------------------
+-- |
+-- Module      : Issy.Logic.RPLTL
+-- Description : TODO DOCUMENT
+-- Copyright   : (c) Philippe Heim, 2026
+-- License     : The Unlicense
+--
+---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
 module Issy.Logic.RPLTL
@@ -78,3 +86,4 @@ pushBoolF = go
         Not f -> Not $ go f
         UExp op f -> UExp op (go f)
         BExp op f g -> BExp op (go f) (go g)
+---------------------------------------------------------------------------------------------------

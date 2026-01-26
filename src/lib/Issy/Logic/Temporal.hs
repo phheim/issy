@@ -1,3 +1,11 @@
+---------------------------------------------------------------------------------------------------
+-- |
+-- Module      : Issy.Logic.Temporal
+-- Description : TODO DOCUMENT
+-- Copyright   : (c) Philippe Heim, 2026
+-- License     : The Unlicense
+--
+---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
 module Issy.Logic.Temporal
@@ -111,3 +119,4 @@ atoms =
     Not f -> atoms f
     UExp _ f -> atoms f
     BExp _ f g -> atoms f `Set.union` atoms g
+---------------------------------------------------------------------------------------------------

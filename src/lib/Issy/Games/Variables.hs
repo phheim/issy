@@ -1,3 +1,11 @@
+---------------------------------------------------------------------------------------------------
+-- |
+-- Module      : Issy.Games.Variables
+-- Description : TODO DOCUMENT
+-- Copyright   : (c) Philippe Heim, 2026
+-- License     : The Unlicense
+--
+---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
 module Issy.Games.Variables
@@ -173,3 +181,4 @@ unintPred vars name = FOL.CustomF name (map (sortOf vars) (stateVarL vars)) FOL.
 
 unintPredTerm :: Variables -> String -> Term
 unintPredTerm vars name = FOL.Func (unintPred vars name) $ map (mk vars) (stateVarL vars)
+---------------------------------------------------------------------------------------------------

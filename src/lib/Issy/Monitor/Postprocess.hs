@@ -1,3 +1,11 @@
+---------------------------------------------------------------------------------------------------
+-- |
+-- Module      : Issy.Monitor.Postprocess
+-- Description : TODO DOCUMENT
+-- Copyright   : (c) Philippe Heim, 2026
+-- License     : The Unlicense
+--
+---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
 module Issy.Monitor.Postprocess
@@ -95,3 +103,4 @@ findGFs mon =
         FOr fs -> Set.unions $ map go fs
         FGlobally (FEventually inner) -> Set.singleton inner
         _ -> Set.empty
+---------------------------------------------------------------------------------------------------

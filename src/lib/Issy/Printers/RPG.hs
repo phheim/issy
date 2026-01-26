@@ -1,3 +1,11 @@
+---------------------------------------------------------------------------------------------------
+-- |
+-- Module      : Issy.Printers.RPG
+-- Description : TODO DOCUMENT
+-- Copyright   : (c) Philippe Heim, 2026
+-- License     : The Unlicense
+--
+---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
 module Issy.Printers.RPG
@@ -70,3 +78,4 @@ printRPG (g, obj) =
         Buechi s -> em s
         CoBuechi s -> em s
         Parity rank -> show . (rank !)
+---------------------------------------------------------------------------------------------------

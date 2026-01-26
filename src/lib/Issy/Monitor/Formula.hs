@@ -1,3 +1,11 @@
+---------------------------------------------------------------------------------------------------
+-- |
+-- Module      : Issy.Monitor.Formula
+-- Description : TODO DOCUMENT
+-- Copyright   : (c) Philippe Heim, 2026
+-- License     : The Unlicense
+--
+---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
 module Issy.Monitor.Formula
@@ -539,3 +547,4 @@ fromTSL =
 fromRPLTL :: TL.Formula RPLTL.Atom -> Formula
 fromRPLTL = fromTL (fpred True)
 -------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------

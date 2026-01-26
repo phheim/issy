@@ -1,3 +1,11 @@
+---------------------------------------------------------------------------------------------------
+-- |
+-- Module      : Issy.Monitor.Successors
+-- Description : TODO DOCUMENT
+-- Copyright   : (c) Philippe Heim, 2026
+-- License     : The Unlicense
+--
+---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
 module Issy.Monitor.Successors
@@ -167,3 +175,4 @@ recList func c =
     x:xr -> do
       (x, c) <- func c x
       first (x :) <$> recList func c xr
+---------------------------------------------------------------------------------------------------

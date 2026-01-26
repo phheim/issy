@@ -1,3 +1,11 @@
+---------------------------------------------------------------------------------------------------
+-- |
+-- Module      : Issy.Encoders.ToFixpoints
+-- Description : TODO DOCUMENT
+-- Copyright   : (c) Philippe Heim, 2026
+-- License     : The Unlicense
+--
+---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe #-}
 
 module Issy.Encoders.ToFixpoints
@@ -134,3 +142,4 @@ lfp sig t = FPTerm {fpType = LFP, fpSignature = sig, term = t}
 
 gfp :: [(Symbol, Sort)] -> Term -> FPTerm
 gfp sig t = FPTerm {fpType = GFP, fpSignature = sig, term = t}
+---------------------------------------------------------------------------------------------------

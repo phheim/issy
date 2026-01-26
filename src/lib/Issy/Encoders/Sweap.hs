@@ -1,3 +1,11 @@
+---------------------------------------------------------------------------------------------------
+-- |
+-- Module      : Issy.Encoders.Sweap
+-- Description : TODO DOCUMENT
+-- Copyright   : (c) Philippe Heim, 2026
+-- License     : The Unlicense
+--
+---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
 module Issy.Encoders.Sweap
@@ -185,3 +193,4 @@ encTerm vars = go
         QVar _ -> error "for now we do not support quantifiers here"
         Quant {} -> error "for now we do not support quantifiers here"
         Lambda _ _ -> error "for now we do not support lambdas here"
+---------------------------------------------------------------------------------------------------

@@ -1,3 +1,11 @@
+---------------------------------------------------------------------------------------------------
+-- |
+-- Module      : Issy.Games.SymbolicState
+-- Description : TODO DOCUMENT
+-- Copyright   : (c) Philippe Heim, 2026
+-- License     : The Unlicense
+--
+---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe #-}
 
 module Issy.Games.SymbolicState
@@ -104,3 +112,4 @@ restrictTo locs =
 
 symbols :: SymSt -> Set Symbol
 symbols = liftSt $ Set.unions . fmap FOL.symbols . Map.elems
+---------------------------------------------------------------------------------------------------

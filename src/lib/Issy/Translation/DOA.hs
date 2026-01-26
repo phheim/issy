@@ -1,3 +1,11 @@
+---------------------------------------------------------------------------------------------------
+-- |
+-- Module      : Issy.Translation.DOA
+-- Description : TODO DOCUMENT
+-- Copyright   : (c) Philippe Heim, 2026
+-- License     : The Unlicense
+--
+---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe #-}
 
 module Issy.Translation.DOA
@@ -141,3 +149,4 @@ toSafety doa =
 isSelfLoop :: Ord a => DOA a -> State -> Bool
 isSelfLoop doa state = trans doa state == Set.singleton (Set.empty, state)
 ------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------

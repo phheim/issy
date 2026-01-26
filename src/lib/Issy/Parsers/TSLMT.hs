@@ -1,3 +1,11 @@
+---------------------------------------------------------------------------------------------------
+-- |
+-- Module      : Issy.Parsers.TSLMT
+-- Description : TODO DOCUMENT
+-- Copyright   : (c) Philippe Heim, 2026
+-- License     : The Unlicense
+--
+---------------------------------------------------------------------------------------------------
 {-# LANGUAGE LambdaCase #-}
 
 module Issy.Parsers.TSLMT
@@ -193,3 +201,4 @@ parseTSL s =
       case mSpec of
         Left err -> error $ show err
         Right spec -> pure $ translateSpec vars spec
+---------------------------------------------------------------------------------------------------

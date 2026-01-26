@@ -1,3 +1,11 @@
+---------------------------------------------------------------------------------------------------
+-- |
+-- Module      : Issy.Encoders.FullMuCLP
+-- Description : TODO DOCUMENT
+-- Copyright   : (c) Philippe Heim, 2026
+-- License     : The Unlicense
+--
+---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
 module Issy.Encoders.FullMuCLP
@@ -139,3 +147,4 @@ encSort =
     SBool -> "int"
     SReal -> "real"
     SFunc _ _ -> error "Function types not supported"
+---------------------------------------------------------------------------------------------------

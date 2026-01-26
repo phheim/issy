@@ -1,3 +1,11 @@
+---------------------------------------------------------------------------------------------------
+-- |
+-- Module      : Issy.Solver.Acceleration.LoopScenario
+-- Description : TODO DOCUMENT
+-- Copyright   : (c) Philippe Heim, 2026
+-- License     : The Unlicense
+--
+---------------------------------------------------------------------------------------------------
 module Issy.Solver.Acceleration.LoopScenario
   ( loopScenario
   , reducedLoopArena
@@ -109,3 +117,4 @@ distances bound next init = go 0 (Set.singleton init) $ Map.singleton init 0
         let new = Set.unions (Set.map next last) `Set.difference` Map.keysSet acc
          in go (depth + 1) new $ foldr (\l -> Map.insert l (depth + 1)) acc new
 -------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------

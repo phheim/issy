@@ -1,3 +1,11 @@
+---------------------------------------------------------------------------------------------------
+-- |
+-- Module      : Issy.Printers.SymbolicGame
+-- Description : TODO DOCUMENT
+-- Copyright   : (c) Philippe Heim, 2026
+-- License     : The Unlicense
+--
+---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe #-}
 
 module Issy.Printers.SymbolicGame
@@ -11,3 +19,4 @@ import qualified Issy.Specification as Spec
 
 printSG :: (SG.Arena, Objective) -> String
 printSG = printLLIssyFormat . uncurry Spec.specFromSymbolicGame
+---------------------------------------------------------------------------------------------------

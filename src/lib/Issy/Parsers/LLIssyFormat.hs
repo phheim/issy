@@ -1,3 +1,11 @@
+---------------------------------------------------------------------------------------------------
+-- |
+-- Module      : Issy.Parsers.LLIssyFormat
+-- Description : TODO DOCUMENT
+-- Copyright   : (c) Philippe Heim, 2026
+-- License     : The Unlicense
+--
+---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
 module Issy.Parsers.LLIssyFormat
@@ -226,3 +234,4 @@ parseTerm vars = go
             Just func -> mapM go args >>= func
             Nothing -> perr p $ "Found unkown function while parsing term: \"" ++ name ++ "\""
         s -> perr (getPos s) "Found unkown pattern while parsing term"
+---------------------------------------------------------------------------------------------------

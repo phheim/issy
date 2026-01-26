@@ -1,3 +1,11 @@
+---------------------------------------------------------------------------------------------------
+-- |
+-- Module      : Issy.Encoders.TSLT
+-- Description : TODO DOCUMENT
+-- Copyright   : (c) Philippe Heim, 2026
+-- License     : The Unlicense
+--
+---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
 module Issy.Encoders.TSLT
@@ -157,3 +165,4 @@ rpgToTSLT g obj =
         CoBuechi fset -> encCond g "F G" fset
         _ -> error "Not supported"
     ]
+---------------------------------------------------------------------------------------------------

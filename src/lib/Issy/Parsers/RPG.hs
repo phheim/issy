@@ -1,3 +1,11 @@
+---------------------------------------------------------------------------------------------------
+-- |
+-- Module      : Issy.Parsers.RPG
+-- Description : TODO DOCUMENT
+-- Copyright   : (c) Philippe Heim, 2026
+-- License     : The Unlicense
+--
+---------------------------------------------------------------------------------------------------
 --
 -- Update := "(" ("(" ID TERM ")")* ")" ID
 --
@@ -236,3 +244,4 @@ parseRPG :: String -> Either String (Game, Objective)
 parseRPG str =
   let empty = PState {wcPS = Nothing, rankP = Map.empty, namesL = Map.empty, setInit = Nothing}
    in pGame (RPG.empty Vars.empty, empty) (tokenize str)
+---------------------------------------------------------------------------------------------------

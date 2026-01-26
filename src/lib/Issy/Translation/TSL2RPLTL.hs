@@ -1,3 +1,11 @@
+---------------------------------------------------------------------------------------------------
+-- |
+-- Module      : Issy.Translation.TSL2RPLTL
+-- Description : TODO DOCUMENT
+-- Copyright   : (c) Philippe Heim, 2026
+-- License     : The Unlicense
+--
+---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
 module Issy.Translation.TSL2RPLTL
@@ -87,3 +95,4 @@ pairwise =
     [] -> []
     [_] -> []
     x:xr -> map (\y -> (x, y)) xr ++ pairwise xr
+---------------------------------------------------------------------------------------------------

@@ -1,3 +1,11 @@
+---------------------------------------------------------------------------------------------------
+-- |
+-- Module      : Issy.Products.SymbolicGames
+-- Description : TODO DOCUMENT
+-- Copyright   : (c) Philippe Heim, 2026
+-- License     : The Unlicense
+--
+---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe #-}
 
 module Issy.Products.SymbolicGames
@@ -67,3 +75,4 @@ intersectArena a1 a2
             arena0
             $ Set.cartesianProduct locProduct locProduct
      in (arena1, mp)
+---------------------------------------------------------------------------------------------------

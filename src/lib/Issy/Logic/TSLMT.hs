@@ -1,3 +1,11 @@
+---------------------------------------------------------------------------------------------------
+-- |
+-- Module      : Issy.Logic.TSLMT
+-- Description : TODO DOCUMENT
+-- Copyright   : (c) Philippe Heim, 2026
+-- License     : The Unlicense
+--
+---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
 module Issy.Logic.TSLMT
@@ -103,3 +111,4 @@ pushBoolF = go
 
 patom :: Term -> Formula Atom
 patom = Atom . Predicate
+---------------------------------------------------------------------------------------------------
