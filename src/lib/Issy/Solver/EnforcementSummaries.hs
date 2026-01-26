@@ -1,5 +1,5 @@
 ---------------------------------------------------------------------------------------------------
--- | 
+-- |
 -- Module      : Issy.Solver.EnforcementSummaries
 -- Description : Implementation of Enforcement Summaries
 -- Copyright   : (c) Philippe Heim, 2025
@@ -10,7 +10,8 @@
 
 ---------------------------------------------------------------------------------------------------
 module Issy.Solver.EnforcementSummaries
-  ( EnfSt
+  ( Attr
+  , EnfSt
   , empty
   , trySummary
   ) where
@@ -41,7 +42,7 @@ data EnfSt = EnfSt
   , failed :: [SummaryKey]
   }
 
--- | 'empty' is the initial 'EnfSt' state 
+-- | 'empty' is the initial 'EnfSt' state
 empty :: EnfSt
 empty = EnfSt {summaries = [], failed = []}
 
@@ -52,7 +53,7 @@ data SummaryKey = SummaryKey
   , sumLoc :: Loc
   }
 
--- | 'SummaryContent' is the actual summary. To be sound a 'SummaryContent' need a matching 
+-- | 'SummaryContent' is the actual summary. To be sound a 'SummaryContent' need a matching
 -- 'SummaryKey'
 data SummaryContent = SummaryContent
   { metaVars :: [(Symbol, Sort)]
@@ -64,13 +65,13 @@ data SummaryContent = SummaryContent
   }
 
 -- This is needed to get Haskell to accept the cylic dependencies
--- and makes it also easier to control the attractor computation 
+-- and makes it also easier to control the attractor computation
 -- within the attractor module.
 type Attr = Config -> Player -> Arena -> SymSt -> IO (SymSt, SyBo)
 
---------------------------------------------------------------------------------------------------- 
+---------------------------------------------------------------------------------------------------
 -- High Level Procedure
---------------------------------------------------------------------------------------------------- 
+---------------------------------------------------------------------------------------------------
 trySummary ::
      Config -> Attr -> Player -> Arena -> Loc -> EnfSt -> SymSt -> IO (EnfSt, Maybe (Term, SyBo))
 trySummary conf attr player arena loc enfst reach = do
@@ -122,7 +123,7 @@ applyIn conf vars summary reach = do
 
 ---------------------------------------------------------------------------------------------------
 -- Computation
---------------------------------------------------------------------------------------------------- 
+---------------------------------------------------------------------------------------------------
 computeSum ::
      Config -> Attr -> Player -> Arena -> Loc -> SymSt -> IO (SummaryKey, Maybe SummaryContent)
 computeSum conf attr player arena loc reach = do

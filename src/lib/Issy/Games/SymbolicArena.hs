@@ -1,5 +1,5 @@
 ---------------------------------------------------------------------------------------------------
--- | 
+-- |
 -- Module      : Issy.Games.SymbolicArena
 -- Description : Data structure and methods for arenas of symbolic games
 -- Copyright   : (c) Philippe Heim, 2025
@@ -344,7 +344,7 @@ inducedSubArena arena locs
           FOL.andfL (Vars.stateVarL (variables arena)) $ \v ->
             let s = Vars.sortOf (variables arena) v
              in FOL.var v s `FOL.equal` FOL.var (Vars.prime v) s
-        -- Add transitions 
+        -- Add transitions
         arena1 =
           foldl (\ar old -> setTrans ar (oldToNew old) (oldToNew old) eqTrans) arena0
             $ locsC `Set.difference` locs

@@ -1,5 +1,5 @@
 ---------------------------------------------------------------------------------------------------
--- | 
+-- |
 -- Module      : Issy.Specification
 -- Description : Data structure for mixed-formula-game specifications
 -- Copyright   : (c) Philippe Heim, 2025

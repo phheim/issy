@@ -1,5 +1,5 @@
 ---------------------------------------------------------------------------------------------------
--- | 
+-- |
 -- Module      : Issy.Solver.Acceleration
 -- Description : Top-level module for attractor acceleration
 -- Copyright   : (c) Philippe Heim, 2025

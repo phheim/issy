@@ -15,7 +15,7 @@ module Issy.Translation.DOA
   , DOA
   , -- Printing
     stateName
-  , -- Accession methods 
+  , -- Accession methods
     alphabet
   , states
   , stateList
@@ -42,7 +42,7 @@ newtype State =
   deriving (Eq, Ord, Show)
 
 -- A Transition is a sort of DNF. It contains a disjunction of all
--- possible successors, where a successors is a state and a transition 
+-- possible successors, where a successors is a state and a transition
 -- condition, which itself is a conjunction of atomic proposition literals
 type Transition a = Set (Set (a, Bool), State)
 
@@ -97,7 +97,7 @@ branch t ap =
 
 ------------------------------------------------------------------------------
 -- | 'initDOA' inialized a deterministic Omega Automaton with an alphabet and
--- a given number of states. All states will be self looping and the 
+-- a given number of states. All states will be self looping and the
 -- automaton will reject everything.
 initDOA :: Ord a => Set a -> Int -> DOA a
 initDOA alphabet stateCnt =

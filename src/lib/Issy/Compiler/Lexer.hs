@@ -1,5 +1,5 @@
 ---------------------------------------------------------------------------------------------------
--- | 
+-- |
 -- Module      : Issy.Compiler.Lexer
 -- Description : Lexer for the issy-format to llissy-format compiler
 -- Copyright   : (c) Philippe Heim, 2026
@@ -18,7 +18,7 @@ module Issy.Compiler.Lexer
 import Issy.Compiler.Base (PRes, Pos, Token, initPos, nextLine, nextSymbol, perr, token)
 
 ---------------------------------------------------------------------------------------------------
--- | 'tokenize' turns the content of an issy-formated specification into a 
+-- | 'tokenize' turns the content of an issy-formated specification into a
 -- list of 'Token's
 tokenize :: String -> PRes [Token]
 tokenize = lexer initPos . cleanup

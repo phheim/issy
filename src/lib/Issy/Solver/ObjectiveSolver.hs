@@ -1,5 +1,5 @@
 ---------------------------------------------------------------------------------------------------
--- | 
+-- |
 -- Module      : Issy.Solver.ObjectiveSolver
 -- Description : Implementation of solving techniques for various of winning conditions
 -- Copyright   : (c) Philippe Heim, 2025
@@ -128,7 +128,7 @@ iterBuechi conf solst player arena accept init =
       (wset, solst, subProg) <-
         attractorEx conf solst (opponent player) arena noCheck $ SymSt.map FOL.neg cset
       lg conf ["W_i+1 =", strSt arena wset]
-      -- Extraction 
+      -- Extraction
       progOp <-
         pure
           $ Synt.callOnSt wset subProg
@@ -242,7 +242,7 @@ solveParity conf solst arena colors init = do
             winOp <- SymSt.simplify conf winOp
             if SymSt.null winOp
               then do
-                -- In this case either 'player' player can win from everywhere where it cannot 
+                -- In this case either 'player' player can win from everywhere where it cannot
                 -- reach the highest color. Hence it either reaches it or it wins and wins
                 -- therefore everywhere.
                 lg conf ["Parity return: ", show player, "reaches maxcolor or wins in subgame"]

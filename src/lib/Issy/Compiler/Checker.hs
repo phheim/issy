@@ -1,5 +1,5 @@
 ---------------------------------------------------------------------------------------------------
--- | 
+-- |
 -- Module      : Issy.Compiler.Checker
 -- Description : Checker for the issy-format to llissy-format compiler
 -- Copyright   : (c) Philippe Heim, 2026

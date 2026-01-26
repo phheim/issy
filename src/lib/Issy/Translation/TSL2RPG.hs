@@ -118,7 +118,7 @@ doatran2tran stateVars locOf atomOf = go
        in if any ((/= 1) . length) mapping
             then Nothing
             else Just $ fmap head mapping
-    -- 
+    --
     cleanUpdates upds =
       let filtered = filter (\(upd, _) -> all (`Map.member` upd) stateVars) upds
        in if null filtered

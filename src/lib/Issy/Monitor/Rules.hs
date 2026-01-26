@@ -188,7 +188,7 @@ ruleG g
   | otherwise = \_ _ gls _ st -> pure (st, gls)
 
 -------------------------------------------------------------------------------
--- State Acessors / Helper Methods 
+-- State Acessors / Helper Methods
 -------------------------------------------------------------------------------
 deducedInvariant :: Config -> GlobalS -> Domain -> State -> IO Term
 deducedInvariant cfg gls dom st =

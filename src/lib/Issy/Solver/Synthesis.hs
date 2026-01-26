@@ -1,5 +1,5 @@
 ---------------------------------------------------------------------------------------------------
--- | 
+-- |
 -- Module      : Issy.Solver.Synthesis
 -- Description : Methods and data-stucture for synthesis bookkeeping and extraction
 -- Copyright   : (c) Philippe Heim, 2025
@@ -55,14 +55,14 @@ data SyBo
 data SummarySyBo = SummarySyBo
   { metaVars :: [(Symbol, Sort)]
   , preCond :: Term
-        -- ^ condition on the state variables 
+        -- ^ condition on the state variables
         -- which this summary can be called and for which
         -- we need to compute the skolem functions
   , metaCond :: Term
-        -- ^ condition on the skolem function for the meta variables that has to 
+        -- ^ condition on the skolem function for the meta variables that has to
         -- hold for all states which satisfy 'preCond'
   , subProg :: SyBo
-        -- ^ program that archive the sub condition. Note that this should only 
+        -- ^ program that archive the sub condition. Note that this should only
         -- contain the constrains that the meta variables do not change
   }
 

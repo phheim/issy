@@ -50,10 +50,10 @@ forVisits conf arena visits =
 
 ---
 -- General Attractor
---- 
+---
 ---
 -- General Acceleration
---- 
+---
 loopArenaSize :: Heur -> Int
 loopArenaSize heur =
   case accelerationLevel (config heur) of

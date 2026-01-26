@@ -1,5 +1,5 @@
 ---------------------------------------------------------------------------------------------------
--- | 
+-- |
 -- Module      : Issy.Prelude
 -- Description : Re-export and basic functions used through the Issy project to clean up the
 --               import in most modules

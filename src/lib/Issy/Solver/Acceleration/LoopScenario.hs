@@ -42,7 +42,7 @@ loopScenario conf heur arena loc target prime = do
   let prog = Synt.returnOn loopTarget loopProg
   pure (loopAr, loc, loc', loopTarget, fixedInv, prog)
 
--- | 'reduceLoopArena' compute a heuristically reduced sub-arena to be limited on a
+-- | 'reducedLoopArena' compute a heuristically reduced sub-arena to be limited on a
 -- potentially smaller part of the game. Note that you still need to
 --  - set the start value in loc'
 --  - return upon reaching the loop target
@@ -91,9 +91,9 @@ accTarget conf arena loc indeps st = do
       lg conf ["Guessing fixed invariant failed"]
       pure (st, FOL.true)
 
--- The choosen sub-arena should contain the sucessors of 
--- the accelerated location and all locations that are 
--- on a (simple) path of lenght smaller equal the bound 
+-- The choosen sub-arena should contain the sucessors of
+-- the accelerated location and all locations that are
+-- on a (simple) path of lenght smaller equal the bound
 -- form loc to loc'
 subArena :: Heur -> Arena -> (Loc, Loc) -> Set Loc
 subArena heur loopArena (loc, loc') =

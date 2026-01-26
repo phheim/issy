@@ -283,7 +283,7 @@ parseFP vars fpPred sr =
   where
     gotoMaxsat :: String -> String
     gotoMaxsat = unlines . drop 1 . dropWhile (not . isPrefixOf "Maxsat") . lines
-     -- 
+     --
     gotoAssign :: String -> String
     gotoAssign =
       \case

@@ -1,5 +1,5 @@
 ---------------------------------------------------------------------------------------------------
--- | 
+-- |
 -- Module      : Monitor.Issy
 -- Description : Module exposing all functionalities of monitors for RPLTL
 -- Copyright   : (c) Philippe Heim, 2025
@@ -87,8 +87,8 @@ initializeTSL cfg spec = do
     preds
 
 ---------------------------------------------------------------------------------------------------
--- | 'initalize' is a generic initilaisation for both RPLTL and TSLMT. The main difference in the 
--- monitor is that RPLTL has now updates and therefore everything related to them should be 
+-- | 'initialize' is a generic initilaisation for both RPLTL and TSLMT. The main difference in the
+-- monitor is that RPLTL has now updates and therefore everything related to them should be
 -- disabled or have no effect.
 initialize ::
      Config -> Bool -> MR.GlobalS -> Variables -> [Formula] -> [Formula] -> Set Term -> IO Monitor

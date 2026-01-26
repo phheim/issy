@@ -25,8 +25,8 @@ import qualified Issy.Monitor.State as M (State)
 import Issy.Utils.Extra (predecessorRelation, reachables)
 
 -------------------------------------------------------------------------------
--- for all GF pred, search reachables 
--- parts with (F pred derived) not derived remove 
+-- for all GF pred, search reachables
+-- parts with (F pred derived) not derived remove
 -- them, for all other remove GF pred"
 finish :: Config -> Monitor -> IO Monitor
 finish cfg mon = do

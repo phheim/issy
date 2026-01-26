@@ -1,5 +1,5 @@
 ---------------------------------------------------------------------------------------------------
--- | 
+-- |
 -- Module      : Issy.Solver.Attractor
 -- Description : Implementation of top-level attractor computation
 -- Copyright   : (c) Philippe Heim, 2025
@@ -11,6 +11,7 @@
 ---------------------------------------------------------------------------------------------------
 module Issy.Solver.Attractor
   ( SolSt(stats)
+  , StopCheck
   , emptySolSt
   , attractor
   , attractorEx
@@ -63,7 +64,7 @@ attractor cfg solst player arena stopCheck target = do
   (res, solst, _) <- attractorFull cfg solst player arena stopCheck target
   pure (res, solst)
 
--- | 'attractorEx' compute the attractor for a given player, game, and symbolic state and does 
+-- | 'attractorEx' compute the attractor for a given player, game, and symbolic state and does
 -- program extraction if indicated in the 'Config'.
 attractorEx :: Config -> SolSt -> Player -> Arena -> StopCheck -> SymSt -> IO (SymSt, SolSt, SyBo)
 attractorEx cfg solst player arena stopCheck target = do

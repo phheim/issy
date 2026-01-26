@@ -27,8 +27,8 @@ import qualified Issy.Logic.FOL as FOL
 ---------------------------------------------------------------------------------------------------
 -- Quantified Variable Naming
 --
--- To name quantified variables we track the current nesting depth DEPTH 
--- of the quantifiers and a unique name prefix. For each quantifier 
+-- To name quantified variables we track the current nesting depth DEPTH
+-- of the quantifiers and a unique name prefix. For each quantifier
 -- the variable is names PREFIX ++ DEPTH. So given a de-Brunijn index I
 -- the variables name is PREFIX ++ (DEPTH - I)
 ---------------------------------------------------------------------------------------------------

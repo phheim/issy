@@ -1,5 +1,5 @@
 ---------------------------------------------------------------------------------------------------
--- | 
+-- |
 -- Module      : Issy.Solver.Acceleration.Strengthening
 -- Description : Alogorithms for strengtening invariants for acceleration
 -- Copyright   : (c) Philippe Heim, 2025

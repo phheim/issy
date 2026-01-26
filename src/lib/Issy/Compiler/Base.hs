@@ -1,5 +1,5 @@
 ---------------------------------------------------------------------------------------------------
--- | 
+-- |
 -- Module      : Issy.Compiler.Base
 -- Description : Base components for the issy-format to llissy-format compiler
 -- Copyright   : (c) Philippe Heim, 2026
@@ -54,7 +54,7 @@ data Pos = Pos
 initPos :: Pos
 initPos = Pos {lineNum = 1, pos = 1}
 
--- | 'nextSymbol' is the next position within the same line 
+-- | 'nextSymbol' is the next position within the same line
 -- (i.e. for the next non-newline character)
 nextSymbol :: Pos -> Pos
 nextSymbol p = p {pos = pos p + 1}
@@ -85,14 +85,14 @@ perrGen = Left . ("Compiler error : " ++)
 ---------------------------------------------------------------------------------------------------
 -- Tokens
 ---------------------------------------------------------------------------------------------------
--- | 'Token' represents a token while parsing. A token has a value (which is a string) 
+-- | 'Token' represents a token while parsing. A token has a value (which is a string)
 -- and a position for error tracking.
 data Token = Token
   { tpos :: Pos
   -- ^ 'tpos' is the position of the token. For multi-character tokens, e.g. keywords,
   -- this should be the location of the first character in the token
   , tval :: String
-  -- ^ 'tval' is the content of the token, i.e. a sub-string of the overall input 
+  -- ^ 'tval' is the content of the token, i.e. a sub-string of the overall input
   -- that represents this token
   } deriving (Eq, Ord, Show)
 
@@ -113,7 +113,7 @@ data AstDef
   -- ^ this is a input or state variable definition
   | AstLogic [AstLogicStm]
   -- ^ this is the definition of logic specification,
-  -- the interpretation is that the conjunction of assumptions 
+  -- the interpretation is that the conjunction of assumptions
   -- implies the conjunction of assertions
   | AstGame AstWC String [AstGameStm]
   -- ^ this is the definition of a game specification

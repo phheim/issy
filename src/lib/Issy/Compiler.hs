@@ -1,5 +1,5 @@
 ---------------------------------------------------------------------------------------------------
--- | 
+-- |
 -- Module      : Issy.Compiler
 -- Description : Top-level module of the issy's tool issy-format to lissy format compiler
 -- Copyright   : (c) Philippe Heim, 2025

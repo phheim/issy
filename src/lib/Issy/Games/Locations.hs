@@ -1,5 +1,5 @@
 ---------------------------------------------------------------------------------------------------
--- | 
+-- |
 -- Module      : Issy.Games.Locations
 -- Description : Encapsulated game-graph locations
 -- Copyright   : (c) Philippe Heim, 2025
@@ -29,7 +29,7 @@ import qualified Data.Set as Set
 
 ---------------------------------------------------------------------------------------------------
 -- | 'Loc' is a location. Note that locations are in the context of a 'Store' which is usually
--- provided by a game arena or so. 'Loc's from different 'Store's could be equally without 
+-- provided by a game arena or so. 'Loc's from different 'Store's could be equally without
 -- semantically being the same.
 newtype Loc =
   Loc Integer

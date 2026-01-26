@@ -38,13 +38,13 @@ data WinningCondition
   | Reachability (Set Loc)
   -- ^ reachability winning condition with location that should be reached
   | Buechi (Set Loc)
-  -- ^ Büchi winning condition with location that should be reached 
+  -- ^ Büchi winning condition with location that should be reached
   -- infinitely often (i.e. G F set)
   | CoBuechi (Set Loc)
    -- ^ coBüchi winning condition with location that form some point on should
    -- never be left (i.e. F G set)
   | Parity (Map Loc Word)
-   -- ^ Parity winning condition with coloring Omega. The system wins if the 
+   -- ^ Parity winning condition with coloring Omega. The system wins if the
    -- maximal color visited infinitely often is even
   deriving (Eq, Ord, Show)
 
@@ -67,7 +67,7 @@ isSafety obj =
     Safety _ -> True
     _ -> False
 
--- | 'toTemporalLogic' encodes an 'Objective' into a termporal logic formula, given an 
+-- | 'toTemporalLogic' encodes an 'Objective' into a termporal logic formula, given an
 -- encoding for the locations in the objective. Note that this encoding is the straightforward
 -- one without any sophisticated optimizations.
 toTemporalLogic :: (Loc -> a) -> Objective -> TL.Formula a

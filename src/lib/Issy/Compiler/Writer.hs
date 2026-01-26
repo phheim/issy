@@ -1,5 +1,5 @@
 ---------------------------------------------------------------------------------------------------
--- | 
+-- |
 -- Module      : Issy.Compiler.Writer
 -- Description : Writer for the issy-format to llissy-format compiler
 -- Copyright   : (c) Philippe Heim, 2026

@@ -1,7 +1,7 @@
 ---------------------------------------------------------------------------------------------------
--- | 
+-- |
 -- Module      : Issy.Statistics
--- Description : Data structure to accumulate statistics over the run of Issy 
+-- Description : Data structure to accumulate statistics over the run of Issy
 -- Copyright   : (c) Philippe Heim, 2025
 -- License     : The Unlicense
 --

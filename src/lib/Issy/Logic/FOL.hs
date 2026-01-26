@@ -7,7 +7,7 @@
 --
 ---------------------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------
--- | 
+-- |
 -- Module       :   FOL
 --
 -- 'FOL' provides a simple interface for using FOL terms.
@@ -179,17 +179,17 @@ data Quantifier
 
 data Constant
   = CInt Integer
-  -- ^ 'IntConst' is an integer constant
+  -- ^ this is an integer constant
   | CReal Rational
-  -- ^ 'RealConst' is an real constant
+  -- ^ this is an real-valued constant
   | CBool Bool
-  -- ^ 'BoolConst' is a bool constant
+  -- ^ this is a boolean constant
   deriving (Eq, Ord, Show)
 
 data Term
   = Var Symbol Sort
-  -- ^ 'Var' is a constant variable symbols that is quantified on top-level. 
-  -- If not stated otherwise, a solver might assume that it is existentially 
+  -- ^ 'Var' is a constant variable symbols that is quantified on top-level.
+  -- If not stated otherwise, a solver might assume that it is existentially
   -- quantified.
   | Const Constant
   -- ^ 'Const' is a constant expression
@@ -198,7 +198,7 @@ data Term
   | Func Function [Term]
   -- ^ 'Func' represents the application of a function to a list of arguments
   | Quant Quantifier Sort Term
-  -- ^ 'Quant' is a de-Bruijn indexed quantifier 
+  -- ^ 'Quant' is a de-Bruijn indexed quantifier
   | Lambda Sort Term
   -- ^ 'Lambda' is a de-Bruijn indexed lambda-term
   deriving (Eq, Ord, Show)
@@ -860,9 +860,9 @@ pushdownQE =
 --                            Just sort -> Right sort
 --            Quant _ sort term -> go (\n -> if n == 0 then Just sort else varType (n - 1)) term
 --            Lambda sort term -> error "TODO IMPLEMENT"
---            Func func args -> 
+--            Func func args ->
 --                case (func, map (go varType) args) of
---                    (CustomF _ argSort resSort, args) 
+--                    (CustomF _ argSort resSort, args)
 --                        | argSort == args -> Right resSort
 --                        | otherwise -> Left "sorts do not match function application"
 --                    (FAnd, args) -> boolOp args
@@ -870,8 +870,8 @@ pushdownQE =
 --                    (FDistinct, args) -> boolOp args
 --                    (FNot, [SBool]) -> Right SBool
 --                    (FNot, _) -> Left "illegal usage of 'not'"
---                    _ -> error "TODO IMPLEMENT" 
---        boolOp args 
+--                    _ -> error "TODO IMPLEMENT"
+--        boolOp args
 --         | all (==SBool) args = Right SBool
 --         | otherwise = Left "TODO: Proper error"
 --

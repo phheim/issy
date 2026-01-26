@@ -1,6 +1,6 @@
 ---------------------------------------------------------------------------------------------------
--- | 
--- Module      : Issy.Games.ReactiveProgramArena 
+-- |
+-- Module      : Issy.Games.ReactiveProgramArena
 -- Description : Data structure and methods for reactive program games
 -- Copyright   : (c) Philippe Heim, 2025
 -- License     : The Unlicense
@@ -376,7 +376,7 @@ inducedSubGame arena locs
     let locsC = Set.unions (Set.map (succs arena) locs) `Set.union` locs
         (arena0, oldToNew) =
           createLocsFor (empty (variables arena)) (locName arena) (inv arena) locsC
-        -- Add transitions 
+        -- Add transitions
         cleanTrans =
           \case
             TIf p tt tf -> TIf p (cleanTrans tt) (cleanTrans tf)
@@ -466,7 +466,7 @@ syntCPre conf arena locVar toLoc loc cond target = do
                    then Map.unionWith (FOL.ite preSt) uassign <$> selectUpds preCond' ur
                    else pure uassign
             else selectUpds preCond ur
-    -- 
+    --
     updateAssign upd loc =
       Map.insert locVar (toLoc loc)
         $ Map.fromSet (\var -> Map.findWithDefault (Vars.mk (variables arena) var) var upd)

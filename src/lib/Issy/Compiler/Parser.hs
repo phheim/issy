@@ -1,5 +1,5 @@
 ---------------------------------------------------------------------------------------------------
--- | 
+-- |
 -- Module      : Issy.Compiler.Parser
 -- Description : Parser for the issy-format to llissy-format compiler
 -- Copyright   : (c) Philippe Heim, 2026
@@ -347,7 +347,7 @@ parseOps (lpar, rpar) parseAtom unOp binOp posToken = go
     errToken t = "Compiler error " ++ posToken t ++ ": Found bad token while parsing operators"
        --
     go = parseOp 0
-       -- 
+       --
     parseOp pred ts = do
       (e, ts) <- parsePrimUn ts
       parseBin e pred ts

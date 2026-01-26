@@ -1,5 +1,5 @@
 ---------------------------------------------------------------------------------------------------
--- | 
+-- |
 -- Module      : Issy.Solver.GameInterface
 -- Description : Interface to encapsulate Symbolic Games and RPGs for the solving
 -- Copyright   : (c) Philippe Heim, 2025

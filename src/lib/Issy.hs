@@ -1,5 +1,5 @@
 ---------------------------------------------------------------------------------------------------
--- | 
+-- |
 -- Module      : Issy
 -- Description : Top-level module of the issy's tool library
 -- Copyright   : (c) Philippe Heim, 2025
@@ -66,7 +66,7 @@ import Issy.Encoders.Sweap (specToSweap)
 import Issy.Encoders.TSLT (rpgToTSLT)
 import Issy.Encoders.ToFixpoints (gameToFP)
 
--- Parsers 
+-- Parsers
 import Issy.Parsers.LLIssyFormat (parseLLIssyFormat)
 import Issy.Parsers.RPG (parseRPG)
 import Issy.Parsers.TSLMT (parseTSL)

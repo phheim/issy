@@ -1,5 +1,5 @@
 ---------------------------------------------------------------------------------------------------
--- | 
+-- |
 -- Module      : Issy.Logic.Propositional
 -- Description : Propositional logic operations
 -- Copyright   : (c) Philippe Heim, 2025
@@ -33,14 +33,14 @@ data Prop a
   | PNot (Prop a)
   deriving (Eq, Ord, Show)
 
--- | 'DNF' represents a formula in disjunctive normal form over propositions, as 
+-- | 'DNF' represents a formula in disjunctive normal form over propositions, as
 -- list (disjunction) of lists (conjunctions) of literals. A negative boolean value represents
 -- a negated literal.
 newtype DNF a =
   DNF [[(Bool, a)]]
   deriving (Eq, Ord, Show)
 
--- | 'CNF' represents a formula in conjunctive normal form over propositions, as 
+-- | 'CNF' represents a formula in conjunctive normal form over propositions, as
 -- list (conjunction) of lists (disjunctions) of literals. A negative boolean value represents
 -- a negated literal.
 newtype CNF a =
@@ -50,8 +50,8 @@ newtype CNF a =
 -- | The 'Propositional' class represent types that can have a top-level propositional logic
 -- structure, i.e. are semantically Boolean combinations of their own type.
 class Propositional p where
-  -- | 'toProp' unfolds the boolean structure from the type as 'Prop'. Note that this must 
-  -- only be semantic-preserving not necessary syntax-preserving (e.g. implications can 
+  -- | 'toProp' unfolds the boolean structure from the type as 'Prop'. Note that this must
+  -- only be semantic-preserving not necessary syntax-preserving (e.g. implications can
   -- be transformed to other operations)
   toProp :: p -> Prop p
   -- | 'fromProp' refolds the explicit structure from 'Prop' back into the original type

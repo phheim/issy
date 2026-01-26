@@ -1,5 +1,5 @@
 ---------------------------------------------------------------------------------------------------
--- | 
+-- |
 -- Module      : Issy.Solver.Acceleration.PolyhedraGeometricAccel
 -- Description : Implementaion of the general version of geometric acceleration based on polyhedra
 -- Copyright   : (c) Philippe Heim, 2025
@@ -164,7 +164,7 @@ lemmaCond conf arena loc target lemma loopGameResult prog = do
             then lgd conf ["Step condition failed"] $> Refine loopGameResult
             else lgd conf ["Lemma conditions hold"] $> Applicable prog
 
--- | 'preCompGen' is responsible for computing a pass of an acceleration lemma through a loop 
+-- | 'preCompGen' is responsible for computing a pass of an acceleration lemma through a loop
 -- game. In order to avoid dublicate computation of the loop game and independent variables.
 -- preCompGen is a generator function, i.e. it return a function that compute the pass of a
 -- lemma through a loop game and the check of conditions (in addition to the independen variables).
@@ -187,7 +187,7 @@ preCompGen conf heur player arena loc target prime = do
     ( indeps
     , \lemma -> do
         target <- pure $ set target loc' $ FOL.orf [target `get` loc, step lemma]
-    -- Remark: we do not use independent variables here , as their constrains are expected to be 
+    -- Remark: we do not use independent variables here , as their constrains are expected to be
     -- found otherwise in the invariant generation iteration. This is beneficial as
     -- otherwise we usually do an underapproximating projection
         (stAcc, prog) <- iterA conf heur player arena target loc' prog
@@ -206,7 +206,7 @@ iterA conf heur player arena attr shadow =
         Just (l, open)
           | visits l vcnt < H.iterAMaxCPres heur -> do
             let new = cpre player arena attr l
-            -- Remark: here we could still only add the predcessors locations if 
+            -- Remark: here we could still only add the predcessors locations if
             -- things changed however, it will often not be relevant in most cases
             go
               (visit l vcnt)

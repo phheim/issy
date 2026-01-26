@@ -1,5 +1,5 @@
 ---------------------------------------------------------------------------------------------------
--- | 
+-- |
 -- Module      : Issy.Translation
 -- Description : Procedures to translate specifications to their respective one-game representation
 -- Copyright   : (c) Philippe Heim, 2025

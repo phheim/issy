@@ -12,7 +12,7 @@
 -------------------------------------------------------------------------------
 module Issy.Monitor.State
   ( State
-  , -- Creation and normalization 
+  , -- Creation and normalization
     initSt
   , trueSt
   , falseSt

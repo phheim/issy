@@ -169,7 +169,7 @@ replaceLemma vars sybo (LemSyms bs ss cs prime, Lemma b s c) =
 --
 -- Step relation [EX ++ CELLS]
 -- Other relations [CELLS]
--- 
+--
 expandStep :: Variables -> Function -> Term -> Term
 expandStep vars func = go
   where

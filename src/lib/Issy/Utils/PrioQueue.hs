@@ -1,5 +1,5 @@
 ---------------------------------------------------------------------------------------------------
--- | 
+-- |
 -- Module      : Issy.Utils.PrioQueue
 -- Description : Simple implementation of a priority queue.
 -- Copyright   : (c) Philippe Heim, 2025
@@ -26,7 +26,7 @@ import Issy.Utils.Queue (Queue)
 import qualified Issy.Utils.Queue as Q
 
 ---------------------------------------------------------------------------------------------------
--- | 'PrioQueue p a' implements a priority queue where 'p' is the priority. The priority has to
+-- | 'PrioQueue p a' implements a priority queue where p is the priority. The priority has to
 -- be ordered. Elements with a higher priority are popped first. Elements of the same priority
 -- are popped in a FIFO order.
 newtype PrioQueue p a =

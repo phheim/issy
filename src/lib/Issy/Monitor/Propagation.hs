@@ -93,7 +93,7 @@ propagatedPredicatesTSL :: Config -> Term -> [(Symbol, Term)] -> Set Term -> IO 
 propagatedPredicatesTSL cfg constr upds = filterM propagate . Set.toList
   where
     mapping = Map.fromList upds
-    --    
+    --
     propagate :: Term -> IO Bool
     propagate term
       | all (`Map.member` mapping) (FOL.frees term) =

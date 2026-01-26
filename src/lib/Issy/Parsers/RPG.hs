@@ -19,8 +19,8 @@
 --   | "output" ID SORT
 --   | "init" ID
 --   | "type" WC
---   | "loc" ID RANK 
---   | "trans" ID Transition 
+--   | "loc" ID RANK
+--   | "trans" ID Transition
 --
 --  GameDescipition := GameItem*
 --

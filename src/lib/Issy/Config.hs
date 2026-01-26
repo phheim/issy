@@ -1,5 +1,5 @@
 ---------------------------------------------------------------------------------------------------
--- | 
+-- |
 -- Module      : Issy.Config
 -- Description : Central configuration for Issy.
 -- Copyright   : (c) Philippe Heim, 2025
@@ -23,12 +23,12 @@ data Config = Config
   { logName :: String
   -- ^ Prefix for log messages indicating the current subpart.
   , logLevel :: Word
-  -- ^ Amount of logging written to 'STDOUT'. Higher means more logging and zero means no logging.
+  -- ^ Amount of logging written to STDOUT. Higher means more logging and zero means no logging.
   , statToStdout :: Bool
-  -- ^ Indicates if the statistics collected should be written to 'STDOUT' instead 'STDERR'
+  -- ^ Indicates if the statistics collected should be written to STDOUT instead STDERR
     --
     -- Formula to game translation
-    --  
+    --
   , pruneGame :: Bool
   -- ^ Indicates if monitor-pruning should be used to reduce games translated from logic formulas.
   , rulesDeduction :: Bool
@@ -45,7 +45,7 @@ data Config = Config
   -- ^ Amount of predicates that are propagated during monitor construction (higher means more).
     --
     -- Game solving
-    -- 
+    --
   , accelerate :: Bool
   -- ^ Indicates if acceleration is enabled at all.
   , accelerateObjective :: Bool
@@ -58,17 +58,17 @@ data Config = Config
   , extendAcceleration :: Bool
   -- ^ Indicates if the acceleration-technique should use extended techniques like nesting.
   , accelerationLevel :: Word
-  -- ^ if this is set, depending if is set ufAcceleration, we nest or use chc 
+  -- ^ if this is set, depending if is set ufAcceleration, we nest or use chc
   , enforcementSummaries :: Bool
   -- ^ Indicates if enforcement summaries are used.
     --
     -- Synthesis
-    --  
+    --
   , generateProgram :: Bool
   -- ^ Enables program generation.
     --
     -- External tools
-    --  
+    --
   , z3cmd :: String
   -- ^ Path to binary that should be used to call z3.
   , ltl2tgba :: String
@@ -79,7 +79,7 @@ data Config = Config
   -- ^ Path to script that should be used to call CHCMax (part of the coar toolsuite)
     --
     -- Fixed constants
-    -- 
+    --
   , muvalTimeOut :: Int
   -- ^ Fixed timeout for MuVal calls in seconds.
   , chcMaxTimeOut :: Int
@@ -94,7 +94,7 @@ data Config = Config
   }
 
 ---------------------------------------------------------------------------------------------------
--- | 'defaultConfig' is the default 'Configuration' of Issy which contains sane defaults and 
+-- | 'defaultConfig' is the default configuration of Issy which contains sane defaults and
 -- should be used if no requested otherwise by the user.
 defaultConfig :: Config
 defaultConfig =
@@ -134,7 +134,7 @@ defaultConfig =
     }
 
 ---------------------------------------------------------------------------------------------------
--- 'setName' changes the current sub-part for logging. It should be called by the respective 
+-- 'setName' changes the current sub-part for logging. It should be called by the respective
 -- sub-part of the code.
 setName :: String -> Config -> Config
 setName name conf =

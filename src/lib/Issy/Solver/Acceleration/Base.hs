@@ -1,5 +1,5 @@
 ---------------------------------------------------------------------------------------------------
--- | 
+-- |
 -- Module      : Issy.Solver.Acceleration.Base
 -- Description : Shared data structures and algorithm for lemma based acceleration
 -- Copyright   : (c) Philippe Heim, 2025
@@ -42,12 +42,12 @@ data AccelLemma = AccelLemma
   { base :: Term
   -- ^ 'base' is the base starting set
   , step :: Term
-  -- ^ 'step' is the step condition. Since most algorithms we use do backward 
+  -- ^ 'step' is the step condition. Since most algorithms we use do backward
   -- compuations and application of lemmas the target valuation is with "normal"
-  -- variables while the source valuation is "primed" (in contrast to the 
+  -- variables while the source valuation is "primed" (in contrast to the
   -- formal definition).
   , stay :: Term
-  -- ^ 'stay' is the stay condition. This mainly applies for the non-simple 
+  -- ^ 'stay' is the stay condition. This mainly applies for the non-simple
   -- version of acceleration lemmas. If stay is not needed, it can be set equal
   -- to step. The priming works similiar to the step condition.
   , conc :: Term
@@ -57,12 +57,12 @@ data AccelLemma = AccelLemma
   } deriving (Eq, Ord, Show)
 
 -- | 'unprime' replaces the primed (i.e. previous step states) in a term by the
--- state variable version. This is usually done at the end of a loop game 
+-- state variable version. This is usually done at the end of a loop game
 -- attractor computation.
 unprime :: AccelLemma -> Term -> Term
 unprime = FOL.removePref . prime
 
--- | 'primeT' replaces all state variable symbols in a term by a 
+-- | 'primeT' replaces all state variable symbols in a term by a
 -- prefix-primed one
 primeT :: Variables -> Symbol -> Term -> Term
 primeT vars prim =

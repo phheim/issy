@@ -1,5 +1,5 @@
 ---------------------------------------------------------------------------------------------------
--- | 
+-- |
 -- Module      : Issy.Logic.Polyhedra
 -- Description : Operations and represenations for polyhedra-like representations
 -- Copyright   : (c) Philippe Heim, 2025
@@ -47,11 +47,11 @@ import Issy.Logic.Propositional (NNF(..), toNNF)
 -- | 'ListTree' is a prefix tree to efficiently use lists as keys of a map
 data ListTree k a
   = LTLeaf
-  -- ^ 'LTLeaf' is a dead end and corresponds to Map.empty  
+  -- ^ 'LTLeaf' is a dead end and corresponds to Map.empty
   | LTNode (Maybe a) (Map k (ListTree k a))
-  -- ^ 'LTNode' is a leaf in the prefix tree. For 'LTNode melem subs' 
+  -- ^ 'LTNode' is a leaf in the prefix tree. For LTNode melem subs
   -- - if (melem == Just elem) then [] is mapped to elem
-  -- - for every '(x, tree)' in 'subs', this node maps 'x:xr' to 'e' if 'tree' maps 'xr' to 'e'
+  -- - for every (x, tree) in subs, this node maps x:xr to e if tree maps xr to e
   deriving (Eq, Show)
 
 -- | TODO document
@@ -153,7 +153,7 @@ mergeOnceT merge t1 t2 =
     goT _ _ = MergeFail
         --
     goSM s1 s2 = Map.fromList <$> goS (Map.toList s1) (Map.toList s2)
-        -- 
+        --
     goS [] [] = MergeId
     goS ((k1, lt1):sr1) ((k2, lt2):sr2)
       | k1 == k2 =

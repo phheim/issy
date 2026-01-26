@@ -188,7 +188,7 @@ retriveArg get val =
 
 ---
 -- Config Parser
---- 
+---
 configParser :: [String] -> Either String Config
 configParser = go defaultConfig
   where

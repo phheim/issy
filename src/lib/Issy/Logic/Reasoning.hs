@@ -1,12 +1,12 @@
 ---------------------------------------------------------------------------------------------------
--- | 
+-- |
 -- Module      : Issy.Logic.Reasoning
 -- Description : More complex algorithms for logic reasoning
 -- Copyright   : (c) Philippe Heim, 2025
 -- License     : The Unlicense
 --
 -- This module contains more complex algorithms to reason on logic which go
--- beyond simple normalisation operations but are not part of any other modules 
+-- beyond simple normalisation operations but are not part of any other modules
 -- like reasoning on polyhedra or intervals.
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
@@ -32,7 +32,7 @@ import Issy.Utils.Extra (justOn)
 import Issy.Utils.Logging
 
 ---------------------------------------------------------------------------------------------------
--- | 'skolemize' computes for a set of variables V and 'Term's t and pre 
+-- | 'skolemize' computes for a set of variables V and 'Term's t and pre
 -- skolem functions for F_v for all v in V, such that the folllowing holds:
 --
 --  forall (FreeVars(t) \ V). pre(FreeVars(t) \ V) -> t[v -> F_v]
@@ -96,7 +96,7 @@ eqElim conf vars pre term = go term [] vars
             term <- SMT.simplify conf $ FOL.mapTermFor var sk term
             go term ((var, sk) : skolems) vr
 
--- | try to eliminate skolem  functions based on equalities found in the 
+-- | try to eliminate skolem  functions based on equalities found in the
 -- condition
 tryEqElim :: Config -> [(Symbol, Sort)] -> Term -> Term -> Symbol -> IO (Maybe Term)
 tryEqElim conf vars pre term var = do

@@ -62,7 +62,7 @@ toLTLStr ap2str = go
      --
     nop _ neut [] = neut
     nop op _ (f:fr) = "(" ++ f ++ concatMap (\g -> " " ++ op ++ " " ++ g) fr ++ ")"
-     -- 
+     --
     bop2str =
       \case
         TL.Until -> "U"

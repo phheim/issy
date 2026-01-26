@@ -1,5 +1,5 @@
 ---------------------------------------------------------------------------------------------------
--- | 
+-- |
 -- Module      : Issy.Logic.Polyhedra
 -- Description : Operations and represenations interval of numbers
 -- Copyright   : (c) Philippe Heim, 2025
@@ -42,7 +42,7 @@ import Issy.Logic.FOL (Term)
 import qualified Issy.Logic.FOL as FOL
 
 ---------------------------------------------------------------------------------------------------
--- | 'Interval' represents an interval 
+-- | 'Interval' represents an interval
 data Interval = Interval
   { upper :: UBound
   , lower :: LBound
@@ -63,7 +63,7 @@ eqInterval r = Interval {upper = LTVal True (toRational r), lower = GTVal True (
 elemOf :: Real a => a -> Interval -> Bool
 elemOf = included . eqInterval
 
--- | 'UBound' is a type for optional inclusive/exclusive upper rational bounds 
+-- | 'UBound' is a type for optional inclusive/exclusive upper rational bounds
 data UBound
   = PlusInfinity
  -- ^ 'PlusInfinity' means that there is no upper bound
@@ -71,7 +71,7 @@ data UBound
  -- ^ 'LTVal' is a </<= C bound. The Boolean flag indicates if is included
   deriving (Eq, Show)
 
--- | 'LBound' is a type for optional inclusive/exclusive lower rational bounds 
+-- | 'LBound' is a type for optional inclusive/exclusive lower rational bounds
 data LBound
   = MinusInfinity
  -- ^ 'MinusInfinity' means that there is no lower bound
@@ -174,7 +174,7 @@ scale k intv
      in Interval {upper = up, lower = lw}
 
 -- | 'multMinusOne' applies to the interval, if interpreted as inequality constraint, the
--- equivalence operation "multiply with minus one",  i.e swap upper and lower bounds 
+-- equivalence operation "multiply with minus one",  i.e swap upper and lower bounds
 -- and multiply their value by -1
 multMinusOne :: Interval -> Interval
 multMinusOne intv =
