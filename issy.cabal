@@ -25,7 +25,6 @@ library
     , containers
     , process
     , hanoi
-    , finite
     , tsl-parser
 
   exposed-modules:

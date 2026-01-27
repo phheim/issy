@@ -6,12 +6,7 @@
 -- License     : The Unlicense
 --
 ---------------------------------------------------------------------------------------------------
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE DisambiguateRecordFields #-}
 
 module Issy.Translation.LTL2DOA
   ( translate
@@ -23,7 +18,6 @@ import qualified Data.Set as Set
 import Issy.Prelude
 import System.Process (readProcessWithExitCode)
 
-import Finite
 import Hanoi
   ( AcceptanceSet
   , AcceptanceType(..)
@@ -32,7 +26,7 @@ import Hanoi
   , HOAAcceptanceName(Buchi, ParityMaxOdd, Streett)
   , HOAProperty(COLORED, COMPLETE, DETERMINISTIC)
   )
-import qualified Hanoi as HOA (State, parse, printHOA)
+import qualified Hanoi as HOA (State, parse, printHOA, states, atomicProps)
 
 import Issy.Config (ltl2tgba)
 import qualified Issy.Logic.Temporal as TL
@@ -194,15 +188,13 @@ hoa2doaAccept fromState hoa =
         FOr [FVar (Inf True afin), FVar (Fin True ainf)] -> [(ainf, 1), (afin, 0)]
         form -> error $ "Found non-canonical Street 1 acceptance " ++ show form
 
+-- TODO inline
 hoaStates :: HOA -> [HOA.State]
-hoaStates hoa =
-  let ?bounds = hoa
-   in List.sortOn index values
+hoaStates = HOA.states
 
+-- TODO inline
 hoaAtoms :: HOA -> [String]
-hoaAtoms hoa =
-  let ?bounds = hoa
-   in atomicPropositionName hoa <$> List.sortOn index values
+hoaAtoms hoa = atomicPropositionName hoa <$> HOA.atomicProps hoa
 
 getInitial :: (HOA.State -> DOA.State) -> HOA -> DOA.State
 getInitial fromState hoa =
