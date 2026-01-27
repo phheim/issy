@@ -1,13 +1,16 @@
 ---------------------------------------------------------------------------------------------------
 -- |
 -- Module      : Issy.Games.Objectives
--- Description : TODO DOCUMENT
+-- Description : Data-structure for game objectives
 -- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
 --
+-- This module provides data-structures and some simple functionality for different
+-- types of winning conditions and game objectives.
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
+---------------------------------------------------------------------------------------------------
 module Issy.Games.Objectives
   ( Objective(..)
   , WinningCondition(..)
@@ -17,6 +20,7 @@ module Issy.Games.Objectives
   , toTemporalLogic
   ) where
 
+---------------------------------------------------------------------------------------------------
 import qualified Data.List as List
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
@@ -27,11 +31,19 @@ import Issy.Games.Locations (Loc)
 import qualified Issy.Logic.Temporal as TL
 import Issy.Utils.Extra (invertMap)
 
+---------------------------------------------------------------------------------------------------
+-- | An 'Objective' is a pair of a winning condition and an initial location. The winning
+-- condition, is the winning condition which for the system player and has to hold for all
+-- plays that start from the initial location in order for the system player to win.
 data Objective = Objective
   { initialLoc :: Loc
+  -- ^ the initial location
   , winningCond :: WinningCondition
+  -- ^ the winning condition
   } deriving (Eq, Ord, Show)
 
+-- | 'WinningCondition' is a data-structure for different type of System player
+-- winning conditions
 data WinningCondition
   = Safety (Set Loc)
   -- ^ safety winning condition with locations that should not be left
@@ -48,6 +60,8 @@ data WinningCondition
    -- maximal color visited infinitely often is even
   deriving (Eq, Ord, Show)
 
+-- | 'mapWC' maps the characteristic 'Set'/'Map' of the winning condition. The second mapping
+-- is applied to parity conditions and the other on to all other conditions
 mapWC ::
      (Set Loc -> Set Loc) -> (Map Loc Word -> Map Loc Word) -> WinningCondition -> WinningCondition
 mapWC mapSet mapMap =
@@ -58,18 +72,21 @@ mapWC mapSet mapMap =
     CoBuechi ls -> CoBuechi $ mapSet ls
     Parity rank -> Parity $ mapMap rank
 
+-- | 'mapLoc' maps the locations that are present in the winning condition.
+-- The mapping MUST be bijective.
 mapLoc :: (Loc -> Loc) -> WinningCondition -> WinningCondition
 mapLoc mp = mapWC (Set.map mp) (Map.mapKeys mp)
 
+-- | 'isSafety' determines whether an 'Objective' has a safety winning condition
 isSafety :: Objective -> Bool
 isSafety obj =
   case winningCond obj of
     Safety _ -> True
     _ -> False
 
--- | 'toTemporalLogic' encodes an 'Objective' into a termporal logic formula, given an
--- encoding for the locations in the objective. Note that this encoding is the straightforward
--- one without any sophisticated optimizations.
+-- | 'toTemporalLogic' encodes an 'Objective' into a temporal logic formula,
+-- given an encoding for the locations in the objective. Note that this
+-- encoding is the straightforward one without any sophisticated optimizations.
 toTemporalLogic :: (Loc -> a) -> Objective -> TL.Formula a
 toTemporalLogic encLoc obj =
   let encWC =
