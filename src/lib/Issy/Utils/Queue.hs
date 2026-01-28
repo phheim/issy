@@ -1,10 +1,11 @@
 ---------------------------------------------------------------------------------------------------
 -- |
 -- Module      : Issy.Utils.Queue
--- Description : Simple Queue with armortized running time
+-- Description : Simple Queue with amortized runtime
 -- Copyright   : (c) Philippe Heim, 2025
 -- License     : The Unlicense
 --
+-- This module implements a simple Queue with amortized runtime.
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
@@ -20,6 +21,8 @@ module Issy.Utils.Queue
   ) where
 
 ---------------------------------------------------------------------------------------------------
+import Data.List.NonEmpty (NonEmpty((:|)))
+import qualified Data.List.NonEmpty as LNE
 import Prelude hiding (null)
 
 ---------------------------------------------------------------------------------------------------
@@ -69,7 +72,7 @@ pop =
   \case
     Queue ([], []) -> Nothing
     Queue (a:outR, inpS) -> Just (a, Queue (outR, inpS))
-    Queue ([], inpS) ->
-      let outS = reverse inpS
-       in Just (head outS, Queue (tail outS, []))
+    Queue ([], a:inpS) ->
+      let outS = LNE.reverse (a :| inpS)
+       in Just (LNE.head outS, Queue (LNE.tail outS, []))
 ---------------------------------------------------------------------------------------------------

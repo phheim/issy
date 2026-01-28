@@ -6,7 +6,7 @@
 -- License     : The Unlicense
 --
 ---------------------------------------------------------------------------------------------------
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE Safe, LambdaCase #-}
 
 ---------------------------------------------------------------------------------------------------
 module Issy.Solver.Acceleration.Base
@@ -125,22 +125,24 @@ lexiUnions :: Variables -> [AccelLemma] -> AccelLemma
 lexiUnions = foldr1 . lexiUnion
 
 intersections :: Variables -> [AccelLemma] -> AccelLemma
-intersections vars lemmas
-  | null lemmas = error "assert: list of lemmas cannot be empty"
-  | any ((/= prime (head lemmas)) . prime) (tail lemmas) = error "assert: prime has to be the same"
-  | otherwise =
-    AccelLemma
-      { prime = prime (head lemmas)
-      , base = FOL.andfL lemmas base
-      , conc = FOL.andfL lemmas conc
-      , stay = FOL.andfL lemmas stay
-      , step =
-          FOL.orfL (singleOut lemmas) $ \(gal, others) ->
-            FOL.andf [step gal, prm (FOL.neg (base gal)), FOL.andfL others stay]
-      }
+intersections vars =
+  \case
+    [] -> error "assert: list of lemmas cannot be empty"
+    lem:lemr
+      | any ((/= prime lem) . prime) lemr -> error "assert: prime has to be the same"
+      | otherwise ->
+        let lemmas = lem : lemr
+            prm = primeT vars (prime lem)
+         in AccelLemma
+              { prime = prime lem
+              , base = FOL.andfL lemmas base
+              , conc = FOL.andfL lemmas conc
+              , stay = FOL.andfL lemmas stay
+              , step =
+                  FOL.orfL (singleOut lemmas) $ \(gal, others) ->
+                    FOL.andf [step gal, prm (FOL.neg (base gal)), FOL.andfL others stay]
+              }
   where
-    prm = primeT vars (prime (head lemmas))
-    --
     singleOut :: [a] -> [(a, [a])]
     singleOut = go []
       where
