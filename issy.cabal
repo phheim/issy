@@ -9,6 +9,7 @@ library
   ghc-options:
     -Wall
     -Wno-name-shadowing
+    -Wno-x-partial
     -Werror
     -Wwarn=unused-imports
     -Wwarn=unused-matches

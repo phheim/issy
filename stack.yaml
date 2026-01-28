@@ -1,8 +1,8 @@
-resolver: lts-22.41
+resolver: lts-24.29
 flags: {}
 extra-deps:
   - git: https://github.com/phheim/hanoi.git
     commit: 12167c810e4c9dbbe38e44c273677b4e89cf2b57
   - git: https://github.com/phheim/tsltools.git
-    commit: 686da01befd8a442985631c1d164fc1c76c54bbc
+    commit: 8e406d81fd77122f8648ed01ec732c3a057be7a8
 

@@ -6,13 +6,12 @@
 -- License     : The Unlicense
 --
 ---------------------------------------------------------------------------------------------------
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE Safe, LambdaCase #-}
 
 module Issy.Translation.LTL2DOA
   ( translate
   ) where
 
-import qualified Data.List as List (sortOn)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Issy.Prelude
@@ -26,7 +25,7 @@ import Hanoi
   , HOAAcceptanceName(Buchi, ParityMaxOdd, Streett)
   , HOAProperty(COLORED, COMPLETE, DETERMINISTIC)
   )
-import qualified Hanoi as HOA (State, parse, printHOA, states, atomicProps)
+import qualified Hanoi as HOA (State, atomicProps, parse, printHOA, states)
 
 import Issy.Config (ltl2tgba)
 import qualified Issy.Logic.Temporal as TL
