@@ -6,19 +6,15 @@
 -- License     : The Unlicense
 --
 ---------------------------------------------------------------------------------------------------
----------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
 ---------------------------------------------------------------------------------------------------
 module Issy.Logic.CHC
-  ( fromTerm
-  , check
-  , computeMax
+  ( check
   , computeFP
   ) where
 
 ---------------------------------------------------------------------------------------------------
-import Data.Bifunctor (first)
 import Data.Char (isDigit)
 import Data.List (isPrefixOf)
 import Data.Map.Strict (Map, (!?))
@@ -27,9 +23,8 @@ import qualified Data.Set as Set
 import System.Process (readProcessWithExitCode)
 import Text.Read (readMaybe)
 
-import Issy.Config (Config, chcMaxScript, chcMaxTimeOut, chcTimeout, z3cmd)
-
 ---------------------------------------------------------------------------------------------------
+import Issy.Config (Config, chcMaxScript, chcMaxTimeOut, chcTimeout, z3cmd)
 import Issy.Games.Variables (Variables)
 import qualified Issy.Games.Variables as Vars
 import Issy.Logic.FOL (Sort(SBool, SInt), Symbol, Term)
@@ -37,22 +32,6 @@ import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Printers.SMTLib as SMTLib
 import Issy.Utils.Extra (runTO)
 import Issy.Utils.Logging
-
----------------------------------------------------------------------------------------------------
--- Conversion
----------------------------------------------------------------------------------------------------
--- Translation from normal FOL formula to CHC from, is not complete!
-fromTerm :: Term -> ([Term], Term)
-fromTerm = go . FOL.toNNF
-  where
-    go =
-      \case
-        FOL.Func FOL.FOr [arg] -> go arg
-        FOL.Func FOL.FOr (a:args) ->
-          case FOL.toNNF (FOL.neg a) of
-            FOL.Func FOL.FAnd andArgs -> first (andArgs ++) $ go $ FOL.orf args
-            a -> first (a :) $ go $ FOL.orf args
-        conc -> ([], conc)
 
 ---------------------------------------------------------------------------------------------------
 -- CHC solving
@@ -94,15 +73,6 @@ callCHCSolver conf query = do
 ---------------------------------------------------------------------------------------------------
 -- MaxCHC
 ---------------------------------------------------------------------------------------------------
-computeMax :: Config -> Variables -> Symbol -> [([Term], Term)] -> IO (Either String Term)
-computeMax config vars invName constraints
-  | invalidSorts constraints = pure $ Left "found non-integers"
-  | otherwise =
-    fmap (parseFP vars invName)
-      $ callCHCMax config
-      $ encodeFP vars invName
-      $ map encodeConstr constraints
-
 --TODO: this is somewhat ugly and should be removed
 computeFP :: Config -> Variables -> Symbol -> Term -> Term -> IO (Maybe Term)
 computeFP cfg vars fpPred init trans
@@ -131,11 +101,6 @@ callCHCMax cfg query = do
   lgd cfg ["CHCMax-query", query]
   (_, stdout, _) <- readProcessWithExitCode (chcMaxScript cfg) [show (chcMaxTimeOut cfg)] query
   pure stdout
-
-encodeConstr :: ([Term], Term) -> Term
-encodeConstr (prems, conc) =
-  let horn = FOL.func FOL.FImply [FOL.andf prems, conc]
-   in FOL.forAll (Set.toList (FOL.frees horn)) horn
 
 encodeFP :: Variables -> Symbol -> [Term] -> String
 encodeFP vars invName constraints =

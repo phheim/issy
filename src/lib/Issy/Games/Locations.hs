@@ -64,11 +64,12 @@ add locs name =
   ( Loc (cnt locs)
   , Store {cnt = cnt locs + 1, names = Map.insert (Loc (cnt locs)) name (names locs)})
 
--- | 'name' returns the name of a location in a store
+-- | 'name' returns the name of a location in a store. If the location is
+-- not inside the store, this will fail.
 name :: Store -> Loc -> String
 name locs l =
   case names locs !? l of
-    Nothing -> error $ "Could not find location name of " ++ show l
+    Nothing -> error $ "assert: could not find location name of " ++ show l
     Just str -> str
 
 -- | 'toString' creates a unique string for a location in a store

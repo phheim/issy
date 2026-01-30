@@ -1,32 +1,34 @@
 ---------------------------------------------------------------------------------------------------
 -- |
 -- Module      : Issy.Logic.FOL
--- Description : TODO DOCUMENT
+-- Description : Data structures and methods to work with first-order terms and logic
 -- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
 --
+-- This module provides an interface to work with first-order logic and terms. This includes
+-- things like symbol handling and normalization. Inside Issy this module should be used to
+-- handle those terms. Note that since almost everything depends on this changes that e.g.
+-- change how certain terms are represented should be done with uttermost care, as some
+-- methods work on the syntactic level. Beyond that, methods should --if possible-- avoid using 
+-- the data structure of 'Term's directly and should (e.g. for construction) use the abstract 
+-- interface.
 ---------------------------------------------------------------------------------------------------
--------------------------------------------------------------------------------
--- |
--- Module       :   FOL
---
--- 'FOL' provides a simple interface for using FOL terms.
---
--------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
--------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
 module Issy.Logic.FOL
-  ( Symbol
+  ( -- Data structures
+    Symbol
   , Function(..)
   , Term(..)
   , Sort(..)
   , Quantifier(..)
   , Constant(..)
-  , predefined
+  , -- Functions lists
+    predefined
   , booleanFunctions
   , comparisionFunctions
-  , --
+  , -- Model handling
     Model
   , modelToMap
   , emptyModel
@@ -40,7 +42,7 @@ module Issy.Logic.FOL
   , setTerm
   , replaceUF
   , removePref
-  , --
+  , -- Term construction
     forAll
   , exists
   , lambda
@@ -91,7 +93,7 @@ module Issy.Logic.FOL
   , isNumber
   , isInteger
   , isNumericT
-  , --
+  , -- Query methods
     bindings
   , frees
   , sorts
@@ -100,18 +102,18 @@ module Issy.Logic.FOL
   , ufFree
   , symbols
   , nonBoolTerms
-  , --
+  , -- Symbol handling
     uniqueName
   , uniquePrefix
   , unusedName
   , unusedPrefix
-  , --
+  , -- Transformations
     toNNF
   , pushdownQE
-  , underapproxSAT
+  , -- Cheap SMT
+    underapproxSAT
   ) where
 
--------------------------------------------------------------------------------
 import Data.Bifunctor (first, second)
 import Data.List (isPrefixOf)
 import Data.Map (Map, (!?))
@@ -122,21 +124,27 @@ import qualified Data.Set as Set
 
 import Issy.Logic.Propositional hiding (NNF, toNNF)
 
--------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
 type Symbol = String
 
+---------------------------------------------------------------------------------------------------
+-- Data Structures
+---------------------------------------------------------------------------------------------------
+-- | 'Sort' represents Sorts, i.e. types in the SMT world
 data Sort
   = SBool
+  -- ^ values of this sort are booleans, i.e. true and false
   | SInt
+  -- ^ values of this sort are integers, as in LIA
   | SReal
+  -- ^ values of this sort are reals, as in LRA
   | SFunc [Sort] Sort
+  -- ^ values of this sort are functions that map arguments from
+  -- the given sorts to values of the single resulting sort, note
+  -- that while this data structure allows to represent higher-order 
+  -- functions other parts of the implementation will probably not
+  -- support those
   deriving (Eq, Ord, Show)
-
-isFuncSort :: Sort -> Bool
-isFuncSort =
-  \case
-    SFunc _ _ -> True
-    _ -> False
 
 data Function
   = CustomF Symbol [Sort] Sort
@@ -262,7 +270,7 @@ inlineModel (Model m) v =
 sanitizeModel :: Set Symbol -> Model -> Model
 sanitizeModel frees (Model m) = foldl inlineModel (Model m) (Map.keysSet m `Set.difference` frees)
 
--------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
 betaReduce :: Term -> Term -> Term
 betaReduce func arg =
   case func of
@@ -390,7 +398,7 @@ replaceUF name argVars body = go
         Const c -> Const c
         Var v t -> Var v t
 
--------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
 true :: Term
 true = Const (CBool True)
 
@@ -493,7 +501,7 @@ exists vars f = quantifyL (bindings f !?) Exists f vars
 lambda :: Symbol -> Sort -> Term -> Term
 lambda v s t = Lambda s (quantify v t)
 
--------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
 quantifierFree :: Term -> Bool
 quantifierFree =
   \case
@@ -573,7 +581,7 @@ nonBoolTerms =
       | otherwise -> Set.singleton $ Func f args
     f -> Set.singleton f
 
--------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
 uniqueName :: Symbol -> Set Symbol -> Symbol
 uniqueName = uniquePrefix
 
@@ -599,7 +607,7 @@ removePref pref =
       then drop (length pref) v
       else v
 
--------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
 var :: Symbol -> Sort -> Term
 var = Var
 
@@ -724,6 +732,12 @@ isInteger =
     Func FDivInt _ -> True
     _ -> False
 
+isFuncSort :: Sort -> Bool
+isFuncSort =
+  \case
+    SFunc _ _ -> True
+    _ -> False
+
 leqT :: Term -> Term -> Term
 leqT (Const (CInt a)) (Const (CInt b)) = boolConst (a <= b)
 leqT (Const (CInt a)) (Const (CReal b)) = boolConst ((a % 1) <= b)
@@ -817,9 +831,10 @@ invT =
 isNumber :: Sort -> Bool
 isNumber = (`elem` [SInt, SReal])
 
----
--- Translation to NNF
----
+---------------------------------------------------------------------------------------------------
+-- Transformations
+---------------------------------------------------------------------------------------------------
+-- | TODO document and relate to other toNNF function
 toNNF :: Term -> Term
 toNNF =
   \case
@@ -847,6 +862,7 @@ pushdownQE =
     Func f args -> Func f (map pushdownQE args)
     term -> term
 
+-- TODO: implement
 --typeCheck :: Term -> Either String Sort
 --typeCheck = go (const Nothing)
 --    where

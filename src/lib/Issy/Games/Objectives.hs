@@ -56,7 +56,7 @@ data WinningCondition
    -- ^ coBüchi winning condition with location that form some point on should
    -- never be left (i.e. F G set)
   | Parity (Map Loc Word)
-   -- ^ Parity winning condition with coloring Omega. The system wins if the
+   -- ^ parity winning condition with coloring Omega. The system wins if the
    -- maximal color visited infinitely often is even
   deriving (Eq, Ord, Show)
 
@@ -99,7 +99,7 @@ toTemporalLogic encLoc obj =
    in TL.And [TL.Atom (encLoc (initialLoc obj)), encWC]
   where
     encSet = TL.Or . map (TL.Atom . encLoc) . Set.toList
-    encParity [] = error "assert: Objective should not be empty"
+    encParity [] = error "assert: objective should not be empty"
     encParity [(col, locs)]
       | even col = TL.globally $ TL.eventually $ encSet locs
       | otherwise = TL.eventually $ TL.globally $ TL.Not $ encSet locs
