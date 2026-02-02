@@ -41,7 +41,7 @@ module Issy.Compiler.Base
 ---------------------------------------------------------------------------------------------------
 -- Positions
 ---------------------------------------------------------------------------------------------------
--- | 'Pos' is the position inside an input string. It is composed of the line number and
+-- | The position inside an input string. It is composed of the line number and
 -- the position within this line. The count of both positions starts with one.
 data Pos = Pos
   { lineNum :: Int
@@ -85,7 +85,7 @@ perrGen = Left . ("Compiler error : " ++)
 ---------------------------------------------------------------------------------------------------
 -- Tokens
 ---------------------------------------------------------------------------------------------------
--- | 'Token' represents a token while parsing. A token has a value (which is a string)
+-- | Represents a token while parsing. A token has a value (which is a string)
 -- and a position for error tracking.
 data Token = Token
   { tpos :: Pos
@@ -96,7 +96,7 @@ data Token = Token
   -- that represents this token
   } deriving (Eq, Ord, Show)
 
--- | 'token' create a 'Token'. The position of the token should be the position of
+-- | Creates a token. The position of the token should be the position of
 -- the first character of content string.
 token :: Pos -> String -> Token
 token p s = Token {tpos = p, tval = s}
@@ -107,7 +107,7 @@ token p s = Token {tpos = p, tval = s}
 -- | Representation of the full AST of a issy-format specification
 type AstSpec = [AstDef]
 
--- | 'AstDef' is the AST representation of a definition in an specification
+-- | The AST representation of a definition in an specification
 data AstDef
   = AstVar AstIO AstSort String
   -- ^ this is a input or state variable definition

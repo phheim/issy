@@ -42,7 +42,7 @@ import Issy.Logic.FOL (Term)
 import qualified Issy.Logic.FOL as FOL
 
 ---------------------------------------------------------------------------------------------------
--- | 'Interval' represents an interval
+-- | Representation of an interval
 data Interval = Interval
   { upper :: UBound
   , lower :: LBound
@@ -224,7 +224,7 @@ gtUpp intv term =
       | eq -> term `FOL.gtT` FOL.numberT bound
       | otherwise -> term `FOL.geqT` FOL.numberT bound
 
--- | 'isInside' generates the 'Term' that a given 'Term' is inside the 'Interval'
+-- | Generates the 'Term' that a given 'Term' is inside the interval
 isInside :: Term -> Interval -> Term
 isInside t intv =
   case isSingleton intv of

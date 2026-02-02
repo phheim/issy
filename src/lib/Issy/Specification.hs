@@ -5,6 +5,7 @@
 -- Copyright   : (c) Philippe Heim, 2025
 -- License     : The Unlicense
 --
+-- TODO DOCUMENT
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe #-}
 

@@ -3,9 +3,10 @@
 -- Module      : Issy.Prelude
 -- Description : Re-export and basic functions used through the Issy project to clean up the
 --               import in most modules
--- Copyright   : (c) Philippe Heim, 2025
+-- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
---
+-- 
+-- TODO DOCUMENT
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe #-}
 
@@ -72,6 +73,7 @@ module Issy.Prelude
     die
   ) where
 
+---------------------------------------------------------------------------------------------------
 import Issy.Config (Config, debug, setName)
 
 import Issy.Logic.FOL (Function, Model, Sort, Symbol, Term)
@@ -98,3 +100,4 @@ import Data.Tuple (swap)
 import Control.Monad ((<=<), (>=>), filterM, foldM, unless, when)
 
 import System.Exit (die)
+---------------------------------------------------------------------------------------------------

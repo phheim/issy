@@ -32,7 +32,7 @@ import qualified Issy.Logic.Temporal as TL
 import Issy.Utils.Extra (invertMap)
 
 ---------------------------------------------------------------------------------------------------
--- | An 'Objective' is a pair of a winning condition and an initial location. The winning
+-- | An objective is a pair of a winning condition and an initial location. The winning
 -- condition, is the winning condition which for the system player and has to hold for all
 -- plays that start from the initial location in order for the system player to win.
 data Objective = Objective
@@ -77,14 +77,14 @@ mapWC mapSet mapMap =
 mapLoc :: (Loc -> Loc) -> WinningCondition -> WinningCondition
 mapLoc mp = mapWC (Set.map mp) (Map.mapKeys mp)
 
--- | 'isSafety' determines whether an 'Objective' has a safety winning condition
+-- | 'isSafety' determines whether an objective has a safety winning condition
 isSafety :: Objective -> Bool
 isSafety obj =
   case winningCond obj of
     Safety _ -> True
     _ -> False
 
--- | 'toTemporalLogic' encodes an 'Objective' into a temporal logic formula,
+-- | 'toTemporalLogic' encodes an objective into a temporal logic formula,
 -- given an encoding for the locations in the objective. Note that this
 -- encoding is the straightforward one without any sophisticated optimizations.
 toTemporalLogic :: (Loc -> a) -> Objective -> TL.Formula a

@@ -37,7 +37,7 @@ import qualified Issy.Logic.SMT as SMT
 import qualified Issy.Printers.SMTLib as SMTLib (toString)
 
 ---------------------------------------------------------------------------------------------------
--- | 'AccelLemma' represents a (simple or general) acceleration lemma
+-- | Representation of a (simple or general) acceleration lemma
 data AccelLemma = AccelLemma
   { base :: Term
   -- ^ 'base' is the base starting set

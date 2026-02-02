@@ -5,6 +5,7 @@
 -- Copyright   : (c) Philippe Heim, 2025
 -- License     : The Unlicense
 --
+-- TODO DOCUMENT
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe #-}
 
@@ -55,7 +56,7 @@ import Issy.Monitor.Successors (generateSuccessor)
 import qualified Issy.Printers.SMTLib as SMTLib
 
 ---------------------------------------------------------------------------------------------------
--- | 'initializeRPLTL' creates as 'Monitor' for RPLTL formula specifications. In order to used the
+-- | 'initializeRPLTL' creates as monitor for RPLTL formula specifications. In order to used the
 -- monitor its transitions and verdict have to be computed.
 initializeRPLTL :: Config -> TL.Spec RPLTL.Atom -> IO Monitor
 initializeRPLTL cfg spec = do
@@ -71,7 +72,7 @@ initializeRPLTL cfg spec = do
     preds
 
 ---------------------------------------------------------------------------------------------------
--- | 'initializeTSL' creates as 'Monitor' for TSLMT formula specifications. In order to used the
+-- | 'initializeTSL' creates as monitor for TSLMT formula specifications. In order to used the
 -- monitor its transitions and verdict have to be computed.
 initializeTSL :: Config -> TL.Spec TSL.Atom -> IO Monitor
 initializeTSL cfg spec = do

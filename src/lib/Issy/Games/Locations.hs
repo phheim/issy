@@ -5,9 +5,9 @@
 -- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
 --
--- This module provides an abstraction of game-graph locations. The locations are
--- provided by a type 'Loc'. These locations are always in the context of locations
--- 'Store' which is then usually a part of the game-graph. Note that locations from
+-- This module provides an abstraction of game-graph locations.
+-- These locations are always in the context of a location stores,
+-- which is then usually a part of the game-graph. Note that locations from
 -- different stores can be equal. Hence, it is up to the user to ensure that locations
 -- are only used within their respective context.
 ---------------------------------------------------------------------------------------------------
@@ -33,18 +33,18 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 
 ---------------------------------------------------------------------------------------------------
--- | 'Loc' is a location which has to be interpreted in the context of a 'Store'.
+-- | A location which has to be interpreted in the context of a locations store
 newtype Loc =
   Loc Integer
   deriving (Eq, Ord, Show)
 
--- | 'Store' provides the context for a set of locations used by  a game arena
+-- | The location store is the context for a set of locations used by a game arena
 data Store = Store
   { cnt :: Integer
   , names :: Map Loc String
   } deriving (Eq, Ord, Show)
 
--- | 'empty' is a location 'Store' without any locations
+-- | 'empty' is a location store without any locations
 empty :: Store
 empty = Store {cnt = 0, names = Map.empty}
 

@@ -5,8 +5,8 @@
 -- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
 --
--- This module translates LTL formula to deterministic omega-automata ('DOA') using
--- Spots ltl2tgba tool. This includes generating a 'DOA' from the HOA omega automaton
+-- This module translates LTL formula to deterministic omega-automata ('DOA.DOA') using
+-- Spots ltl2tgba tool. This includes generating a 'DOA.DOA' from the HOA omega automaton
 -- format. Therefore, this module uses the Hanoi library to parse HOA automata.
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}

@@ -33,21 +33,21 @@ data Prop a
   | PNot (Prop a)
   deriving (Eq, Ord, Show)
 
--- | 'DNF' represents a formula in disjunctive normal form over propositions, as
+-- | A formula in disjunctive normal form over propositions, as
 -- list (disjunction) of lists (conjunctions) of literals. A negative boolean value represents
 -- a negated literal.
 newtype DNF a =
   DNF [[(Bool, a)]]
   deriving (Eq, Ord, Show)
 
--- | 'CNF' represents a formula in conjunctive normal form over propositions, as
+-- | A formula in conjunctive normal form over propositions, as
 -- list (conjunction) of lists (disjunctions) of literals. A negative boolean value represents
 -- a negated literal.
 newtype CNF a =
   CNF [[(Bool, a)]]
   deriving (Eq, Ord, Show)
 
--- | The 'Propositional' class represent types that can have a top-level propositional logic
+-- | This class represent types that can have a top-level propositional logic
 -- structure, i.e. are semantically Boolean combinations of their own type.
 class Propositional p where
   -- | 'toProp' unfolds the boolean structure from the type as 'Prop'. Note that this must
@@ -57,18 +57,18 @@ class Propositional p where
   -- | 'fromProp' refolds the explicit structure from 'Prop' back into the original type
   fromProp :: Prop p -> p
 
--- | 'toCNF' transforms the top-level boolean structure of 'Propositional' objects to 'CNF'
+-- | 'toCNF' transforms the top-level boolean structure of 'Propositional' objects to CNF
 toNNF :: Propositional a => a -> NNF a
 toNNF = propToNNF . toProp
 
 normNNF :: Propositional a => a -> a
 normNNF = fromProp . nnfToProp . toNNF
 
--- | 'toDNF' transforms the top-level boolean structure of 'Propositional' objects to 'DNF'
+-- | 'toDNF' transforms the top-level boolean structure of 'Propositional' objects to 'DNF
 toDNF :: Propositional a => a -> DNF a
 toDNF = nnfToDNF . toNNF
 
--- | 'toCNF' transforms the top-level boolean structure of 'Propositional' objects to 'CNF'
+-- | 'toCNF' transforms the top-level boolean structure of 'Propositional' objects to CNF
 toCNF :: Propositional a => a -> CNF a
 toCNF = nnfToCNF . toNNF
 

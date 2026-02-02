@@ -1,12 +1,11 @@
 ---------------------------------------------------------------------------------------------------
 -- |
 -- Module      : Issy.Config
--- Description : Central configuration for Issy.
--- Copyright   : (c) Philippe Heim, 2025
+-- Description : Central configuration for Issy
+-- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
 --
 -- This module contains all runtime configuration options that Issy offers.
---
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe #-}
 
@@ -18,7 +17,7 @@ module Issy.Config
   ) where
 
 ---------------------------------------------------------------------------------------------------
--- | 'Config' is the data type for the different configuration options of Issy
+-- | The data type for the different configuration options of Issy
 data Config = Config
   { logName :: String
   -- ^ Prefix for log messages indicating the current subpart.
@@ -134,7 +133,7 @@ defaultConfig =
     }
 
 ---------------------------------------------------------------------------------------------------
--- 'setName' changes the current sub-part for logging. It should be called by the respective
+-- | 'setName' changes the current sub-part for logging. It should be called by the respective
 -- sub-part of the code.
 setName :: String -> Config -> Config
 setName name conf =

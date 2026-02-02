@@ -5,7 +5,7 @@
 -- Copyright   : (c) Philippe Heim, 2025
 -- License     : The Unlicense
 --
--- This module implements a simple Queue with amortized runtime.
+-- This module implements a simple queue with amortized runtime.
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
@@ -26,7 +26,7 @@ import qualified Data.List.NonEmpty as LNE
 import Prelude hiding (null)
 
 ---------------------------------------------------------------------------------------------------
--- | 'Queue' is a simple FIFO queue over arbitrary elements. In used a input stack to get an
+-- | A simple FIFO queue over arbitrary elements. In used a input stack to get an
 -- amortized running time that is better than one would have by using a list.
 newtype Queue a =
   Queue ([a], [a])
@@ -35,30 +35,30 @@ newtype Queue a =
 instance Functor Queue where
   fmap f (Queue (outS, insS)) = Queue (fmap f outS, fmap f insS)
 
--- | 'null' indicates if a 'Queue' is empty.
+-- | 'null' indicates if a queue is empty.
 null :: Queue a -> Bool
 null =
   \case
     Queue ([], []) -> True
     _ -> False
 
--- | 'empty' is the empty 'Queue'.
+-- | 'empty' is the empty queue.
 empty :: Queue a
 empty = Queue ([], [])
 
--- | 'fromList' creates 'Queue' from a list. The elements are popped in the order
+-- | 'fromList' creates queue from a list. The elements are popped in the order
 -- in which they appear in the list.
 fromList :: [a] -> Queue a
 fromList xs = Queue (xs, [])
 
--- | 'push' appends an element to the 'Queue'. The runtime is O(1).
+-- | 'push' appends an element to the queue. The runtime is O(1).
 push :: a -> Queue a -> Queue a
 push a =
   \case
     Queue ([], []) -> Queue ([a], [])
     Queue (outS, inpS) -> Queue (outS, a : inpS)
 
--- | 'pushs' appends elements of list to a 'Queue' in the order of the list.
+-- | 'pushs' appends elements of list to a queue in the order of the list.
 -- The runtime is O(|xs|) where xs is the input list.
 pushs :: [a] -> Queue a -> Queue a
 pushs = flip $ foldl (flip push)

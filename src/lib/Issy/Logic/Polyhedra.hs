@@ -177,7 +177,7 @@ data Polyhedron = Polyhedron
     -- | TODO: this FOR SURE needs a semantic definition
   } deriving (Show)
 
--- | 'fullP' generate the 'Polyhedron' that includes the entire space of
+-- | 'fullP' generate the polyhedron that includes the entire space 
 fullP :: [(Symbol, Sort)] -> Polyhedron
 fullP vorder = Polyhedron {varOrder = vorder, linearConstraints = LTLeaf}
 

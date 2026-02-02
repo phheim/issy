@@ -49,7 +49,7 @@ rpltlToltlMap formula =
       ap2atoms = Map.fromList (map swap atomsAP)
    in ((atoms2ap !), (ap2atoms !))
 
--- | translates the 'DOA' into the game
+-- | translates the DOA into the game
 doa2game :: Variables -> (String -> Term) -> DOA.DOA String -> (Arena, Objective)
 doa2game vars atomOf doa =
   let arena0 = SG.empty vars

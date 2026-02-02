@@ -35,26 +35,25 @@ import Issy.Utils.Extra (allM)
 ---------------------------------------------------------------------------------------------------
 -- Definitions
 ---------------------------------------------------------------------------------------------------
--- | 'EnfSt' holds a global state of the enforcement summary computation. It contains successful
+-- | Global state of the enforcement summary computation. It contains successful
 -- and failed attempts for computing enforcement summaries.
 data EnfSt = EnfSt
   { summaries :: [(SummaryKey, SummaryContent)]
   , failed :: [SummaryKey]
   }
 
--- | 'empty' is the initial 'EnfSt' state
+-- | 'empty' is the initial enforcement-summary state
 empty :: EnfSt
 empty = EnfSt {summaries = [], failed = []}
 
--- | 'SummaryKey' describes the sub-arena and player for a (potential) enforcement summary
+-- | The sub-arena and player for a (potential) enforcement summary
 data SummaryKey = SummaryKey
   { sumPlayer :: Player
   , sumArena :: Arena
   , sumLoc :: Loc
   }
 
--- | 'SummaryContent' is the actual summary. To be sound a 'SummaryContent' need a matching
--- 'SummaryKey'
+-- | This is the actual summary. To be sound it need a matching SummaryKey
 data SummaryContent = SummaryContent
   { metaVars :: [(Symbol, Sort)]
   , enforcable :: Term
