@@ -54,7 +54,7 @@ doa2game vars atomOf doa =
         case DOA.acceptance doa of
           DOA.Safety safe -> Obj.Safety $ Set.map mapState safe
           DOA.Buechi rep -> Obj.Buechi $ Set.map mapState rep
-          DOA.Parity color -> Obj.Parity $ Map.mapKeys mapState color
+          DOA.ParityMaxOdd color -> Obj.Parity $ Map.mapKeys mapState color
    in (arena2, Objective {initialLoc = init, winningCond = wc})
   where
     addTrans mapState arena s =

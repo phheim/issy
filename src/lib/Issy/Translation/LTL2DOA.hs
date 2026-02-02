@@ -198,7 +198,7 @@ parityDOAAccept fromState hoa colorCount
 
 parityAccept :: (HOA.State -> DOA.State) -> HOA -> Map AcceptanceSet Word -> DOA.Acceptance
 parityAccept fromState hoa parity =
-  DOA.Parity
+  DOA.ParityMaxOdd
     $ Map.fromList
     $ flip map (HOA.states hoa)
     $ \st ->
