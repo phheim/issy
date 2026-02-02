@@ -117,7 +117,7 @@ firstLine str =
 
 -- | Concatenates a list of 'String's with adding a separator between each of them. For example,
 -- 'inbetween "," ["a", "b", "c"] == "a,b,c"'
-inbetween :: String -> [String] -> String -- TODO: check usage!
+inbetween :: String -> [String] -> String
 inbetween sep =
   \case
     [] -> []
@@ -127,7 +127,7 @@ inbetween sep =
 -- | Encloses a string into some kind of brackets specified by the 'Char'. Currently
 -- '()[]{}' are supported for proper enclosure. If the 'Char' is not in this list,
 -- then it will be appended and prepended to the String.
-enclose :: Char -> String -> String -- TODO: check usage!
+enclose :: Char -> String -> String
 enclose c str =
   case c of
     '(' -> "(" ++ str ++ ")"
@@ -139,7 +139,7 @@ enclose c str =
     _ -> c : str ++ [c]
 
 -- | Works like 'inbetween' and encloses the result in parenthesis.
-paraInbetween :: String -> [String] -> String -- TODO: check usage!
+paraInbetween :: String -> [String] -> String
 paraInbetween sep elems = enclose '(' (inbetween sep elems)
 
 ---------------------------------------------------------------------------------------------------
