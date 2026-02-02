@@ -23,12 +23,11 @@ lint:
 	${LINTING} src/*/*/*/*.hs
 	${LINTING} src/*/*/*/*/*.hs
 
-doc-gen:
+documentation:
 	stack haddock --haddock-internal --only-locals
-
-doc-open:
-	@echo "Open ${DOCPATH}/index.html"
-	@xdg-open ${DOCPATH}/index.html
+	@echo ""
+	@echo "== Open the following link in your browser =="
+	@echo "${DOCPATH}/index.html"
 
 STATIC_DIR=containers/static-build
 static:
