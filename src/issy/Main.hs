@@ -59,17 +59,18 @@ main = do
       (ToGame, TSLMT) -> printRPG <$> (tslToRPG cfg =<< parseTSL input)
       (Solve, LowLevel) ->
         printRes cfg
-          =<< (solve cfg emptyStats . fromSG)
+          =<< (solve cfg (emptyStats cfg) . fromSG)
           =<< specToSG cfg
           =<< getSpec cfg input LowLevel
       (Solve, HighLevel) ->
         printRes cfg
-          =<< (solve cfg emptyStats . fromSG)
+          =<< (solve cfg (emptyStats cfg) . fromSG)
           =<< specToSG cfg
           =<< getSpec cfg input HighLevel
-      (Solve, RPG) -> printRes cfg =<< (solve cfg emptyStats . fromRPG) =<< liftErr (parseRPG input)
+      (Solve, RPG) ->
+        printRes cfg =<< (solve cfg (emptyStats cfg) . fromRPG) =<< liftErr (parseRPG input)
       (Solve, TSLMT) -> do
-        printRes cfg =<< (solve cfg emptyStats . fromRPG) =<< tslToRPG cfg =<< parseTSL input
+        printRes cfg =<< (solve cfg (emptyStats cfg) . fromRPG) =<< tslToRPG cfg =<< parseTSL input
       (EncodeTSLMT, RPG) -> uncurry rpgToTSLT <$> liftErr (parseRPG input)
       (EncodeTSLMT, _) -> die "invalid arguments: can only encode RPGs to TSLMT at the moment"
       (EncodeTSLMTLissy, TSLMT) ->

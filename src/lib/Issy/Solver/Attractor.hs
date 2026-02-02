@@ -49,8 +49,8 @@ data SolSt = SolSt
   , enfst :: EnfSt
   }
 
-emptySolSt :: SolSt
-emptySolSt = SolSt {stats = Stats.emptyStats, enfst = EnfSum.empty}
+emptySolSt :: Stats -> SolSt
+emptySolSt stats = SolSt {stats = stats, enfst = EnfSum.empty}
 
 type StopCheck = Maybe (Loc -> SymSt -> IO Bool)
 
@@ -173,7 +173,7 @@ accelStep conf ast loc = do
 
 accelAttractor :: Maybe Int -> Config -> Player -> Arena -> SymSt -> IO (SymSt, SyBo)
 accelAttractor limit conf player arena reach =
-  attrState conf emptySolSt Nothing limit player arena reach
+  attrState conf (emptySolSt (Stats.emptyStats conf)) Nothing limit player arena reach
     >>= accelAttr conf
     >>= attrResult conf <&> (\(reach, _, prog) -> (reach, prog))
 
@@ -271,8 +271,11 @@ instance AttrSt AttrState where
 
 instance AccAttrSt AttrState where
   markAccelTry loc ast =
-    ast {stStats = Stats.accel (stStats ast), accelsIn = Map.insertWith (+) loc 1 (accelsIn ast)}
-  markAccelSuc _ ast = ast {stStats = Stats.accelSucc (stStats ast)}
+    ast
+      { stStats = Stats.statCnt "Acceleration Attempts" (stStats ast)
+      , accelsIn = Map.insertWith (+) loc 1 (accelsIn ast)
+      }
+  markAccelSuc _ ast = ast {stStats = Stats.statCnt "Acceleration Success" (stStats ast)}
   doAccel loc = visits2accel . visitCnt loc
   markEnforcementChange loc ast =
     case history ast !? loc of
@@ -293,7 +296,7 @@ instance AccAttrSt AttrState where
 instance AccSumAttrSt AttrState where
   getEnfst = stEnfst
   setEnfst enfst ast = ast {stEnfst = enfst}
-  markSumApp _ ast = ast {stStats = Stats.summaryApp (stStats ast)}
+  markSumApp _ ast = ast {stStats = Stats.statCnt "Summary Applications" (stStats ast)}
 
 attrState :: Config -> SolSt -> StopCheck -> Maybe Int -> Player -> Arena -> SymSt -> IO AttrState
 attrState conf solst stopCheck visitLimit player arena reach = do

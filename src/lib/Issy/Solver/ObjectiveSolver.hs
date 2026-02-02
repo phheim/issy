@@ -27,6 +27,7 @@ import Issy.Solver.GameInterface
 import Issy.Solver.Synthesis (SyBo)
 import qualified Issy.Solver.Synthesis as Synt
 import Issy.Statistics (Stats)
+import qualified Issy.Statistics as Stats
 
 ---------------------------------------------------------------------------------------------------
 -- Overall Solving
@@ -35,7 +36,7 @@ solve :: Config -> Stats -> (Arena, Objective) -> IO (Bool, Stats, Maybe (IO Str
 solve conf stat (arena, obj) = do
   conf <- pure $ setName "Solve" conf
   let init = initialLoc obj
-  let solst = emptySolSt {stats = stat}
+  let solst = emptySolSt $ registerStats stat
   (res, solst, prog) <-
     case winningCond obj of
       Reachability ls -> solveReach conf solst arena ls init
@@ -47,6 +48,12 @@ solve conf stat (arena, obj) = do
         | res && generateProgram conf = Just $ Synt.extractProg conf init prog
         | otherwise = Nothing
   pure (res, stats solst, progStr)
+
+registerStats :: Stats -> Stats
+registerStats =
+  Stats.registerCnt "Acceleration Attempts"
+    . Stats.registerCnt "Acceleration Success"
+    . Stats.registerCnt "Summary Applications"
 
 ---------------------------------------------------------------------------------------------------
 -- Safety and reachability solving
