@@ -1,10 +1,12 @@
 ---------------------------------------------------------------------------------------------------
 -- |
 -- Module      : Issy.Translation
--- Description : Procedures to translate specifications to their respective one-game representation
--- Copyright   : (c) Philippe Heim, 2025
+-- Description : Translations of specifications to game representations
+-- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
 --
+-- This module provides different translations from formulas and general mixed-type
+-- specifications into other specifications or single-game representations.
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe #-}
 
@@ -35,7 +37,11 @@ import qualified Issy.Translation.TSL2RPG as TSL2RPG
 import Issy.Translation.TSL2RPLTL (tslToRPLTL)
 
 ---------------------------------------------------------------------------------------------------
--- | DOCUMENT
+-- | Translates a general specification, which possibly contains multiple games and formuals,
+-- into a single symbolic game (i.e. an symbolic arena and an objective). Note that the
+-- specification is assume to only have one none-safety part and this translation is 'undefined'
+-- otherwise. Depending on the flags in the configuration monitor pruning might be invoked.
+-- If formuals are in the specification, ltl2tgba is called as an external tool.
 specToSG :: Config -> Spec.Specification -> IO (SG.Arena, Objective)
 specToSG cfg spec = do
   translatedGames <- mapM (rpltlToSG cfg) (Spec.formulas spec)
@@ -55,7 +61,8 @@ rpltlToSG cfg spec = do
     else return (arena, obj)
 
 ---------------------------------------------------------------------------------------------------
--- | DOCUMENT
+-- | Translates a TSL specification into a reactive program game. Depending on the flags in
+-- the configuration monitor pruning might be invoked. Also, the external tool ltl2tgba is called.
 tslToRPG :: Config -> TL.Spec TSLMT.Atom -> IO (RPG.Game, Objective)
 tslToRPG cfg spec = do
   (game, obj) <- TSL2RPG.tsl2rpg cfg spec

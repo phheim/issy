@@ -1,17 +1,20 @@
 ---------------------------------------------------------------------------------------------------
 -- |
 -- Module      : Issy.Translation.TSL2RPG
--- Description : TODO DOCUMENT
+-- Description : Translation of TSL to Reactive Program Games
 -- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
 --
+-- This module implements the translation from TSL specifications to Reactive Program Games.
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
+---------------------------------------------------------------------------------------------------
 module Issy.Translation.TSL2RPG
   ( tsl2rpg
   ) where
 
+---------------------------------------------------------------------------------------------------
 import Data.Foldable (find)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
@@ -27,6 +30,21 @@ import qualified Issy.Logic.Temporal as TL
 import qualified Issy.Translation.DOA as DOA
 import qualified Issy.Translation.LTL2DOA as LTL2DOA
 import Issy.Utils.Extra (intmapSet)
+
+---------------------------------------------------------------------------------------------------
+-- | Translates a TSL specification into a reactive program game.
+-- During this process the external tool ltl2tgba is called.
+tsl2rpg :: Config -> TL.Spec TSL.Atom -> IO (Game, Objective)
+tsl2rpg cfg spec = do
+  let tsl = TSL.pullBoolF $ TL.toFormula spec
+  let vars = TL.variables spec
+  cfg <- pure $ setName "RPG2TSL" cfg
+  lg cfg ["VARS:", show vars]
+  lg cfg ["TSL:", show tsl]
+  (tsl, ap2str, str2ap) <- pure $ tsl2ltlMap vars tsl
+  doa <- LTL2DOA.translate cfg ap2str tsl
+  lg cfg ["DOA:", show doa]
+  RPG.simplifyRPG cfg $ doa2game vars str2ap doa
 
 updates :: Set TSL.Atom -> Map Symbol (Set Term)
 updates =
@@ -133,16 +151,4 @@ doatran2tran stateVars locOf atomOf = go
     --
     fromUpdate (TSL.Update var term) = (var, term)
     fromUpdate _ = error "fromUpdate applied to TSL.Predicate"
-
-tsl2rpg :: Config -> TL.Spec TSL.Atom -> IO (Game, Objective)
-tsl2rpg cfg spec = do
-  let tsl = TSL.pullBoolF $ TL.toFormula spec
-  let vars = TL.variables spec
-  cfg <- pure $ setName "RPG2TSL" cfg
-  lg cfg ["VARS:", show vars]
-  lg cfg ["TSL:", show tsl]
-  (tsl, ap2str, str2ap) <- pure $ tsl2ltlMap vars tsl
-  doa <- LTL2DOA.translate cfg ap2str tsl
-  lg cfg ["DOA:", show doa]
-  RPG.simplifyRPG cfg $ doa2game vars str2ap doa
 ---------------------------------------------------------------------------------------------------

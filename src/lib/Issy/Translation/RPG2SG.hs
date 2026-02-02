@@ -1,17 +1,20 @@
 ---------------------------------------------------------------------------------------------------
 -- |
 -- Module      : Issy.Translation.RPG2SG
--- Description : TODO DOCUMENT
+-- Description : Encoding of Reactive Program Games as Symbolic Games
 -- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
 --
+-- This module implements an encoding of reactive program games as symbolic games.
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
+---------------------------------------------------------------------------------------------------
 module Issy.Translation.RPG2SG
   ( rpgToSG
   ) where
 
+---------------------------------------------------------------------------------------------------
 import qualified Data.Map.Strict as Map
 import Issy.Prelude
 
@@ -21,6 +24,10 @@ import qualified Issy.Games.SymbolicArena as SG
 import qualified Issy.Games.Variables as Vars
 import qualified Issy.Logic.FOL as FOL
 
+---------------------------------------------------------------------------------------------------
+-- | Implements the translation of the reactive program game as the symbolic game. Note that
+-- since the 'Loc'ations in the arenas change, the 'Objective' has to be translated too. Hence,
+-- do not use the old objective on the new arena.
 rpgToSG :: (RPG.Game, Objective) -> (SG.Arena, Objective)
 rpgToSG (rpg, objRPG) =
   let arena0 = SG.empty $ RPG.variables rpg

@@ -1,17 +1,20 @@
 ---------------------------------------------------------------------------------------------------
 -- |
 -- Module      : Issy.Translation.TSL2RPLTL
--- Description : TODO DOCUMENT
+-- Description : Translation of TSL into RPLTL
 -- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
 --
+-- This module implements a translation from TSL specifications to RPLTL specifications.
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
+---------------------------------------------------------------------------------------------------
 module Issy.Translation.TSL2RPLTL
   ( tslToRPLTL
   ) where
 
+---------------------------------------------------------------------------------------------------
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Issy.Prelude
@@ -22,6 +25,10 @@ import qualified Issy.Logic.SMT as SMT
 import qualified Issy.Logic.TSLMT as TSL
 import qualified Issy.Logic.Temporal as TL
 
+---------------------------------------------------------------------------------------------------
+-- | Encodes a TSL formula as an RPLTL formula. Note that this encoding might need
+-- to add new variables to properly realize TSL's exactly-one-update-per-cell semantic.
+-- In addition, it uses as simple SMT-based simplification to avoid unnecessary encoding parts.
 tslToRPLTL :: Config -> TL.Spec TSL.Atom -> IO (TL.Spec Term)
 tslToRPLTL conf spec = do
   let vars = TL.variables spec

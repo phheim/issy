@@ -1,10 +1,11 @@
 ---------------------------------------------------------------------------------------------------
 -- |
 -- Module      : Issy.Translation.RPLTL2SG
--- Description : TODO DOCUMENT
+-- Description : Translation of RPLTL to symbolic games
 -- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
 --
+-- This module implements the translation from RPLTL to symbolic games.
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe #-}
 
@@ -13,6 +14,7 @@ module Issy.Translation.RPLTL2SG
   ( translate
   ) where
 
+---------------------------------------------------------------------------------------------------
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Issy.Prelude
@@ -28,6 +30,9 @@ import qualified Issy.Translation.DOA as DOA
 import qualified Issy.Translation.LTL2DOA as LTL2DOA
 import Issy.Utils.Extra (intmapSet)
 
+---------------------------------------------------------------------------------------------------
+-- | Translates a RPLTL specification into an symbolic game (i.e. a symbolic arena and a
+-- respective objective). During this process the external tool ltl2tgba is called.
 translate :: Config -> TL.Spec Term -> IO (Arena, Objective)
 translate cfg spec = do
   let formula = RPLTL.pullBoolF $ TL.toFormula spec
@@ -36,6 +41,7 @@ translate cfg spec = do
   lg cfg ["DOA:", show doa]
   SG.simplifySG cfg $ doa2game (TL.variables spec) ap2atoms doa
 
+-- | extract the atoms out for the formula
 rpltlToltlMap :: TL.Formula Term -> (Term -> String, String -> Term)
 rpltlToltlMap formula =
   let atomsAP = intmapSet (\n atom -> (atom, 'a' : show n)) $ TL.atoms formula
@@ -43,6 +49,7 @@ rpltlToltlMap formula =
       ap2atoms = Map.fromList (map swap atomsAP)
    in ((atoms2ap !), (ap2atoms !))
 
+-- | translates the 'DOA' into the game
 doa2game :: Variables -> (String -> Term) -> DOA.DOA String -> (Arena, Objective)
 doa2game vars atomOf doa =
   let arena0 = SG.empty vars
