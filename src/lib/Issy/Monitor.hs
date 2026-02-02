@@ -1,11 +1,12 @@
 ---------------------------------------------------------------------------------------------------
 -- |
 -- Module      : Monitor.Issy
--- Description : Module exposing all functionalities of monitors for RPLTL
--- Copyright   : (c) Philippe Heim, 2025
+-- Description : Monitors for monitor-pruning
+-- Copyright   : (c) Philippe Heim, 2065
 -- License     : The Unlicense
 --
--- TODO DOCUMENT
+-- This module exposes all functionalities of monitors for pruning RPLTL and TSL formulas
+-- upon their translation to games.
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe #-}
 

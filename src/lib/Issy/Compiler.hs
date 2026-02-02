@@ -1,11 +1,11 @@
 ---------------------------------------------------------------------------------------------------
 -- |
 -- Module      : Issy.Compiler
--- Description : Top-level module of the issy's tool issy-format to lissy format compiler
+-- Description : Issy-format to llissy format compiler
 -- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
 --
--- TODO DOCUMENT
+-- This module is top-level module for the issy-format to llissy format compiler.
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe #-}
 
