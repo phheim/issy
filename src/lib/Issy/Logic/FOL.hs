@@ -125,11 +125,12 @@ import qualified Data.Set as Set
 import Issy.Logic.Propositional hiding (NNF, toNNF)
 
 ---------------------------------------------------------------------------------------------------
-type Symbol = String
-
----------------------------------------------------------------------------------------------------
 -- Data Structures
 ---------------------------------------------------------------------------------------------------
+-- | A 'Symbol' is a variable symbol or a function name. Currently this is implemented by
+-- a 'String'.
+type Symbol = String
+
 -- | 'Sort' represents Sorts, i.e. types in the SMT world
 data Sort
   = SBool
@@ -146,45 +147,69 @@ data Sort
   -- support those
   deriving (Eq, Ord, Show)
 
+-- | Enum representation of function symbols
 data Function
   = CustomF Symbol [Sort] Sort
-  -- Boolean functions
+  -- ^ this should be used to represent uninterpreted functions which
+  -- have to be annotated by their type
   | FAnd
+  -- ^ boolean conjunction, (SMTLib "and")
   | FOr
+  -- ^ boolean disjunction, (SMTLib "and")
   | FNot
+  -- ^ boolean negations, (SMTLib "and")
   | FDistinct
+  -- ^ boolean mutual exclusion, (SMTLib "distinct")
   | FImply
-  -- Arithmetic operators
+  -- ^ boolean implication, (SMTLib "=>")
   | FIte
+  -- ^ three-value if-then-else function (SMTLib "ite")
   | FAdd
+  -- ^ arithmetic addition (SMTLib "+")
   | FMul
+  -- ^ arithmetic multiplication (SMTLib "*")
   | FDivReal
+  -- ^ real-value division (SMTLib "/")
   | FEq
+  -- ^ equality (SMTLib "=")
   | FLt
+  -- ^ less-than comparison (SMTLib "<")
   | FLte
+  -- ^ less-than-equal comparison (SMTLib "<=")
   | FAbs
+  -- ^ absolute value (SMTLib "abs")
   | FToReal
+  -- ^ conversion from integers to reals (SMTLib "to_real")
   | FMod
+  -- ^ remainder of integer division (SMTLib "mod")
   | FDivInt
+  -- ^ integer division (SMTLib "div")
   deriving (Eq, Ord, Show)
 
+-- | List of all boolean operation 'Function's
 booleanFunctions :: [Function]
 booleanFunctions = [FAnd, FOr, FNot, FDistinct, FImply]
 
+-- | List of all compression 'Function's
 comparisionFunctions :: [Function]
 comparisionFunctions = [FEq, FLt, FLte]
 
+-- | List of all predefined 'Function's
 predefined :: [Function]
 predefined =
   booleanFunctions
     ++ comparisionFunctions
     ++ [FIte, FAdd, FMul, FDivReal, FAbs, FToReal, FMod, FDivInt]
 
+-- | Enum representation of quantifiers
 data Quantifier
   = Exists
+  -- ^ existential quantifier
   | Forall
+  -- ^ universal quantifier
   deriving (Eq, Ord, Show)
 
+-- | Representation of constant values
 data Constant
   = CInt Integer
   -- ^ this is an integer constant
@@ -194,21 +219,25 @@ data Constant
   -- ^ this is a boolean constant
   deriving (Eq, Ord, Show)
 
+-- | Representation of first-order terms. For quantifiers and lambda 
+-- expression a shared space of de-Bruijn indices is used. Those 
+-- indices start from zero to reference quantifiers/lambda terms
+-- on the current level
 data Term
   = Var Symbol Sort
-  -- ^ 'Var' is a constant variable symbols that is quantified on top-level.
+  -- ^ This is a constant variable symbols that is quantified on top-level.
   -- If not stated otherwise, a solver might assume that it is existentially
   -- quantified.
   | Const Constant
-  -- ^ 'Const' is a constant expression
+  -- ^ This is a constant expression
   | QVar Int
-  -- ^ 'QVar' is a quantified variable that is index with de-Bruijn indexing
+  -- ^ This is a quantified variable that is index with de-Bruijn indexing 
   | Func Function [Term]
-  -- ^ 'Func' represents the application of a function to a list of arguments
+  -- ^ This represents the application of a function to a list of arguments
   | Quant Quantifier Sort Term
-  -- ^ 'Quant' is a de-Bruijn indexed quantifier
+  -- ^ This is a de-Bruijn indexed quantifier
   | Lambda Sort Term
-  -- ^ 'Lambda' is a de-Bruijn indexed lambda-term
+  -- ^ This is a de-Bruijn indexed lambda-term
   deriving (Eq, Ord, Show)
 
 ---------------------------------------------------------------------------------------------------
@@ -238,6 +267,7 @@ instance Propositional Term where
 ---------------------------------------------------------------------------------------------------
 -- Models
 ---------------------------------------------------------------------------------------------------
+-- | Representation of a model for the free variables in a 'Term'
 newtype Model =
   Model (Map Symbol Term)
   deriving (Eq, Ord, Show)
