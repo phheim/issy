@@ -30,12 +30,16 @@ module Issy.Compiler.Base
   , AstWC(..)
   , AstLogicStm(..)
   , AstTF(..)
+  , ATUOP(..)
+  , ATBOP(..)
   , AstGameStm(..)
   , AstTerm(..)
+  , ABUOP(..)
+  , ABBOP(..)
   , AstAtom(..)
   , AstGround(..)
-  , BOP(..)
-  , UOP(..)
+  , AGUOP(..)
+  , AGBOP(..)
   ) where
 
 ---------------------------------------------------------------------------------------------------
@@ -153,81 +157,160 @@ data AstWC
   -- ^ parity (max odd) winning condition
   deriving (Eq, Ord, Show)
 
--- | DOCUMENT
+-- | AST representation of assumptions and assertions (guarantees)
+-- in a temporal logic specification. Note that those are interpreted
+-- as a whole withing one temporal logic specification block
 data AstLogicStm
   = AstAssert Pos AstTF
-  -- ^ DOCUMENT
+  -- ^ temporal logic assertions / guarantees
   | AstAssume Pos AstTF
-  -- ^ DOCUMENT
+  -- ^ temporal logic assumptions
   deriving (Eq, Ord, Show)
 
--- | DOCUMENT
+-- | AST representation of an RPLTL formula
 data AstTF
   = AFAtom Pos AstAtom
-  -- ^ DOCUMENT
-  | AFUexp Pos UOP AstTF
-  -- ^ DOCUMENT
-  | AFBexp Pos BOP AstTF AstTF
-  -- ^ DOCUMENT
+  -- ^ first-order ground terms
+  | AFUexp Pos ATUOP AstTF
+  -- ^ unary temporal-logic expressions
+  | AFBexp Pos ATBOP AstTF AstTF
+  -- ^ binary temporal-logic expressions
   deriving (Eq, Ord, Show)
 
--- | DOCUMENT
+-- | AST enum for unary temporal-logic operators
+data ATUOP
+  = ATUNot
+  -- ^ temporal-logic boolean negation
+  | ATUNext
+  -- ^ temporal-logic next operator
+  | ATUGlobally
+  -- ^ temporal-logic globally operator
+  | ATUEventually
+  -- ^ temporal-logic eventually operator
+  deriving (Eq, Ord, Show)
+
+-- | AST enum for binary temporal-logic operators
+data ATBOP
+  = ATBAnd
+  -- ^ temporal-logic boolean conjunction
+  | ATBOr
+  -- ^ temporal-logic boolean disjunction
+  | ATBImpl
+  -- ^ temporal-logic boolean implication
+  | ATBIff
+  -- ^ temporal-logic boolean equivalence
+  | ATBUntil
+  -- ^ temporal-logic until
+  | ATBWeak
+  -- ^ temporal-logic weak until
+  | ATBRelease
+  -- ^ temporal-logic release
+  deriving (Eq, Ord, Show)
+
+-- | AST representation of statements inside a game block
 data AstGameStm
   = ALoc Pos String Integer AstTerm
-  -- ^ DOCUMENT
+  -- ^ declaration of a location with name, rank (acceptance), and domain
   | ATrans Pos String String AstTerm
-  -- ^ DOCUMENT
+  -- ^ definition of a transition, with source and target location, and transition predicate
   deriving (Eq, Ord, Show)
 
--- | DOCUMENT
+-- | AST representation of boolean (non-temporal) terms that are used inside games
 data AstTerm
   = ATAtom Pos AstAtom
-  -- ^ DOCUMENT
-  | ATBexp Pos BOP AstTerm AstTerm
-  -- ^ DOCUMENT
-  | ATUexp Pos UOP AstTerm
-  -- ^ DOCUMENT
+  -- ^ an atom which itself is ground term (which could again be boolean)
+  | ATBexp Pos ABBOP AstTerm AstTerm
+  -- ^ boolean binary expression
+  | ATUexp Pos ABUOP AstTerm
+  -- ^ boolean unary expression
   deriving (Eq, Ord, Show)
 
--- | DOCUMENT
+-- | AST enum for unary operators in plain boolean terms
+data ABUOP =
+  ABUNot
+  -- ^ boolean negation
+  deriving (Eq, Ord, Show)
+
+-- | AST enum for binary operators in plain boolean terms
+data ABBOP
+  = ABBAnd
+  -- ^ boolean conjunction
+  | ABBOr
+  -- ^ boolean disjunction
+  | ABBImpl
+  -- ^ boolean implication
+  | ABBIff
+  -- ^ boolean equivalence
+  deriving (Eq, Ord, Show)
+
+-- | AST representation of an atom. An atom is one layer above ground terms
+-- to avoid putting boolean constants, variables, and macros as bracketed terms.
+-- This allows enables the "keep" and "havoc" statement.
 data AstAtom
   = AABool Pos Bool
-  -- ^ DOCUMENT
+  -- ^ atom version of a boolean constant
   | AAGround Pos AstGround
-  -- ^ DOCUMENT
+  -- ^ ground term
   | AAVar Pos String
-  -- ^ DOCUMENT
+  -- ^ boolean variable name for input, state, primed state,
+  -- or macro name for boolean macros
   | AAKeep Pos [String]
-  -- ^ DOCUMENT
+  -- ^ keep statement
   | AAHavoc Pos [String]
-  -- ^ DOCUMENT
+  -- ^ havoc statement
   deriving (Eq, Ord, Show)
 
--- | DOCUMENT
+-- | AST representation of ground terms
 data AstGround
   = AConstInt Pos Integer
-  -- ^ DOCUMENT
+  -- ^ integer-value constant
   | AConstReal Pos Rational
-  -- ^ DOCUMENT
+  -- ^ real-value constant
   | AConstBool Pos Bool
-  -- ^ DOCUMENT
+  -- ^ boolean constant
   | AGVar Pos String
-  -- ^ DOCUMENT
-  | AGBexp Pos BOP AstGround AstGround
-  -- ^ DOCUMENT
-  | AGUexp Pos UOP AstGround
-  -- ^ DOCUMENT
+  -- ^ variable name for input, state, primed state, or macro name for term macros
+  | AGBexp Pos AGBOP AstGround AstGround
+  -- ^ binary expression ground term
+  | AGUexp Pos AGUOP AstGround
+  -- ^ unary expression ground term
   deriving (Eq, Ord, Show)
 
--- | DOCUMENT
-newtype BOP =
-  BOP String
-  -- ^ DOCUMENT
+-- | AST enum for ground term unary operators
+data AGUOP
+  = AGUNot
+  -- ^ ground-term boolean negation
+  | AGUMinus
+  -- ^ unary minus operator
+  | AGUAbs
+  -- ^ absolute value operator
   deriving (Eq, Ord, Show)
 
--- | DOCUMENT
-newtype UOP =
-  UOP String
-  -- ^ DOCUMENT
+-- | AST enum for ground term unary operators
+data AGBOP
+  = AGBAnd
+  -- ^ ground-term boolean conjunction
+  | AGBOr
+  -- ^ ground-term boolean disjunction
+  | AGBEq
+  -- ^ equal operator
+  | AGBLt
+  -- ^ less-than operator
+  | AGBGt
+  -- ^ greater-than operator
+  | AGBLte
+  -- ^ less-than-equal operator
+  | AGBGte
+  -- ^ greater-than-equal operator
+  | AGBPlus
+  -- ^ arithmetic addition operator
+  | AGBMinus
+  -- ^ arithmetic subtraction operator
+  | AGBMult
+  -- ^ arithmetic multiplication operator
+  | AGBDiv
+  -- ^ arithmetic division operator
+  | AGBMod
+  -- ^ integer modulo operator
   deriving (Eq, Ord, Show)
 ---------------------------------------------------------------------------------------------------

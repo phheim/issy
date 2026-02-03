@@ -17,30 +17,11 @@ module Issy.Compiler.Parser
 ---------------------------------------------------------------------------------------------------
 import Control.Monad (unless, when)
 import Data.Bifunctor (second)
+import qualified Data.Map as Map
 import Data.Ratio ((%))
 import Text.Read (readMaybe)
 
 import Issy.Compiler.Base
-  ( AstAtom(..)
-  , AstDef(..)
-  , AstGameStm(..)
-  , AstGround(..)
-  , AstIO(..)
-  , AstLogicStm(..)
-  , AstSort(..)
-  , AstSpec
-  , AstTF(..)
-  , AstTerm(..)
-  , AstWC(..)
-  , BOP(..)
-  , PRes
-  , Pos
-  , Token(..)
-  , UOP(..)
-  , perr
-  , perrGen
-  , posStr
-  )
 
 ---------------------------------------------------------------------------------------------------
 -- | 'parse' turns a (linear) list of tokens into the tree shaped AST of a lissy specification
@@ -237,16 +218,15 @@ parseRPLTL =
   parseOps
     pars
     (\t -> apply1 (AFAtom (tpos t)) . parseAtom t)
-    (unPred UOP AFUexp [(["!", "X", "G", "F"], 12)])
+    (unPred AFUexp [([("!", ATUNot), ("X", ATUNext), ("G", ATUGlobally), ("F", ATUEventually)], 12)])
     (binPred
-       BOP
        AFBexp
-       [ (["R"], 0, 1)
-       , (["U"], 3, 2)
-       , (["W"], 5, 4)
-       , (["<->", "->"], 7, 6)
-       , (["||"], 8, 9)
-       , (["&&"], 10, 11)
+       [ ([("R", ATBRelease)], 0, 1)
+       , ([("U", ATBUntil)], 3, 2)
+       , ([("W", ATBWeak)], 5, 4)
+       , ([("<->", ATBIff), ("->", ATBImpl)], 7, 6)
+       , ([("||", ATBOr)], 8, 9)
+       , ([("&&", ATBAnd)], 10, 11)
        ])
     (posStr . tpos)
 
@@ -255,8 +235,14 @@ parseTerm =
   parseOps
     pars
     (\t -> apply1 (ATAtom (tpos t)) . parseAtom t)
-    (unPred UOP ATUexp [(["!"], 8)])
-    (binPred BOP ATBexp [(["<->"], 1, 0), (["->"], 3, 2), (["||"], 4, 5), (["&&"], 6, 7)])
+    (unPred ATUexp [([("!", ABUNot)], 8)])
+    (binPred
+       ATBexp
+       [ ([("<->", ABBIff)], 1, 0)
+       , ([("->", ABBImpl)], 3, 2)
+       , ([("||", ABBOr)], 4, 5)
+       , ([("&&", ABBAnd)], 6, 7)
+       ])
     (posStr . tpos)
 
 parseAtom :: Token -> [Token] -> PRes (AstAtom, [Token])
@@ -309,38 +295,41 @@ parseGroundTerm =
                  _ -> do
                    check isId name (tpos t) "identifier"
                    pure (AGVar (tpos t) name, ts))
-    (unPred UOP AGUexp [(["!"], 5), (["-"], 12), (["abs"], 13)])
+    (unPred AGUexp [([("!", AGUNot)], 5), ([("-", AGUMinus)], 12), ([("abs", AGUAbs)], 13)])
     (binPred
-       BOP
        AGBexp
-       [ (["||"], 0, 1)
-       , (["&&"], 2, 3)
-       , (["=", "<", ">", ">=", "<="], 6, 7)
-       , (["+", "-"], 8, 9)
-       , (["mod", "/", "*"], 10, 11)
+       [ ([("||", AGBOr)], 0, 1)
+       , ([("&&", AGBAnd)], 2, 3)
+       , ([("=", AGBEq), ("<", AGBLt), (">", AGBGt), (">=", AGBGte), ("<=", AGBLte)], 6, 7)
+       , ([("+", AGBPlus), ("-", AGBMinus)], 8, 9)
+       , ([("mod", AGBMod), ("/", AGBDiv), ("*", AGBMult)], 10, 11)
        ])
     (posStr . tpos)
 
 pars :: (Token -> Bool, Token -> Bool)
 pars = ((== "(") . tval, (== ")") . tval)
 
-unPred ::
-     (String -> o) -> (Pos -> o -> e -> e) -> [([String], Word)] -> Token -> Maybe (e -> e, Word)
-unPred opParse op preds t =
-  case filter ((tval t `elem`) . fst) preds of
-    [] -> Nothing
-    (_, p):_ -> Just (op (tpos t) (opParse (tval t)), p)
+unPred :: (Pos -> o -> e -> e) -> [([(String, o)], Word)] -> Token -> Maybe (e -> e, Word)
+unPred op preds =
+  let distr = concatMap (\(ops, p) -> map (\(name, op) -> (name, (op, p))) ops) preds
+      table = Map.fromList distr
+   in \t ->
+        case Map.lookup (tval t) table of
+          Nothing -> Nothing
+          Just (opName, p) -> Just (op (tpos t) opName, p)
 
 binPred ::
-     (String -> o)
-  -> (Pos -> o -> e -> e -> e)
-  -> [([String], Word, Word)]
+     (Pos -> o -> e -> e -> e)
+  -> [([(String, o)], Word, Word)]
   -> Token
   -> Maybe (e -> e -> e, Word, Word)
-binPred opParse op preds t =
-  case filter (\(n, _, _) -> tval t `elem` n) preds of
-    [] -> Nothing
-    (_, pl, pr):_ -> Just (op (tpos t) (opParse (tval t)), pl, pr)
+binPred op preds =
+  let distr = concatMap (\(ops, pl, pr) -> map (\(name, op) -> (name, (op, pl, pr))) ops) preds
+      table = Map.fromList distr
+   in \t ->
+        case Map.lookup (tval t) table of
+          Nothing -> Nothing
+          Just (opName, pl, pr) -> Just (op (tpos t) opName, pl, pr)
 
 -- TODO Move to own module!
 parseOps ::

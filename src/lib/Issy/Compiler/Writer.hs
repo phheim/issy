@@ -112,47 +112,43 @@ writeFormula :: Defs -> AstTF -> String
 writeFormula defs =
   \case
     AFAtom _ atom -> writeAtom (\ap -> sexpr ["ap", ap]) defs atom
-    AFUexp _ (UOP op) f ->
+    AFUexp _ op f ->
       let sop =
             case op of
-              "!" -> "not"
-              "F" -> "F"
-              "G" -> "G"
-              "X" -> "X"
-              _ -> error "assert: this should have been already checked!"
+              ATUNot -> "not"
+              ATUEventually -> "F"
+              ATUGlobally -> "G"
+              ATUNext -> "X"
        in sexpr [sop, writeFormula defs f]
-    AFBexp _ (BOP op) f1 f2 ->
+    AFBexp _ op f1 f2 ->
       let s1 = writeFormula defs f1
           s2 = writeFormula defs f2
           mk ops = sexpr [ops, s1, s2]
        in case op of
-            "&&" -> mk "and"
-            "||" -> mk "or"
-            "U" -> mk "U"
-            "W" -> mk "W"
-            "R" -> mk "R"
-            "->" -> sexpr ["or", sexpr ["not", s1], s2]
-            "<->" ->
+            ATBAnd -> mk "and"
+            ATBOr -> mk "or"
+            ATBUntil -> mk "U"
+            ATBWeak -> mk "W"
+            ATBRelease -> mk "R"
+            ATBImpl -> sexpr ["or", sexpr ["not", s1], s2]
+            ATBIff ->
               sexpr
                 ["and", sexpr ["or", sexpr ["not", s1], s2], sexpr ["or", sexpr ["not", s2], s1]]
-            _ -> error "assert: this should have been already checked!"
 
 writeTerm :: (String -> String) -> Defs -> AstTerm -> String
 writeTerm pref defs =
   \case
     ATAtom _ atom -> writeAtom pref defs atom
-    ATUexp _ (UOP "!") t -> sexpr ["not", writeTerm pref defs t]
-    ATUexp {} -> error "assert: this should have been already checked!"
-    ATBexp _ (BOP op) t1 t2 ->
+    ATUexp _ ABUNot t -> sexpr ["not", writeTerm pref defs t]
+    ATBexp _ op t1 t2 ->
       let s1 = writeTerm pref defs t1
           s2 = writeTerm pref defs t2
           mk ops = sexpr [ops, s1, s2]
        in case op of
-            "&&" -> mk "and"
-            "||" -> mk "or"
-            "->" -> mk "=>"
-            "<->" -> sexpr ["and", sexpr ["=>", s1, s2], sexpr ["=>", s1, s2]]
-            _ -> error "assert: this should have been already checked!"
+            ABBAnd -> mk "and"
+            ABBOr -> mk "or"
+            ABBImpl -> mk "=>"
+            ABBIff -> sexpr ["and", sexpr ["=>", s1, s2], sexpr ["=>", s1, s2]]
 
 writeAtom :: (String -> String) -> Defs -> AstAtom -> String
 writeAtom pref defs =
@@ -178,10 +174,9 @@ keepTerm pos =
   \case
     [] -> ATAtom pos $ AABool pos True
     [x] -> keepVar x
-    x:xr -> ATBexp pos (BOP "&&") (keepVar x) (keepTerm pos xr)
+    x:xr -> ATBexp pos ABBAnd (keepVar x) (keepTerm pos xr)
   where
-    keepVar x =
-      ATAtom pos $ AAGround pos $ AGBexp pos (BOP "=") (AGVar pos x) (AGVar pos (x ++ "'"))
+    keepVar x = ATAtom pos $ AAGround pos $ AGBexp pos AGBEq (AGVar pos x) (AGVar pos (x ++ "'"))
 
 writeGround :: Defs -> AstGround -> String
 writeGround defs =
@@ -196,16 +191,26 @@ writeGround defs =
         Just (ATAtom _ (AAGround _ pred)) ->
           writeGround (defs {macros = Map.delete name (macros defs)}) pred
         _ -> changeName name
-    AGUexp _ (UOP "-") t -> sexpr ["-", "0", writeGround defs t]
-    AGUexp _ (UOP "abs") t -> sexpr ["abs", writeGround defs t]
-    AGUexp _ (UOP "!") t -> sexpr ["not", writeGround defs t]
-    AGUexp {} -> error "assert: this should have been already checked!"
-    AGBexp _ (BOP op) t1 t2
-      | op == "&&" -> sexpr ["and", writeGround defs t1, writeGround defs t2]
-      | op == "||" -> sexpr ["or", writeGround defs t1, writeGround defs t2]
-      | op `elem` [">", "<", "=", "<=", ">=", "+", "-", "*", "/", "mod"] ->
-        sexpr [op, writeGround defs t1, writeGround defs t2]
-      | otherwise -> error "assert: this should have been already checked!"
+    AGUexp _ AGUMinus t -> sexpr ["-", "0", writeGround defs t]
+    AGUexp _ AGUAbs t -> sexpr ["abs", writeGround defs t]
+    AGUexp _ AGUNot t -> sexpr ["not", writeGround defs t]
+    AGBexp _ op t1 t2 ->
+      let s1 = writeGround defs t1
+          s2 = writeGround defs t2
+          mk ops = sexpr [ops, s1, s2]
+       in case op of
+            AGBAnd -> mk "and"
+            AGBOr -> mk "or"
+            AGBEq -> mk "="
+            AGBLt -> mk "<"
+            AGBGt -> mk ">"
+            AGBLte -> mk "<="
+            AGBGte -> mk ">="
+            AGBPlus -> mk "+"
+            AGBMinus -> mk "-"
+            AGBMult -> mk "*"
+            AGBDiv -> mk "/"
+            AGBMod -> mk "mod"
 
 changeName :: String -> String
 changeName =
