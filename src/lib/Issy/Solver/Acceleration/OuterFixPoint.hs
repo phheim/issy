@@ -1,17 +1,21 @@
 ---------------------------------------------------------------------------------------------------
 -- |
 -- Module      : Issy.Solver.Acceleration.OuterFixPoint
--- Description : TODO DOCUMENT
+-- Description : Acceleration for outer-fixpoints
 -- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
 --
+-- This module implements uninterpreted-functions-based acceleration techniques
+-- for outer-fixpoint computations, like Büchi acceleration.
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE LambdaCase #-}
 
+---------------------------------------------------------------------------------------------------
 module Issy.Solver.Acceleration.OuterFixPoint
   ( accelCoBuechi
   ) where
 
+---------------------------------------------------------------------------------------------------
 import qualified Data.Map.Strict as Map
 import Issy.Prelude
 
@@ -25,6 +29,10 @@ import Issy.Solver.GameInterface
 import Issy.Solver.Synthesis (SyBo)
 import qualified Issy.Solver.Synthesis as Synt
 
+---------------------------------------------------------------------------------------------------
+-- | Computes Büchi-acceleration as described in the POPL'24 paper. Note
+-- that since IterA is simplified a bit, the other constraint generation
+-- mechanisms are also simpler here.
 accelCoBuechi :: Config -> Player -> Arena -> Loc -> SymSt -> SymSt -> IO (Term, SyBo)
 accelCoBuechi conf player arena loc fset wopp = do
   conf <- pure $ setName "BueAc" conf
@@ -35,18 +43,17 @@ accelCoBuechi conf player arena loc fset wopp = do
   wopp <- pure $ extendSt wopp Just arena
   let idMap = Map.fromSet id (locations arena)
   let stratO = Synt.returnOn wopp $ Synt.loopSyBo conf arena loc loc' prime idMap
-  (constrRec, rec, stratO) <- pure $ iterB conf arena player fset wopp stratO
-  constrRec <- pure $ expandStep (vars arena) stepFun constrRec
+  (precConstr, rec, stratO) <- pure $ iterB conf arena player stepFun fset wopp stratO
   rec <- pure $ SymSt.map (expandStep (vars arena) stepFun) rec
   -- Base condition
   let baseCond =
         Vars.forallX (vars arena) $ FOL.impl (FOL.andf [dom arena loc, base]) $ get wopp loc
   let stepCond =
         Vars.forallX (vars arena)
-          $ FOL.impl (FOL.andf [dom arena loc, base, get fset loc])
-          $ FOL.andf [constrRec, get rec loc]
+          $ FOL.impl (FOL.andf [dom arena loc, conc, get fset loc])
+          $ get rec loc
   let progress = Vars.existsX (vars arena) $ FOL.andf [conc, FOL.neg (get wopp loc)]
-  let constr = [baseCond, stepCond, progress]
+  let constr = [baseCond, stepCond, progress, precConstr]
   unless (all (null . FOL.frees) constr) $ error "assert: constraint with free variables"
   (conc, lemmaAssign) <- resolve conf (H.simple conf arena) (vars arena) constr conc [lsym]
   lg conf ["Accelerated with", SMTLib.toString conc]
@@ -54,22 +61,29 @@ accelCoBuechi conf player arena loc fset wopp = do
   pure (conc, stratO)
 
 -- Add stuff to co-Buechi player
-iterB :: Config -> Arena -> Player -> SymSt -> SymSt -> SyBo -> (Term, SymSt, SyBo)
-iterB conf arena player fset wopp = go 0 FOL.true wopp
+iterB :: Config -> Arena -> Player -> Function -> SymSt -> SymSt -> SyBo -> (Term, SymSt, SyBo)
+iterB conf arena player stepFun fset wopp = go 0 FOL.true wopp
   where
     go cnt constr wopp stratO
       | cnt >= outerFPIterBBound = (constr, wopp, stratO)
       | otherwise =
-        let (d, _) = iterA conf player arena (SymSt.disjS fset wopp)
-            constr' = FOL.andf [constr, precise player arena d]
+        let (d, _) = iterA conf player arena $ SymSt.difference fset wopp
+            constr' = FOL.andf [constr, precise player arena stepFun d]
             cannotEnforceD = SymSt.map FOL.neg $ cpreS player arena d
             (wopp', stratOSub) = iterA conf (opponent player) arena cannotEnforceD
             stratO' = Synt.callOnSt wopp' stratOSub $ Synt.enforceFromTo cannotEnforceD wopp stratO
          in go (cnt + 1) constr' wopp' stratO'
 
-precise :: Player -> Arena -> SymSt -> Term
-precise player arena d =
-  FOL.andfL (locationL arena) $ \l -> FOL.impl (cpre player arena d l) $ get d l
+-- Remark: This precise predicate is different than the one in the POPL'24 paper
+-- as it also all quantifies the variables. This is needed as the precision statement
+-- should not be part of some unrelated variable quantification. Also for proper
+-- quantification it already needs to expand the step relation.
+precise :: Player -> Arena -> Function -> SymSt -> Term
+precise player arena stepFun d =
+  Vars.forallX (vars arena)
+    $ expandStep (vars arena) stepFun
+    $ FOL.andfL (locationL arena)
+    $ \l -> FOL.impl (cpre player arena d l) $ get d l
 
 iterA :: Config -> Player -> Arena -> SymSt -> (SymSt, SyBo)
 iterA conf player arena attr = go 0 attr $ Synt.returnOn attr $ Synt.normSyBo conf arena
