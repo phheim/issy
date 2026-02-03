@@ -36,6 +36,7 @@ import qualified Hanoi as HOA (State, atomicProps, parse, printHOA, states)
 import Issy.Config (ltl2tgba)
 import qualified Issy.Logic.Temporal as TL
 import qualified Issy.Translation.DOA as DOA
+import Issy.Utils.Extra (firstJustsM)
 
 ---------------------------------------------------------------------------------------------------
 -- High-Level Translation
@@ -55,13 +56,28 @@ translate cfg ap2str formula = do
       lg cfg ("HOA Buechi:" : lines (HOA.printHOA hoa))
       return $ hoa2doa hoa
     else do
-      hoa <- spotHOA cfg ["--colored-parity=any"] ltlstr
-      lg cfg ("HOA Parity:" : lines (HOA.printHOA hoa))
+      -- Remark: The following chain exists because of an apparent bug
+      -- in spot where not always colored automat are produced
+      doa <-
+        firstJustsM
+          [ doParity "max odd" ltlstr
+          , doParity "min even" ltlstr
+          , doParity "min odd" ltlstr
+          , doParity "max even" ltlstr
+          ]
+      case doa of
+        Just doa -> return doa
+        Nothing ->
+          error "Failed because of colored-parity bug in spot and the workaround did not suffice"
+  where
+    doParity parType ltlstr = do
+      hoa <- spotHOA cfg ["--colored-parity=" ++ parType] ltlstr
+      lg cfg (("HOA Parity " ++ parType) : lines (HOA.printHOA hoa))
       checkProp hoa COMPLETE
       checkProp hoa DETERMINISTIC
-      checkProp hoa COLORED
-      return $ hoa2doa hoa
-  where
+      if COLORED `elem` properties hoa
+        then return $ Just $ hoa2doa hoa
+        else return Nothing
     checkProp hoa prop =
       unless (prop `elem` properties hoa) $ fail $ "automaton expected to contain " ++ show prop
 
@@ -179,22 +195,26 @@ parityDOAAccept :: (HOA.State -> DOA.State) -> HOA -> Int -> DOA.Acceptance
 parityDOAAccept fromState hoa colorCount
   | colorCount <= 0 = error "assert: expected more than zero colors!"
   | otherwise =
-    parityAccept fromState hoa $ Map.fromList $ matchParity (colorCount - 1) (Hanoi.acceptance hoa)
+    case matchParity (colorCount - 1) (Hanoi.acceptance hoa) of
+      Just parity -> parityAccept fromState hoa $ Map.fromList parity
+      Nothing ->
+        case matchParity colorCount (Hanoi.acceptance hoa) of
+          Just parity -> parityAccept fromState hoa $ Map.fromList parity
+          Nothing ->
+            error
+              $ "Found non-canonical acceptance condition for parity acceptance "
+                  ++ show (Hanoi.acceptance hoa)
   where
-    matchParity :: Int -> Formula AcceptanceType -> [(AcceptanceSet, Word)]
+    matchParity :: Int -> Formula AcceptanceType -> Maybe [(AcceptanceSet, Word)]
     matchParity color formula =
       case (color, odd color, formula) of
-        (0, _, FVar (Fin True accs)) -> [(accs, 0)]
+        (0, _, FVar (Fin True accs)) -> Just [(accs, 0)]
+        (1, _, FVar (Inf True accs)) -> Just [(accs, 1)]
         (_, True, FOr [FVar (Inf True accs), rest]) ->
-          (accs, toEnum color) : matchParity (color - 1) rest
+          ((accs, toEnum color) :) <$> matchParity (color - 1) rest
         (_, False, FAnd [FVar (Fin True accs), rest]) ->
-          (accs, toEnum color) : matchParity (color - 1) rest
-        _ ->
-          error
-            $ "Found non-canonical acceptance condition for parity acceptance "
-                ++ show color
-                ++ " "
-                ++ show formula
+          ((accs, toEnum color) :) <$> matchParity (color - 1) rest
+        _ -> Nothing
 
 parityAccept :: (HOA.State -> DOA.State) -> HOA -> Map AcceptanceSet Word -> DOA.Acceptance
 parityAccept fromState hoa parity =

@@ -23,6 +23,7 @@ module Issy.Utils.Extra
   , orM
   , andM
   , rightToMaybe
+  , firstJustsM
   , -- String related operations
     firstLine
   , paraInbetween
@@ -104,6 +105,15 @@ orM m1 = ifM m1 (pure True)
 -- | Monadic version of 'and'. Evaluates the second part only if necessary.
 andM :: Monad m => m Bool -> m Bool -> m Bool
 andM m1 m2 = ifM m1 m2 (pure False)
+
+-- | Moandic version of firstJusts
+firstJustsM :: Monad m => [m (Maybe a)] -> m (Maybe a)
+firstJustsM [] = pure Nothing
+firstJustsM (m:mr) = do
+  r <- m
+  case r of
+    Just r -> pure (Just r)
+    Nothing -> firstJustsM mr
 
 ---------------------------------------------------------------------------------------------------
 -- String related
