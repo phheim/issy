@@ -64,7 +64,7 @@ parseDef ts = do
     "state" -> apply2 (AstVar p AState) $ parseVar ts
     "formula" -> apply1 (AstLogic p) $ parseLogic ts
     "game" -> apply3 (AstGame p) $ parseGame ts
-    "def" -> apply2 (AstDef p) $ parseMacro ts
+    "def" -> apply2 (AstMacro p) $ parseMacro ts
     _ -> expectErr p str "specification definition"
 
 parseVar :: [Token] -> PRes (AstSort, String, [Token])
@@ -107,9 +107,13 @@ parseGame :: [Token] -> PRes (AstWC, String, [AstGameStm], [Token])
 parseGame ts = do
   (str, p, ts) <- next ts "winning condition"
   wc <-
-    if str `elem` ["Safety", "Reachability", "Buechi", "CoBuechi", "ParityMaxOdd"]
-      then pure $ AstWC str
-      else expectErr p str "winning condition"
+    case str of
+      "Safety" -> Right ASafety
+      "Reachability" -> Right AReachability
+      "Buechi" -> Right ABuechi
+      "CoBuechi" -> Right ACoBuechi
+      "ParityMaxOdd" -> Right AParityMaxOdd
+      _ -> expectErr p str "winning condition"
   ts <- exact ts "from"
   (id, p, ts) <- next ts "identifier"
   checkID p id
@@ -131,8 +135,8 @@ parseGame ts = do
 
 parseLoc :: [Token] -> PRes (String, Integer, AstTerm, [Token])
 parseLoc ts = do
-  (id, p, ts) <- next ts "identifier"
-  checkID p id
+  (id, pId, ts) <- next ts "identifier"
+  checkID pId id
   (str, p) <- peak ts "}"
   (num, ts) <-
     if str `elem` ["trans", "loc", "}", "with"]
@@ -144,7 +148,7 @@ parseLoc ts = do
   (term, ts) <-
     if str == "with"
       then parseTerm (consume ts)
-      else pure (ATAtom (AABool True), ts)
+      else pure (ATAtom pId (AABool pId True), ts)
   pure (id, num, term, ts)
 
 parseTrans :: [Token] -> PRes (String, String, AstTerm, [Token])
@@ -232,10 +236,11 @@ parseRPLTL :: [Token] -> PRes (AstTF, [Token])
 parseRPLTL =
   parseOps
     pars
-    (\t -> apply1 AFAtom . parseAtom t)
-    (unPred (AFUexp . UOP) [(["!", "X", "G", "F"], 12)])
+    (\t -> apply1 (AFAtom (tpos t)) . parseAtom t)
+    (unPred UOP AFUexp [(["!", "X", "G", "F"], 12)])
     (binPred
-       (AFBexp . BOP)
+       BOP
+       AFBexp
        [ (["R"], 0, 1)
        , (["U"], 3, 2)
        , (["W"], 5, 4)
@@ -249,30 +254,30 @@ parseTerm :: [Token] -> PRes (AstTerm, [Token])
 parseTerm =
   parseOps
     pars
-    (\t -> apply1 ATAtom . parseAtom t)
-    (unPred (ATUexp . UOP) [(["!"], 8)])
-    (binPred (ATBexp . BOP) [(["<->"], 1, 0), (["->"], 3, 2), (["||"], 4, 5), (["&&"], 6, 7)])
+    (\t -> apply1 (ATAtom (tpos t)) . parseAtom t)
+    (unPred UOP ATUexp [(["!"], 8)])
+    (binPred BOP ATBexp [(["<->"], 1, 0), (["->"], 3, 2), (["||"], 4, 5), (["&&"], 6, 7)])
     (posStr . tpos)
 
 parseAtom :: Token -> [Token] -> PRes (AstAtom, [Token])
 parseAtom t ts =
   case tval t of
-    "true" -> pure (AABool True, ts)
-    "false" -> pure (AABool False, ts)
-    "[" -> apply1 AAGround $ parseGround (t : ts)
+    "true" -> pure (AABool (tpos t) True, ts)
+    "false" -> pure (AABool (tpos t) False, ts)
+    "[" -> apply1 (AAGround (tpos t)) $ parseGround (t : ts)
     "keep" -> do
       ts <- exact ts "("
       (ids, ts) <- getIds [] ts
       ts <- exact ts ")"
-      pure (AAKeep ids, ts)
+      pure (AAKeep (tpos t) ids, ts)
     "havoc" -> do
       ts <- exact ts "("
       (ids, ts) <- getIds [] ts
       ts <- exact ts ")"
-      pure (AAHavoc ids, ts)
+      pure (AAHavoc (tpos t) ids, ts)
     name -> do
       check isId name (tpos t) "identifier"
-      pure (AAVar name, ts)
+      pure (AAVar (tpos t) name, ts)
   where
     getIds acc ts = do
       (name, _) <- peak ts ") or id"
@@ -293,20 +298,21 @@ parseGroundTerm =
     pars
     (\t ts ->
        case tval t of
-         "true" -> pure (AConstBool True, ts)
-         "false" -> pure (AConstBool False, ts)
+         "true" -> pure (AConstBool (tpos t) True, ts)
+         "false" -> pure (AConstBool (tpos t) False, ts)
          name ->
            case parseInteger (tpos t) name of
-             Right n -> pure (AConstInt n, ts)
+             Right n -> pure (AConstInt (tpos t) n, ts)
              _ ->
                case parseRat (tpos t) name of
-                 Right n -> pure (AConstReal n, ts)
+                 Right n -> pure (AConstReal (tpos t) n, ts)
                  _ -> do
                    check isId name (tpos t) "identifier"
-                   pure (AGVar name, ts))
-    (unPred (AGUexp . UOP) [(["!"], 5), (["-"], 12), (["abs"], 13)])
+                   pure (AGVar (tpos t) name, ts))
+    (unPred UOP AGUexp [(["!"], 5), (["-"], 12), (["abs"], 13)])
     (binPred
-       (AGBexp . BOP)
+       BOP
+       AGBexp
        [ (["||"], 0, 1)
        , (["&&"], 2, 3)
        , (["=", "<", ">", ">=", "<="], 6, 7)
@@ -318,18 +324,23 @@ parseGroundTerm =
 pars :: (Token -> Bool, Token -> Bool)
 pars = ((== "(") . tval, (== ")") . tval)
 
-unPred :: (String -> e -> e) -> [([String], Word)] -> Token -> Maybe (e -> e, Word)
-unPred op preds t =
+unPred ::
+     (String -> o) -> (Pos -> o -> e -> e) -> [([String], Word)] -> Token -> Maybe (e -> e, Word)
+unPred opParse op preds t =
   case filter ((tval t `elem`) . fst) preds of
     [] -> Nothing
-    (_, p):_ -> Just (op (tval t), p)
+    (_, p):_ -> Just (op (tpos t) (opParse (tval t)), p)
 
 binPred ::
-     (String -> e -> e -> e) -> [([String], Word, Word)] -> Token -> Maybe (e -> e -> e, Word, Word)
-binPred op preds t =
+     (String -> o)
+  -> (Pos -> o -> e -> e -> e)
+  -> [([String], Word, Word)]
+  -> Token
+  -> Maybe (e -> e -> e, Word, Word)
+binPred opParse op preds t =
   case filter (\(n, _, _) -> tval t `elem` n) preds of
     [] -> Nothing
-    (_, pl, pr):_ -> Just (op (tval t), pl, pr)
+    (_, pl, pr):_ -> Just (op (tpos t) (opParse (tval t)), pl, pr)
 
 -- TODO Move to own module!
 parseOps ::

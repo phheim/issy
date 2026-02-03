@@ -60,8 +60,8 @@ checkGames = go False
       checkTrans locs stmts
       nonSafe <-
         case wc of
-          AstWC "Safety" -> Right nonSafe
-          AstWC _
+          ASafety -> Right nonSafe
+          _
             | nonSafe -> perr p "only one non-safety game is allowed"
             | otherwise -> Right True
       go nonSafe dr

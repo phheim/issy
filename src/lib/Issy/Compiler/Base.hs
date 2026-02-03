@@ -117,32 +117,40 @@ data AstDef
   -- implies the conjunction of assertions
   | AstGame Pos AstWC String [AstGameStm]
   -- ^ this is the definition of a game specification
-  | AstDef Pos String AstTerm
+  | AstMacro Pos String AstTerm
   -- ^ this is a macro definition
-  -- TODO change names!!
   deriving (Eq, Ord, Show)
 
--- | DOCUMENT
+-- | AST enum for input and states
 data AstIO
   = AInput
+  -- ^ indicates an input
   | AState
+  -- ^ indicates a state
   deriving (Eq, Ord, Show)
 
--- | DOCUMENT
+-- | AST enum for sorts
 data AstSort
   = ABool
-  -- ^ DOCUMENT
+  -- ^ indicates a boolean sort
   | AInt
-  -- ^ DOCUMENT
+  -- ^ indicates a integer sort
   | AReal
-  -- ^ DOCUMENT
+  -- ^ indicates a real-value sort
   deriving (Eq, Ord, Show)
 
--- | DOCUMENT
--- TODO: Turn into actual enum
-newtype AstWC =
-  AstWC String
-  -- ^ DOCUMENT
+-- | AST enum for game winning conditions
+data AstWC
+  = ASafety
+  -- ^ safety winning condition
+  | AReachability
+  -- ^ reachability winning condition
+  | ABuechi
+  -- ^ Büchi winning condition
+  | ACoBuechi
+  -- ^ co-Büchi winning condition
+  | AParityMaxOdd
+  -- ^ parity (max odd) winning condition
   deriving (Eq, Ord, Show)
 
 -- | DOCUMENT
@@ -155,11 +163,11 @@ data AstLogicStm
 
 -- | DOCUMENT
 data AstTF
-  = AFAtom AstAtom
+  = AFAtom Pos AstAtom
   -- ^ DOCUMENT
-  | AFUexp UOP AstTF
+  | AFUexp Pos UOP AstTF
   -- ^ DOCUMENT
-  | AFBexp BOP AstTF AstTF
+  | AFBexp Pos BOP AstTF AstTF
   -- ^ DOCUMENT
   deriving (Eq, Ord, Show)
 
@@ -173,41 +181,41 @@ data AstGameStm
 
 -- | DOCUMENT
 data AstTerm
-  = ATAtom AstAtom
+  = ATAtom Pos AstAtom
   -- ^ DOCUMENT
-  | ATBexp BOP AstTerm AstTerm
+  | ATBexp Pos BOP AstTerm AstTerm
   -- ^ DOCUMENT
-  | ATUexp UOP AstTerm
+  | ATUexp Pos UOP AstTerm
   -- ^ DOCUMENT
   deriving (Eq, Ord, Show)
 
 -- | DOCUMENT
 data AstAtom
-  = AABool Bool
+  = AABool Pos Bool
   -- ^ DOCUMENT
-  | AAGround AstGround
+  | AAGround Pos AstGround
   -- ^ DOCUMENT
-  | AAVar String
+  | AAVar Pos String
   -- ^ DOCUMENT
-  | AAKeep [String]
+  | AAKeep Pos [String]
   -- ^ DOCUMENT
-  | AAHavoc [String]
+  | AAHavoc Pos [String]
   -- ^ DOCUMENT
   deriving (Eq, Ord, Show)
 
 -- | DOCUMENT
 data AstGround
-  = AConstInt Integer
+  = AConstInt Pos Integer
   -- ^ DOCUMENT
-  | AConstReal Rational
+  | AConstReal Pos Rational
   -- ^ DOCUMENT
-  | AConstBool Bool
+  | AConstBool Pos Bool
   -- ^ DOCUMENT
-  | AGVar String
+  | AGVar Pos String
   -- ^ DOCUMENT
-  | AGBexp BOP AstGround AstGround
+  | AGBexp Pos BOP AstGround AstGround
   -- ^ DOCUMENT
-  | AGUexp UOP AstGround
+  | AGUexp Pos UOP AstGround
   -- ^ DOCUMENT
   deriving (Eq, Ord, Show)
 
