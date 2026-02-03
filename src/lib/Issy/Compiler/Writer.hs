@@ -41,14 +41,14 @@ getDefs = go $ Defs {vars = Map.empty, macros = Map.empty}
     go acc =
       \case
         [] -> acc
-        AstDef name term:sr -> go (acc {macros = Map.insert name term (macros acc)}) sr
-        AstVar io sort name:sr -> go (acc {vars = Map.insert name (io, sort) (vars acc)}) sr
+        AstDef _ name term:sr -> go (acc {macros = Map.insert name term (macros acc)}) sr
+        AstVar _ io sort name:sr -> go (acc {vars = Map.insert name (io, sort) (vars acc)}) sr
         _:sr -> go acc sr
 
 writeVar :: AstDef -> Maybe String
 writeVar =
   \case
-    AstVar var sort name -> Just $ sexpr [iTs var, sTs sort, name] ++ "\n"
+    AstVar _ var sort name -> Just $ sexpr [iTs var, sTs sort, name] ++ "\n"
     _ -> Nothing
   where
     iTs AInput = "input"
@@ -60,13 +60,13 @@ writeVar =
 writeLogicSpec :: Defs -> AstDef -> Maybe String
 writeLogicSpec defs =
   \case
-    AstLogic fs -> Just $ ps [chainWs (writeAssumes defs) fs, chainWs (writeAsserts defs) fs]
+    AstLogic _ fs -> Just $ ps [chainWs (writeAssumes defs) fs, chainWs (writeAsserts defs) fs]
     _ -> Nothing
 
 writeGame :: Defs -> AstDef -> Maybe String
 writeGame defs =
   \case
-    AstGame (AstWC wc) init stm ->
+    AstGame _ (AstWC wc) init stm ->
       Just
         $ ps [chainWs (writeLocs defs) stm, chainWs (writeTrans defs) stm, sexpr [init, wc] ++ "\n"]
     _ -> Nothing
@@ -74,25 +74,25 @@ writeGame defs =
 writeAssumes :: Defs -> AstLogicStm -> Maybe String
 writeAssumes defs =
   \case
-    AstAssume f -> Just (writeFormula defs f)
+    AstAssume _ f -> Just (writeFormula defs f)
     _ -> Nothing
 
 writeAsserts :: Defs -> AstLogicStm -> Maybe String
 writeAsserts defs =
   \case
-    AstAssert f -> Just (writeFormula defs f)
+    AstAssert _ f -> Just (writeFormula defs f)
     _ -> Nothing
 
 writeLocs :: Defs -> AstGameStm -> Maybe String
 writeLocs defs =
   \case
-    ALoc name acc dom -> Just $ sexpr [name, show acc, writeTerm id defs dom]
+    ALoc _ name acc dom -> Just $ sexpr [name, show acc, writeTerm id defs dom]
     _ -> Nothing
 
 writeTrans :: Defs -> AstGameStm -> Maybe String
 writeTrans defs =
   \case
-    ATrans l1 l2 delta -> Just $ sexpr [l1, l2, writeTerm id defs delta]
+    ATrans _ l1 l2 delta -> Just $ sexpr [l1, l2, writeTerm id defs delta]
     _ -> Nothing
 
 writeFormula :: Defs -> AstTF -> String

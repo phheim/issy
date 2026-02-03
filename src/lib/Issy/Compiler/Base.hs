@@ -109,15 +109,15 @@ type AstSpec = [AstDef]
 
 -- | The AST representation of a definition in an specification
 data AstDef
-  = AstVar AstIO AstSort String
+  = AstVar Pos AstIO AstSort String
   -- ^ this is a input or state variable definition
-  | AstLogic [AstLogicStm]
+  | AstLogic Pos [AstLogicStm]
   -- ^ this is the definition of logic specification,
   -- the interpretation is that the conjunction of assumptions
   -- implies the conjunction of assertions
-  | AstGame AstWC String [AstGameStm]
+  | AstGame Pos AstWC String [AstGameStm]
   -- ^ this is the definition of a game specification
-  | AstDef String AstTerm
+  | AstDef Pos String AstTerm
   -- ^ this is a macro definition
   -- TODO change names!!
   deriving (Eq, Ord, Show)
@@ -147,9 +147,9 @@ newtype AstWC =
 
 -- | DOCUMENT
 data AstLogicStm
-  = AstAssert AstTF
+  = AstAssert Pos AstTF
   -- ^ DOCUMENT
-  | AstAssume AstTF
+  | AstAssume Pos AstTF
   -- ^ DOCUMENT
   deriving (Eq, Ord, Show)
 
@@ -165,9 +165,9 @@ data AstTF
 
 -- | DOCUMENT
 data AstGameStm
-  = ALoc String Integer AstTerm
+  = ALoc Pos String Integer AstTerm
   -- ^ DOCUMENT
-  | ATrans String String AstTerm
+  | ATrans Pos String String AstTerm
   -- ^ DOCUMENT
   deriving (Eq, Ord, Show)
 

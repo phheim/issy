@@ -60,11 +60,11 @@ parseDef :: [Token] -> PRes (AstDef, [Token])
 parseDef ts = do
   (str, p, ts) <- next ts "specification definition"
   case str of
-    "input" -> apply2 (AstVar AInput) $ parseVar ts
-    "state" -> apply2 (AstVar AState) $ parseVar ts
-    "formula" -> apply1 AstLogic $ parseLogic ts
-    "game" -> apply3 AstGame $ parseGame ts
-    "def" -> apply2 AstDef $ parseMacro ts
+    "input" -> apply2 (AstVar p AInput) $ parseVar ts
+    "state" -> apply2 (AstVar p AState) $ parseVar ts
+    "formula" -> apply1 (AstLogic p) $ parseLogic ts
+    "game" -> apply3 (AstGame p) $ parseGame ts
+    "def" -> apply2 (AstDef p) $ parseMacro ts
     _ -> expectErr p str "specification definition"
 
 parseVar :: [Token] -> PRes (AstSort, String, [Token])
@@ -95,10 +95,10 @@ parseLogic ts = exact ts "{" >>= go
       (str, p, ts) <- next ts "closing }"
       case str of
         "assert" -> do
-          (e, ts) <- apply1 AstAssert $ parseRPLTL ts
+          (e, ts) <- apply1 (AstAssert p) $ parseRPLTL ts
           apply1 (e :) $ go ts
         "assume" -> do
-          (e, ts) <- apply1 AstAssume $ parseRPLTL ts
+          (e, ts) <- apply1 (AstAssume p) $ parseRPLTL ts
           apply1 (e :) $ go ts
         "}" -> pure ([], ts)
         _ -> expectErr p str "assert, assume, or closing }"
@@ -121,10 +121,10 @@ parseGame ts = do
       (str, p, ts) <- next ts "\"}\""
       case str of
         "loc" -> do
-          (e, ts) <- apply3 ALoc $ parseLoc ts
+          (e, ts) <- apply3 (ALoc p) $ parseLoc ts
           apply1 (e :) $ go ts
         "from" -> do
-          (e, ts) <- apply3 ATrans $ parseTrans ts
+          (e, ts) <- apply3 (ATrans p) $ parseTrans ts
           apply1 (e :) $ go ts
         "}" -> pure ([], ts)
         _ -> expectErr p str "location, transition, or closing }"
