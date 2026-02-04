@@ -75,7 +75,7 @@ import Issy.Statistics (Stats, emptyStats, printStats)
 import Issy.Encoders.LTLMT (specToLTLMT)
 import Issy.Encoders.Sweap (specToSweap)
 import Issy.Encoders.TSLT (rpgToTSLT)
-import Issy.Encoders.ToFixpoints (FPSystem, gameToFP) -- TODO: This is more of a translator
+import Issy.Encoders.ToFixpoints (FPSystem, gameToFP)
 
 -- Parsers
 import Issy.Parsers.LLIssyFormat (parseLLIssyFormat)

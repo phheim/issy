@@ -1,10 +1,12 @@
 ---------------------------------------------------------------------------------------------------
 -- |
 -- Module      : Issy.Logic.Propositional
--- Description : Propositional logic operations
--- Copyright   : (c) Philippe Heim, 2025
+-- Description : Propositional logic abstraction
+-- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
 --
+-- This module implements basic propositional logic operations and provides an type class
+-- abstraction mechanism.
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
@@ -61,6 +63,7 @@ class Propositional p where
 toNNF :: Propositional a => a -> NNF a
 toNNF = propToNNF . toProp
 
+-- | normalize via translation to negation normal form
 normNNF :: Propositional a => a -> a
 normNNF = fromProp . nnfToProp . toNNF
 
@@ -87,10 +90,16 @@ instance Functor Prop where
 ---------------------------------------------------------------------------------------------------
 -- Normal Form Transformations
 ---------------------------------------------------------------------------------------------------
+-- | Representation of boolean formulas in negation normal form
 data NNF a
   = NNFLit Bool a
+  -- ^ Base element of a formula in negation normal form. The polarity
+  -- is indicated by the boolean where 'True' is positive (i.e. not negated)
+  -- polarity.
   | NNFAnd [NNF a]
+  -- ^ Boolean conjunction
   | NNFOr [NNF a]
+  -- ^ Boolean disjunction
   deriving (Eq, Ord, Show)
 
 propToNNF :: Prop a -> NNF a
