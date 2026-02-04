@@ -1,17 +1,23 @@
 ---------------------------------------------------------------------------------------------------
 -- |
 -- Module      : Issy.Products.SGMonitor
--- Description : TODO DOCUMENT
+-- Description : Product of an symbolic game and a monitor
 -- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
 --
+-- This module implements the product computation between an symbolic game and
+-- and monitor computed from a RPLTL formula for monitor pruning (see POPL'25).
+-- If the monitor and the game are compute from the same formula this pruning does not change
+-- the outcome of the game.
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
+---------------------------------------------------------------------------------------------------
 module Issy.Products.SGMonitor
   ( onTheFlyProduct
   ) where
 
+---------------------------------------------------------------------------------------------------
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Issy.Prelude
@@ -27,6 +33,9 @@ import qualified Issy.Monitor as Mon
 import qualified Issy.Printers.SMTLib as SMTLib
 import qualified Issy.Utils.OpenList as OL
 
+---------------------------------------------------------------------------------------------------
+-- | Compute the aforementioned product. This computation is done on the fly, i.e. the monitor
+-- is constructed while this product is constructed.
 onTheFlyProduct :: Config -> Arena -> Objective -> Monitor -> IO (Arena, Objective)
 onTheFlyProduct cfg arena obj mon = do
   cfg <- pure $ setName "SG x Monitor" cfg

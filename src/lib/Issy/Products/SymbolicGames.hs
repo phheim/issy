@@ -1,17 +1,21 @@
 ---------------------------------------------------------------------------------------------------
 -- |
 -- Module      : Issy.Products.SymbolicGames
--- Description : TODO DOCUMENT
+-- Description : Product of symbolic games
 -- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
 --
+-- This module implements the product of symbolic games. It is used when generating
+-- a single symbolic game out of mixed specifications.
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe #-}
 
+---------------------------------------------------------------------------------------------------
 module Issy.Products.SymbolicGames
   ( intersection
   ) where
 
+---------------------------------------------------------------------------------------------------
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Issy.Prelude
@@ -23,6 +27,11 @@ import Issy.Games.SymbolicArena (Arena)
 import qualified Issy.Games.SymbolicArena as SG
 import qualified Issy.Logic.FOL as FOL
 
+---------------------------------------------------------------------------------------------------
+-- | Compute the product of multiple symbolic games. The product is conjunctive, i.e. to win
+-- the system player has to archive the objectives of all games in the same run. The symbolic
+-- arenas must range over the same variables and all but at most one of the game must have
+-- a safety objective. If this is not the case, the product is undefined and will return an error.
 intersection :: [(Arena, Objective)] -> (Arena, Objective)
 intersection games
   | null games = error "assert: cannot construct empty game intersection"

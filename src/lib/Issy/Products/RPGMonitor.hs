@@ -1,17 +1,23 @@
 ---------------------------------------------------------------------------------------------------
 -- |
 -- Module      : Issy.Products.RPGMonitor
--- Description : TODO DOCUMENT
+-- Description : Product of an RPG and a monitor
 -- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
 --
+-- This module implements the product computation between an reactive program game and
+-- and monitor computed from a TSLMT formula for monitor pruning (see POPL'25).
+-- If the monitor and the game are compute from the same formula this pruning does not change
+-- the outcome of the game.
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
+---------------------------------------------------------------------------------------------------
 module Issy.Products.RPGMonitor
   ( onTheFlyProduct
   ) where
 
+---------------------------------------------------------------------------------------------------
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Issy.Prelude
@@ -23,6 +29,9 @@ import qualified Issy.Games.ReactiveProgramArena as RPG
 import Issy.Monitor (Monitor, State, Trans(..), Verdict(..))
 import qualified Issy.Monitor as Mon
 
+---------------------------------------------------------------------------------------------------
+-- | Compute the aforementioned product. This computation is done on the fly, i.e. the monitor
+-- is constructed while this product is constructed.
 onTheFlyProduct :: Config -> RPArena -> Objective -> Monitor -> IO (RPArena, Objective)
 onTheFlyProduct cfg game obj monitor = do
   cfg <- pure $ setName "RPG x Monitor" cfg
