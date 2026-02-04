@@ -28,6 +28,12 @@ module Issy.Logic.FOL
     predefined
   , booleanFunctions
   , comparisionFunctions
+  , -- Symbol handling
+    symbols
+  , uniqueName
+  , uniquePrefix
+  , unusedName
+  , unusedPrefix
   , -- Term construction (generic)
     constT
   , var
@@ -79,22 +85,19 @@ module Issy.Logic.FOL
   , absT
   , invertC
   , -- Query methods
-    isNumber
-  , isInteger
-  , isNumericT
-  , bindings
+    sorts
   , frees
-  , sorts
   , decls
+  , bindings
   , quantifierFree
   , ufFree
-  , symbols
+  , isNumber
+  , isInteger
+  , isNumericT
   , nonBoolTerms
-  , -- Symbol handling
-    uniqueName
-  , uniquePrefix
-  , unusedName
-  , unusedPrefix
+  , -- Transformations
+    pushdownQE
+  , removeDangling
   , -- Model handling
     Model
   , modelToMap
@@ -109,9 +112,6 @@ module Issy.Logic.FOL
   , setTerm
   , replaceUF
   , removePref
-  , -- Transformations
-    pushdownQE
-  , removeDangling
   , -- Cheap SMT
     underapproxSAT
   ) where
@@ -266,6 +266,44 @@ instance Propositional Term where
       POr fs -> orf $ map fromProp fs
       PNot f -> neg (fromProp f)
       PLit f -> f
+
+---------------------------------------------------------------------------------------------------
+-- Symbol handling
+---------------------------------------------------------------------------------------------------
+-- | All named symbols that appear in a term, e.g. variable names and names of
+-- uninterpreted functions.
+symbols :: Term -> Set Symbol
+symbols =
+  \case
+    Var s _ -> Set.singleton s
+    Func (CustomF f _ _) args -> Set.unions $ Set.singleton f : map symbols args
+    Func _ args -> Set.unions $ map symbols args
+    Quant _ _ f -> symbols f
+    Lambda _ f -> symbols f
+    _ -> Set.empty
+
+uniqueName :: Symbol -> Set Symbol -> Symbol
+uniqueName = uniquePrefix --TODO: this is even more stupid than I rembered, remove that
+
+-- | Starting with a given (symbol) prefix, generate a prefix that is unique a unique
+-- prefix in the given set of symbol. This generated prefix can be used e.g. as unique
+-- name, or to generate unique names by appeding symbols to it.
+uniquePrefix :: Symbol -> Set Symbol -> Symbol
+uniquePrefix prefix names
+  | any (prefix `isPrefixOf`) names = h (0 :: Integer)
+  | otherwise = prefix
+  where
+    h n
+      | any ((prefix ++ show n) `isPrefixOf`) names = h (n + 1)
+      | otherwise = prefix ++ show n
+
+unusedName :: Symbol -> Term -> Symbol
+unusedName prefix f = uniqueName prefix (symbols f) -- TODO: dito, remove
+
+-- | Generate a unused prefix, like 'uniquePrefix', but in the context of a term,
+-- i.e. the prefix will be unique in the context of the symbols of the term.
+unusedPrefix :: Symbol -> Term -> Symbol
+unusedPrefix prefix f = uniquePrefix prefix (symbols f)
 
 ---------------------------------------------------------------------------------------------------
 -- Construction
@@ -615,57 +653,39 @@ invertC =
 ---------------------------------------------------------------------------------------------------
 -- Query Methods
 ---------------------------------------------------------------------------------------------------
-isNumericT :: Term -> Bool
-isNumericT =
+-- | All sorts that appear on variables, uninterpreted functions, and quantifiers.
+sorts :: Term -> Set Sort
+sorts =
   \case
-    Var _ sort -> isNumber sort
-    Const (CInt _) -> True
-    Const (CReal _) -> True
-    Func FIte [_, t, e] -> isNumericT t && isNumericT e
-    Func func fs
-      | func `elem` [FAdd, FMul, FAbs, FMod, FDivInt, FDivReal, FToReal] -> all isNumericT fs
-      | otherwise -> False
-    _ -> False
+    Var _ s -> Set.singleton s
+    Func f args ->
+      case f of
+        CustomF _ sarg starg -> Set.fromList (starg : sarg) `Set.union` Set.unions (map sorts args)
+        _ -> Set.unions $ map sorts args
+    Quant _ s f -> Set.singleton s `Set.union` sorts f
+    Lambda _ f -> sorts f
+    _ -> Set.empty
 
-isInteger :: Term -> Bool
-isInteger =
-  \case
-    Var _ SInt -> True
-    Const (CInt _) -> True
-    Func FAdd fs -> all isInteger fs
-    Func FMul fs -> all isInteger fs
-    Func FAbs _ -> True
-    Func FMod _ -> True
-    Func FDivInt _ -> True
-    _ -> False
+-- | The free variables of a term.
+frees :: Term -> Set Symbol
+frees = Set.map fst . Set.filter (not . isFuncSort . snd) . bindingsS
 
-isFuncSort :: Sort -> Bool
-isFuncSort =
-  \case
-    SFunc _ _ -> True
-    _ -> False
+-- | The free variables and uninterpreted functions of a term.
+decls :: Term -> Set Symbol
+decls = Set.map fst . bindingsS
 
-isNumber :: Sort -> Bool
-isNumber = (`elem` [SInt, SReal])
-
-quantifierFree :: Term -> Bool
-quantifierFree =
-  \case
-    Func _ fs -> all quantifierFree fs
-    Quant {} -> False
-    Lambda _ _ -> False
-    _ -> True
-
-ufFree :: Term -> Bool
-ufFree =
-  \case
-    Var _ _ -> True
-    Const _ -> True
-    QVar _ -> True
-    Func (CustomF {}) _ -> False
-    Func _ fs -> all ufFree fs
-    Quant _ _ f -> ufFree f
-    Lambda _ f -> ufFree f
+-- | The free variables and uninterpreted functions of a term, mapped to
+-- their sorts. If a variable or function appears with different sorts, this
+-- is undefined.
+bindings :: Term -> Map Symbol Sort
+bindings =
+  Map.fromListWithKey
+    (\v s s' ->
+       if s == s'
+         then s
+         else error ("Assertion: Found variable " ++ v ++ " with different sorts"))
+    . Set.toList
+    . bindingsS
 
 bindingsS :: Term -> Set (Symbol, Sort)
 bindingsS =
@@ -680,44 +700,65 @@ bindingsS =
     Lambda _ f -> bindingsS f
     _ -> Set.empty
 
-sorts :: Term -> Set Sort
-sorts =
+isFuncSort :: Sort -> Bool
+isFuncSort =
   \case
-    Var _ s -> Set.singleton s
-    Func f args ->
-      case f of
-        CustomF _ sarg starg -> Set.fromList (starg : sarg) `Set.union` Set.unions (map sorts args)
-        _ -> Set.unions $ map sorts args
-    Quant _ s f -> Set.singleton s `Set.union` sorts f
-    Lambda _ f -> sorts f
-    _ -> Set.empty
+    SFunc _ _ -> True
+    _ -> False
 
-frees :: Term -> Set Symbol
-frees = Set.map fst . Set.filter (not . isFuncSort . snd) . bindingsS
-
-decls :: Term -> Set Symbol
-decls = Set.map fst . bindingsS
-
-bindings :: Term -> Map Symbol Sort
-bindings =
-  Map.fromListWithKey
-    (\v s s' ->
-       if s == s'
-         then s
-         else error ("Assertion: Found variable " ++ v ++ " with different sorts"))
-    . Set.toList
-    . bindingsS
-
-symbols :: Term -> Set Symbol
-symbols =
+-- | Return if the given term is free of quantifiers and lambda expressions.
+quantifierFree :: Term -> Bool
+quantifierFree =
   \case
-    Var s _ -> Set.singleton s
-    Func (CustomF f _ _) args -> Set.unions $ Set.singleton f : map symbols args
-    Func _ args -> Set.unions $ map symbols args
-    Quant _ _ f -> symbols f
-    Lambda _ f -> symbols f
-    _ -> Set.empty
+    Func _ fs -> all quantifierFree fs
+    Quant {} -> False
+    Lambda _ _ -> False
+    _ -> True
 
+-- | Return if the given term is free of uninterpreted functions.
+ufFree :: Term -> Bool
+ufFree =
+  \case
+    Var _ _ -> True
+    Const _ -> True
+    QVar _ -> True
+    Func (CustomF {}) _ -> False
+    Func _ fs -> all ufFree fs
+    Quant _ _ f -> ufFree f
+    Lambda _ f -> ufFree f
+
+-- | Return if a term sort is an number sort, i.e. an integer or real-value sort.
+isNumber :: Sort -> Bool
+isNumber = (`elem` [SInt, SReal])
+
+-- | Return if a term would evaluate to an number, i.e. an integer or real-value.
+isNumericT :: Term -> Bool
+isNumericT =
+  \case
+    Var _ sort -> isNumber sort
+    Const (CInt _) -> True
+    Const (CReal _) -> True
+    Func FIte [_, t, e] -> isNumericT t && isNumericT e
+    Func func fs
+      | func `elem` [FAdd, FMul, FAbs, FMod, FDivInt, FDivReal, FToReal] -> all isNumericT fs
+      | otherwise -> False
+    _ -> False
+
+-- | Return if a term would evaluate to an integer.
+isInteger :: Term -> Bool
+isInteger =
+  \case
+    Var _ SInt -> True
+    Const (CInt _) -> True
+    Func FAdd fs -> all isInteger fs
+    Func FMul fs -> all isInteger fs
+    Func FAbs _ -> True
+    Func FMod _ -> True
+    Func FDivInt _ -> True
+    _ -> False
+
+-- | Extract from a boolean combination, the terms that are not composed of boolean
+-- terms. Note that quantifiers are not treated as boolean combinations.
 nonBoolTerms :: Term -> Set Term
 nonBoolTerms =
   \case
@@ -728,68 +769,34 @@ nonBoolTerms =
     f -> Set.singleton f
 
 ---------------------------------------------------------------------------------------------------
--- Models
+-- Transformations
 ---------------------------------------------------------------------------------------------------
--- | Representation of a model for the free variables in a 'Term'
-newtype Model =
-  Model (Map Symbol Term)
-  deriving (Eq, Ord, Show)
-
-modelToMap :: Model -> Map Symbol Term
-modelToMap (Model m) = m
-
-emptyModel :: Model
-emptyModel = Model Map.empty
-
-modelAddT :: Symbol -> Term -> Model -> Model
-modelAddT v t (Model m) = Model $ Map.insert v t m
-
-setModel :: Model -> Term -> Term
-setModel (Model m) = mapTermM m
-
-inlineModel :: Model -> Symbol -> Model
-inlineModel (Model m) v =
-  case m !? v of
-    Nothing -> Model m
-    Just t ->
-      Model
-        $ mapTerm
-            (\v' _ ->
-               if v == v'
-                 then Just t
-                 else Nothing)
-            <$> Map.delete v m
-
-sanitizeModel :: Set Symbol -> Model -> Model
-sanitizeModel frees (Model m) = foldl inlineModel (Model m) (Map.keysSet m `Set.difference` frees)
-
----------------------------------------------------------------------------------------------------
-betaReduce :: Term -> Term -> Term
-betaReduce func arg =
-  case func of
-    Lambda _ body -> red 0 body
-    _ -> error "Beta reduction only works on lambda expressions"
+-- | Map all variable and uninterpreted function symbols in a term.
+mapSymbol :: (Symbol -> Symbol) -> Term -> Term
+mapSymbol m = rec
   where
-    red :: Int -> Term -> Term
-    red d =
+    rec =
       \case
-        Var v s -> Var v s
+        Var v t -> Var (m v) t
+        Func (CustomF f sig term) args -> Func (CustomF (m f) sig term) (rec <$> args)
+        Func f args -> Func f (rec <$> args)
+        Quant q t f -> Quant q t (rec f)
+        Lambda t f -> Lambda t (rec f)
+        QVar n -> QVar n
         Const c -> Const c
-        QVar k
-          | d == k -> arg
-          | k > d -> QVar k -- This is necessary as the lambda is removed!
-          | otherwise -> QVar k
-        Func f args -> Func f (map (red d) args)
-        Quant q s t -> Quant q s (red (d + 1) t)
-        Lambda s t -> Lambda s (red (d + 1) t)
 
-mapTermFor :: Symbol -> Term -> Term -> Term
-mapTermFor var term =
-  mapTerm $ \v _ ->
-    if v == var
-      then Just term
-      else Nothing
+-- | Remove in a term a given prefix from all symbols that have this prefix.
+removePref :: Symbol -> Term -> Term
+removePref pref =
+  mapSymbol $ \v ->
+    if pref `isPrefixOf` v
+      then drop (length pref) v
+      else v
 
+-- | Replace in a term some of the variables and uninterpreted functions by terms. A variable
+-- is replaced if the generic mapping function returns 'Just'. For an uninterpreted functions
+-- to be replace, the replacement term must be a sort-matched lambda expression. If this is not
+-- the case this is undefined.
 mapTerm :: (Symbol -> Sort -> Maybe Term) -> Term -> Term
 mapTerm m =
   \case
@@ -825,37 +832,30 @@ mapTerm m =
     QVar n -> QVar n
     Const c -> Const c
 
+betaReduce :: Term -> Term -> Term
+betaReduce func arg =
+  case func of
+    Lambda _ body -> red 0 body
+    _ -> error "Beta reduction only works on lambda expressions"
+  where
+    red :: Int -> Term -> Term
+    red d =
+      \case
+        Var v s -> Var v s
+        Const c -> Const c
+        QVar k
+          | d == k -> arg
+          | k > d -> QVar k -- This is necessary as the lambda is removed!
+          | otherwise -> QVar k
+        Func f args -> Func f (map (red d) args)
+        Quant q s t -> Quant q s (red (d + 1) t)
+        Lambda s t -> Lambda s (red (d + 1) t)
+
+-- | Apply 'mapTerm' based on a 'Map'.
 mapTermM :: Map Symbol Term -> Term -> Term
 mapTermM m = mapTerm (\v _ -> m !? v)
 
-mapSymbol :: (Symbol -> Symbol) -> Term -> Term
-mapSymbol m = rec
-  where
-    rec =
-      \case
-        Var v t -> Var (m v) t
-        Func (CustomF f sig term) args -> Func (CustomF (m f) sig term) (rec <$> args)
-        Func f args -> Func f (rec <$> args)
-        Quant q t f -> Quant q t (rec f)
-        Lambda t f -> Lambda t (rec f)
-        QVar n -> QVar n
-        Const c -> Const c
-
-setTerm :: Term -> Bool -> Term -> Term
-setTerm targ val = go
-  where
-    go f
-      | targ == f && val = true
-      | targ == f && not val = false
-      | otherwise =
-        case f of
-          Func FAnd fs -> andf (map go fs)
-          Func FOr fs -> orf (map go fs)
-          Func FNot [f] -> neg (go f)
-          Func FImply [f, g] -> go f `impl` go g
-          Func FDistinct fs -> distinct (map go fs)
-          _ -> f
-
+-- | Replace a single variable or uninterpreted function with 'mapTerm'.
 setSymbolTo :: Symbol -> Term -> Term -> Term
 setSymbolTo var term =
   mapTerm $ \var' _ ->
@@ -863,70 +863,13 @@ setSymbolTo var term =
       then Just term
       else Nothing
 
-replaceUF :: Symbol -> [Symbol] -> Term -> Term -> Term
-replaceUF name argVars body = go
-  where
-    go =
-      \case
-        Quant q t f -> Quant q t (go f)
-        Lambda t f -> Lambda t (go f)
-        Func fun args ->
-          case fun of
-            CustomF n _ _
-              | n == name -> mapTermM (Map.fromList (zip argVars args)) body
-              | otherwise -> Func fun $ map go args
-            _ ->
-              case (fun, map go args) of
-                (FAnd, fs) -> andf fs
-                (FOr, fs) -> orf fs
-                (FNot, [f]) -> neg f
-                (FDistinct, fs) -> distinct fs
-                (FImply, [a, b]) -> implyT a b
-                (FIte, [a, b, c]) -> ite a b c
-                (FAdd, fs) -> addT fs
-                (FMul, fs) -> multT fs
-                (FDivReal, [a, b]) -> realdivT a b
-                (FEq, [a, b]) -> a `equal` b
-                (FLt, [a, b]) -> a `ltT` b
-                (FLte, [a, b]) -> a `leqT` b
-                (FAbs, [t]) -> absT t
-                (FToReal, [t]) -> toRealT t
-                (FMod, [a, b]) -> modT a b
-                (FDivInt, [a, b]) -> intdivT a b
-                (f, args) -> Func f args
-        QVar k -> QVar k
-        Const c -> Const c
-        Var v t -> Var v t
+mapTermFor :: Symbol -> Term -> Term -> Term --TODO another duplicate to remove
+mapTermFor var term =
+  mapTerm $ \v _ ->
+    if v == var
+      then Just term
+      else Nothing
 
----------------------------------------------------------------------------------------------------
-uniqueName :: Symbol -> Set Symbol -> Symbol
-uniqueName = uniquePrefix
-
-uniquePrefix :: Symbol -> Set Symbol -> Symbol
-uniquePrefix prefix names
-  | any (prefix `isPrefixOf`) names = h (0 :: Integer)
-  | otherwise = prefix
-  where
-    h n
-      | any ((prefix ++ show n) `isPrefixOf`) names = h (n + 1)
-      | otherwise = prefix ++ show n
-
-unusedName :: Symbol -> Term -> Symbol
-unusedName prefix f = uniqueName prefix (symbols f)
-
-unusedPrefix :: Symbol -> Term -> Symbol
-unusedPrefix prefix f = uniquePrefix prefix (symbols f)
-
-removePref :: Symbol -> Term -> Term
-removePref pref =
-  mapSymbol $ \v ->
-    if pref `isPrefixOf` v
-      then drop (length pref) v
-      else v
-
----------------------------------------------------------------------------------------------------
--- Transformations
----------------------------------------------------------------------------------------------------
 -- | Move down quantifiers if possible.
 pushdownQE :: Term -> Term
 pushdownQE = removeDangling . go
@@ -971,7 +914,111 @@ removeDangling = fst . go
         Lambda s t -> Lambda s (adapt (k + 1) t)
         Quant q s t -> Quant q s (adapt (k + 1) t)
 
--- TODO: implement
+-- | Replace a given sub-term in a term by a boolean constant.
+setTerm :: Term -> Bool -> Term -> Term
+setTerm targ val = go
+  where
+    go f
+      | targ == f && val = true
+      | targ == f && not val = false
+      | otherwise =
+        case f of
+          Func FAnd fs -> andf (map go fs)
+          Func FOr fs -> orf (map go fs)
+          Func FNot [f] -> neg (go f)
+          Func FImply [f, g] -> go f `impl` go g
+          Func FDistinct fs -> distinct (map go fs)
+          _ -> f
+
+-- | Instantiate a specific uninterpreted function with a body term. To this end
+-- this method takes a list of variables that must be exactly as many as the uninterpreted
+-- function has arguments. The body must ranges at most over those variables.
+-- The uninterpreted function is instantiated by replacing the variables in the body with
+-- the matching term in the functions arguments. The function is the replaced by this
+-- instantiated body.
+replaceUF :: Symbol -> [Symbol] -> Term -> Term -> Term
+replaceUF name argVars body = go
+  where
+    go =
+      \case
+        Quant q t f -> Quant q t (go f)
+        Lambda t f -> Lambda t (go f)
+        Func fun args ->
+          case fun of
+            CustomF n _ _
+              | n == name -> mapTermM (Map.fromList (zip argVars args)) body
+              | otherwise -> Func fun $ map go args
+            _ ->
+              case (fun, map go args) of
+                (FAnd, fs) -> andf fs
+                (FOr, fs) -> orf fs
+                (FNot, [f]) -> neg f
+                (FDistinct, fs) -> distinct fs
+                (FImply, [a, b]) -> implyT a b
+                (FIte, [a, b, c]) -> ite a b c
+                (FAdd, fs) -> addT fs
+                (FMul, fs) -> multT fs
+                (FDivReal, [a, b]) -> realdivT a b
+                (FEq, [a, b]) -> a `equal` b
+                (FLt, [a, b]) -> a `ltT` b
+                (FLte, [a, b]) -> a `leqT` b
+                (FAbs, [t]) -> absT t
+                (FToReal, [t]) -> toRealT t
+                (FMod, [a, b]) -> modT a b
+                (FDivInt, [a, b]) -> intdivT a b
+                (f, args) -> Func f args
+        QVar k -> QVar k
+        Const c -> Const c
+        Var v t -> Var v t
+
+---------------------------------------------------------------------------------------------------
+-- Models
+---------------------------------------------------------------------------------------------------
+-- | Representation of a model for the declarations, i.e. free variables and uninterpreted
+-- functions in a term.
+newtype Model =
+  Model (Map Symbol Term)
+  deriving (Eq, Ord, Show)
+
+-- | Transform a model into a mapping.
+modelToMap :: Model -> Map Symbol Term
+modelToMap (Model m) = m
+
+-- | The model where no symbol is set.
+emptyModel :: Model
+emptyModel = Model Map.empty
+
+-- | Add the model-value for specific symbol.
+modelAddT :: Symbol -> Term -> Model -> Model
+modelAddT v t (Model m) = Model $ Map.insert v t m
+
+-- | Sanitizes a model by removing references between the different assignments in
+-- a model. This is need for some SMT-solver outputs.
+sanitizeModel :: Set Symbol -> Model -> Model
+sanitizeModel frees (Model m) = foldl inlineModel (Model m) (Map.keysSet m `Set.difference` frees)
+
+inlineModel :: Model -> Symbol -> Model
+inlineModel (Model m) v =
+  case m !? v of
+    Nothing -> Model m
+    Just t ->
+      Model
+        $ mapTerm
+            (\v' _ ->
+               if v == v'
+                 then Just t
+                 else Nothing)
+            <$> Map.delete v m
+
+-- | Instantiate the free variables and functions by the values of a model. Note
+-- that sometimes the one needs to call 'sanitizeModel' first for this to be sound.
+setModel :: Model -> Term -> Term
+setModel (Model m) = mapTermM m
+
+---------------------------------------------------------------------------------------------------
+-- Type Check
+---------------------------------------------------------------------------------------------------
+-- TODO: implement?
 --typeCheck :: Term -> Either String Sort
 --typeCheck = go (const Nothing)
 --    where
@@ -1003,7 +1050,11 @@ removeDangling = fst . go
 --
 -- Pre-Simplification / Pre-Simplification check
 --
--- TODO: move to different module
+---------------------------------------------------------------------------------------------------
+-- Cheap SMT
+---------------------------------------------------------------------------------------------------
+-- | Computes an cheap under-approximation of SMT satisfiability. If this methods return 'True',
+-- then the given term has an SMT model. Otherwise, the result is unknown.
 underapproxSAT :: Term -> Bool
 underapproxSAT = go . normNNF
   where
