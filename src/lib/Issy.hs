@@ -53,7 +53,6 @@ module Issy
   , -- Encoding
     specToLTLMT
   , specToSweap
-  , rpgToMuCLP
   , fpToMuCLP
   , rpgToSG
   , rpgToTSLT
@@ -75,7 +74,6 @@ import Issy.Statistics (Stats, emptyStats, printStats)
 -- Encoding
 import Issy.Encoders.FullMuCLP (fpToMuCLP) -- TODO: This is more of a printer
 import Issy.Encoders.LTLMT (specToLTLMT)
-import Issy.Encoders.MuCLP (rpgToMuCLP) -- TODO: this can be removed in its own commit
 import Issy.Encoders.Sweap (specToSweap)
 import Issy.Encoders.TSLT (rpgToTSLT)
 import Issy.Encoders.ToFixpoints (FPSystem, gameToFP) -- TODO: This is more of a translator

@@ -41,7 +41,6 @@ library
     , Issy.Config
     , Issy.Encoders.FullMuCLP
     , Issy.Encoders.LTLMT
-    , Issy.Encoders.MuCLP
     , Issy.Encoders.Sweap
     , Issy.Encoders.ToFixpoints
     , Issy.Encoders.ToFormula
