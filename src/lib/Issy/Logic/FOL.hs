@@ -9,8 +9,8 @@
 -- things like symbol handling and normalization. Inside Issy this module should be used to
 -- handle those terms. Note that since almost everything depends on this changes that e.g.
 -- change how certain terms are represented should be done with uttermost care, as some
--- methods work on the syntactic level. Beyond that, methods should --if possible-- avoid using 
--- the data structure of 'Term's directly and should (e.g. for construction) use the abstract 
+-- methods work on the syntactic level. Beyond that, methods should --if possible-- avoid using
+-- the data structure of 'Term's directly and should (e.g. for construction) use the abstract
 -- interface.
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
@@ -28,20 +28,6 @@ module Issy.Logic.FOL
     predefined
   , booleanFunctions
   , comparisionFunctions
-  , -- Model handling
-    Model
-  , modelToMap
-  , emptyModel
-  , modelAddT
-  , sanitizeModel
-  , setModel
-  , mapTerm
-  , mapTermFor
-  , mapTermM
-  , mapSymbol
-  , setTerm
-  , replaceUF
-  , removePref
   , -- Term construction
     forAll
   , exists
@@ -107,14 +93,29 @@ module Issy.Logic.FOL
   , uniquePrefix
   , unusedName
   , unusedPrefix
+  , -- Model handling
+    Model
+  , modelToMap
+  , emptyModel
+  , modelAddT
+  , sanitizeModel
+  , setModel
+  , mapTerm
+  , mapTermFor
+  , mapTermM
+  , mapSymbol
+  , setTerm
+  , replaceUF
+  , removePref
   , -- Transformations
-    toNNF
-  , pushdownQE
+    pushdownQE
+  , removeDangling
   , -- Cheap SMT
     underapproxSAT
   ) where
 
-import Data.Bifunctor (first, second)
+---------------------------------------------------------------------------------------------------
+import Data.Bifunctor (bimap, first, second)
 import Data.List (isPrefixOf)
 import Data.Map (Map, (!?))
 import qualified Data.Map as Map
@@ -122,7 +123,7 @@ import Data.Ratio ((%), denominator, numerator)
 import Data.Set (Set)
 import qualified Data.Set as Set
 
-import Issy.Logic.Propositional hiding (NNF, toNNF)
+import Issy.Logic.Propositional
 
 ---------------------------------------------------------------------------------------------------
 -- Data Structures
@@ -142,7 +143,7 @@ data Sort
   | SFunc [Sort] Sort
   -- ^ values of this sort are functions that map arguments from
   -- the given sorts to values of the single resulting sort, note
-  -- that while this data structure allows to represent higher-order 
+  -- that while this data structure allows to represent higher-order
   -- functions other parts of the implementation will probably not
   -- support those
   deriving (Eq, Ord, Show)
@@ -219,8 +220,8 @@ data Constant
   -- ^ this is a boolean constant
   deriving (Eq, Ord, Show)
 
--- | Representation of first-order terms. For quantifiers and lambda 
--- expression a shared space of de-Bruijn indices is used. Those 
+-- | Representation of first-order terms. For quantifiers and lambda
+-- expression a shared space of de-Bruijn indices is used. Those
 -- indices start from zero to reference quantifiers/lambda terms
 -- on the current level
 data Term
@@ -231,7 +232,7 @@ data Term
   | Const Constant
   -- ^ This is a constant expression
   | QVar Int
-  -- ^ This is a quantified variable that is index with de-Bruijn indexing 
+  -- ^ This is a quantified variable that is index with de-Bruijn indexing
   | Func Function [Term]
   -- ^ This represents the application of a function to a list of arguments
   | Quant Quantifier Sort Term
@@ -392,6 +393,13 @@ setTerm targ val = go
           Func FImply [f, g] -> go f `impl` go g
           Func FDistinct fs -> distinct (map go fs)
           _ -> f
+
+setSymbolTo :: Symbol -> Term -> Term -> Term
+setSymbolTo var term =
+  mapTerm $ \var' _ ->
+    if var == var'
+      then Just term
+      else Nothing
 
 replaceUF :: Symbol -> [Symbol] -> Term -> Term -> Term
 replaceUF name argVars body = go
@@ -864,33 +872,49 @@ isNumber = (`elem` [SInt, SReal])
 ---------------------------------------------------------------------------------------------------
 -- Transformations
 ---------------------------------------------------------------------------------------------------
--- | TODO document and relate to other toNNF function
-toNNF :: Term -> Term
-toNNF =
-  \case
-    Func FNot [Quant Forall s t] -> Quant Exists s $ toNNF $ neg t
-    Func FNot [Quant Exists s t] -> Quant Forall s $ toNNF $ neg t
-    Func FNot [Func FNot [t]] -> toNNF t
-    Func FNot [Func FOr args] -> andf $ map (toNNF . neg) args
-    Func FNot [Func FAnd args] -> orf $ map (toNNF . neg) args
-    Func f args -> Func f $ map toNNF args
-    Quant q s t -> Quant q s $ toNNF t
-    atom -> atom
-
---
--- Custom simplifications
---
--- TODO: remove dangling quantifiers after pushdown
+-- | Move down quantifiers if possible.
 pushdownQE :: Term -> Term
-pushdownQE =
-  \case
-    Quant q s t ->
-      case (q, pushdownQE t) of
-        (Forall, Func FAnd args) -> andf $ map (Quant q s) args
-        (Exists, Func FOr args) -> orf $ map (Quant q s) args
-        (q, t) -> Quant q s t
-    Func f args -> Func f (map pushdownQE args)
-    term -> term
+pushdownQE = removeDangling . go
+  where
+    go =
+      \case
+        Quant q s t ->
+          case (q, go t) of
+            (Forall, Func FAnd args) -> andf $ map (go . Quant q s) args
+            (Exists, Func FOr args) -> orf $ map (go . Quant q s) args
+            (Forall, Func FNot [arg]) -> neg $ go $ Quant Exists s arg
+            (Exists, Func FNot [arg]) -> neg $ go $ Quant Forall s arg
+            (q, t) -> Quant q s t
+        Func f args -> Func f (map go args)
+        term -> term
+
+-- | Remove dangling quantifiers.
+removeDangling :: Term -> Term
+removeDangling = fst . go
+  where
+    go =
+      \case
+        Var s n -> (Var s n, Set.empty)
+        Const c -> (Const c, Set.empty)
+        QVar k -> (QVar k, Set.singleton k)
+        Func f fs -> bimap (Func f) Set.unions $ unzip $ map go fs
+        Lambda s t -> bimap (Lambda s) (Set.map (\k -> k - 1)) $ go t
+        Quant q s t ->
+          let (t', indices) = go t
+           in if 0 `elem` indices
+                then (Quant q s t', Set.map (\k -> k - 1) indices)
+                else (adapt 0 t', indices)
+    adapt k =
+      \case
+        Var s n -> Var s n
+        Const c -> Const c
+        QVar k'
+          | k == k' -> error "assert: this should not happen at all"
+          | k' > k -> QVar (k' - 1)
+          | otherwise -> QVar k'
+        Func f fs -> Func f (map (adapt k) fs)
+        Lambda s t -> Lambda s (adapt (k + 1) t)
+        Quant q s t -> Quant q s (adapt (k + 1) t)
 
 -- TODO: implement
 --typeCheck :: Term -> Either String Sort
@@ -923,15 +947,7 @@ pushdownQE =
 --
 --
 -- Pre-Simplification / Pre-Simplification check
--- TODO: This might be a different module
 --
-setSymbolTo :: Symbol -> Term -> Term -> Term
-setSymbolTo var term =
-  mapTerm $ \var' _ ->
-    if var == var'
-      then Just term
-      else Nothing
-
 -- TODO: move to different module
 underapproxSAT :: Term -> Bool
 underapproxSAT = go . normNNF
