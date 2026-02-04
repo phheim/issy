@@ -57,20 +57,11 @@ main = do
       (ToGame, HighLevel) -> printSG <$> (specToSG cfg =<< getSpec cfg input HighLevel)
       (ToGame, RPG) -> printRPG <$> liftErr (parseRPG input)
       (ToGame, TSLMT) -> printRPG <$> (tslToRPG cfg =<< parseTSL input)
-      (Solve, LowLevel) ->
-        printRes cfg
-          =<< (solve cfg (emptyStats cfg) . fromSG)
-          =<< specToSG cfg
-          =<< getSpec cfg input LowLevel
-      (Solve, HighLevel) ->
-        printRes cfg
-          =<< (solve cfg (emptyStats cfg) . fromSG)
-          =<< specToSG cfg
-          =<< getSpec cfg input HighLevel
-      (Solve, RPG) ->
-        printRes cfg =<< (solve cfg (emptyStats cfg) . fromRPG) =<< liftErr (parseRPG input)
+      (Solve, LowLevel) -> printRes cfg =<< solveSpec cfg =<< getSpec cfg input LowLevel
+      (Solve, HighLevel) -> printRes cfg =<< solveSpec cfg =<< getSpec cfg input HighLevel
+      (Solve, RPG) -> printRes cfg =<< solveRPG cfg =<< liftErr (parseRPG input)
       (Solve, TSLMT) -> do
-        printRes cfg =<< (solve cfg (emptyStats cfg) . fromRPG) =<< tslToRPG cfg =<< parseTSL input
+        printRes cfg =<< solveRPG cfg =<< tslToRPG cfg =<< parseTSL input
       (EncodeTSLMT, RPG) -> uncurry rpgToTSLT <$> liftErr (parseRPG input)
       (EncodeTSLMT, _) -> die "invalid arguments: can only encode RPGs to TSLMT at the moment"
       (EncodeTSLMTLissy, TSLMT) ->
@@ -268,6 +259,8 @@ configParser = go defaultConfig
         "--caller-chcmx":arg:ar -> go (cfg {chcMaxScript = arg}) ar
         -- Debug
         "--debug":ar -> go (cfg {debug = True}) ar
+        -- Experimental
+        "--remove-rpgs":ar -> go (cfg {removeRPGs = True}) ar
         s:_ -> Left $ "found invalid argument: " ++ s
 
 ---
@@ -353,6 +346,8 @@ help =
   , "       hard   : use everything that is possible, this will create signifcant overhead"
   , ""
   , "   --enable-summaries : enable computation of enforcement summaries"
+  , ""
+  , "   --remove-rpgs : translate RPGs to symbolic games befor solving (experimental)"
   , ""
   , " Synthesis:"
   , "   --synt         : generate program if spec is realizable (default: disabled)"

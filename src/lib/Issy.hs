@@ -26,6 +26,9 @@ module Issy
     solve
   , fromRPG
   , fromSG
+  , solveSpec
+  , solveSG
+  , solveRPG
   , -- Translation
     tslToRPG
   , tslToRPLTL
@@ -54,6 +57,11 @@ module Issy
   ) where
 
 ---------------------------------------------------------------------------------------------------
+-- Data Structures
+import Issy.Games.Objectives (Objective)
+import qualified Issy.Games.ReactiveProgramArena as RPG (Game)
+import qualified Issy.Games.SymbolicArena as SG (Arena)
+
 -- Compilation
 import Issy.Compiler (compile)
 
@@ -89,6 +97,25 @@ import Issy.Translation (rpgToSG, specToSG, tslToRPG, tslToRPLTL)
 -- Checking
 import Issy.Specification (Specification, checkSpecification, specFromRPLTL, specFromSymbolicGame)
 
+---------------------------------------------------------------------------------------------------
+-- | current version of issy
 issyVersion :: Word
 issyVersion = 2
+
+---------------------------------------------------------------------------------------------------
+-- Wrappers
+---------------------------------------------------------------------------------------------------
+-- | Apply 'solve' to specifications with new statistics
+solveSpec :: Config -> Specification -> IO (Bool, Stats, Maybe (IO String))
+solveSpec config spec = specToSG config spec >>= solveSG config
+
+-- | Apply 'solve' to symbolic games
+solveSG :: Config -> (SG.Arena, Objective) -> IO (Bool, Stats, Maybe (IO String))
+solveSG config = solve config (emptyStats config) . fromSG
+
+-- | Apply 'solve' to reactive program games
+solveRPG :: Config -> (RPG.Game, Objective) -> IO (Bool, Stats, Maybe (IO String))
+solveRPG config
+  | removeRPGs config = solveSG config . rpgToSG
+  | otherwise = solve config (emptyStats config) . fromRPG
 ---------------------------------------------------------------------------------------------------

@@ -90,6 +90,13 @@ data Config = Config
   --
   , debug :: Bool
   -- ^ Enables different validation techniques and double checks
+  --
+  -- Experimental
+  --
+  , removeRPGs :: Bool
+  -- ^ translates RPGs to symbolic games before starting the solving. If
+  -- this is viable, we might remove the RPG solving part in the long run
+  -- By default, this methods should not be used.
   }
 
 ---------------------------------------------------------------------------------------------------
@@ -130,6 +137,8 @@ defaultConfig =
     , chcMaxTimeOut = 15
     -- Debug
     , debug = False
+    -- Experimental
+    , removeRPGs = False
     }
 
 ---------------------------------------------------------------------------------------------------
