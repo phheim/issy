@@ -1,13 +1,16 @@
 ---------------------------------------------------------------------------------------------------
 -- |
 -- Module      : Issy.Logic.TSLMT
--- Description : TODO DOCUMENT
+-- Description : Representation of TSLMT
 -- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
 --
+-- This module implements the basic functionalities for representing TSLMT.
+-- It builds upon the general temporal logic representation 'Formula'.
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
+---------------------------------------------------------------------------------------------------
 module Issy.Logic.TSLMT
   ( Atom(..)
   , preds
@@ -18,6 +21,7 @@ module Issy.Logic.TSLMT
   , pushBoolF
   ) where
 
+---------------------------------------------------------------------------------------------------
 import Data.Set (Set)
 import qualified Data.Set as Set
 
@@ -26,11 +30,21 @@ import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.Temporal as TL
 import Issy.Logic.Temporal (Formula(..))
 
+---------------------------------------------------------------------------------------------------
+-- Basics
+---------------------------------------------------------------------------------------------------
+-- | TSLMT is represented with temporal logic formulas 'Formula' where the atomic terms
+-- are predicates and updates.
 data Atom
-  = Update Symbol Term
-  | Predicate Term
+  = Predicate Term
+  -- ^ predicates in TSLMT are simple first-order logic predicates without quantifiers
+  | Update Symbol Term
+  -- ^ updates of an variable by a term, i.e. the variable
+  -- should be assigned (for the next time-step)
+  -- the current value of the update term
   deriving (Eq, Ord, Show)
 
+-- | All predicates that are present in the formula.
 preds :: TL.Spec Atom -> Set Term
 preds =
   Set.unions
@@ -41,6 +55,7 @@ preds =
     . TL.atoms
     . TL.toFormula
 
+-- | All updates that are present in the formula.
 updates :: TL.Spec Atom -> Set (Symbol, Term)
 updates =
   Set.unions
@@ -51,12 +66,21 @@ updates =
     . TL.atoms
     . TL.toFormula
 
+---------------------------------------------------------------------------------------------------
+-- Transformations
+---------------------------------------------------------------------------------------------------
+-- | Apply 'pullBoolF' to a whole specification.
 pullBool :: TL.Spec Atom -> TL.Spec Atom
 pullBool = TL.mapF pullBoolF
 
+-- | Apply 'pushBoolF' to a whole specification.
 pushBool :: TL.Spec Atom -> TL.Spec Atom
 pushBool = TL.mapF pushBoolF
 
+-- | The TSLMT representation allows to have boolean combination of predicates
+-- which themself might be boolean combinations. 'pullBoolF' moves the boolean
+-- combinations to the 'Term' level and pulls up the predicates in the
+-- overall term tree.
 pullBoolF :: Formula Atom -> Formula Atom
 pullBoolF = go
   where
@@ -89,6 +113,9 @@ pullBoolF = go
         Atom (Predicate f):xr -> (f :) <$> allAtoms xr
         _ -> Nothing
 
+-- | 'pushBoolF' does the opposite of 'pullBoolF' and moves the boolean
+-- combinations to the 'Formula' level and moves down the predicates in the
+-- overall term tree.
 pushBoolF :: Formula Atom -> Formula Atom
 pushBoolF = go
   where

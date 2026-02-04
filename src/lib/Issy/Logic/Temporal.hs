@@ -39,7 +39,7 @@ import Issy.Games.Variables (Variables)
 -- | Polymorphic representation of linear-time temporal logic formulas
 data Formula a
   = Atom a
-  -- ^ ground or atomic
+  -- ^ polymorhic atomic terms/propositions
   | And [Formula a]
   -- ^ boolean conjunction
   | Or [Formula a]
@@ -86,20 +86,20 @@ instance Functor Formula where
   fmap m (UExp op f) = UExp op $ fmap m f
   fmap m (BExp op f g) = BExp op (fmap m f) (fmap m g)
 
--- | Add the next operator on top of a formula
+-- | Add the next operator on top of a formula.
 next :: Formula a -> Formula a
 next = UExp Next
 
--- | Add the globally operator on top of a formula
+-- | Add the globally operator on top of a formula.
 globally :: Formula a -> Formula a
 globally = UExp Globally
 
--- | Add the eventually operator on top of a formula
+-- | Add the eventually operator on top of a formula.
 eventually :: Formula a -> Formula a
 eventually = UExp Eventually
 
--- | Checks if a temporal logic formula is bounded, i.e. there is
--- a limit on how many time-steps in the future it can impose conditions on
+-- | Check if a temporal logic formula is bounded, i.e. there is
+-- a limit on how many time-steps in the future it can impose conditions on.
 isTemporalBounded :: Formula a -> Bool
 isTemporalBounded =
   \case
@@ -111,7 +111,7 @@ isTemporalBounded =
     UExp _ _ -> False
     BExp {} -> False
 
--- | Checks if a formula is syntactically a safety formula
+-- | Check if a formula is syntactically a safety formula.
 formulaIsSafety :: Formula a -> Bool
 formulaIsSafety = go
   where
@@ -125,7 +125,7 @@ formulaIsSafety = go
         BExp Release f g -> go f && go g
         f -> isTemporalBounded f
 
--- | All atoms that appear in the temporal formula
+-- | All atoms that appear in the temporal formula.
 atoms :: Ord a => Formula a -> Set a
 atoms =
   \case
