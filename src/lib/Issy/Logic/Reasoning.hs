@@ -93,7 +93,7 @@ eqElim conf vars pre term = go term [] vars
         case sk of
           Nothing -> go term skolems vr
           Just sk -> do
-            term <- SMT.simplify conf $ FOL.mapTermFor var sk term
+            term <- SMT.simplify conf $ FOL.setSymbolTo var sk term
             go term ((var, sk) : skolems) vr
 
 -- | try to eliminate skolem  functions based on equalities found in the
@@ -114,7 +114,7 @@ tryEqElim conf vars pre term var = do
       \case
         [] -> pure Nothing
         eq:eqr -> do
-          let condSet = FOL.exists (map fst vars) $ FOL.mapTermFor var eq term
+          let condSet = FOL.exists (map fst vars) $ FOL.setSymbolTo var eq term
           condSet <- SMT.simplify conf condSet
           satT <- SMT.sat conf condSet
           if satT

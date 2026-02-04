@@ -102,8 +102,8 @@ lemmaSymbols :: Arena -> (Term, Term, Term, Function, Symbol, LemSyms)
 lemmaSymbols arena =
   let syms = usedSymbols arena
       base = FOL.uniquePrefix "base" syms
-      step = FOL.uniqueName "step" syms
-      conc = FOL.uniqueName "conc" syms
+      step = FOL.uniquePrefix "step" syms
+      conc = FOL.uniquePrefix "conc" syms
       prime = FOL.uniquePrefix "prime_" syms
    in ( Vars.unintPredTerm (vars arena) base
       , Vars.unintPredTerm (vars arena) step

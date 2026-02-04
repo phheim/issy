@@ -164,7 +164,7 @@ createLocsFor arena name dom =
 
 addSink :: Arena -> (Arena, Loc)
 addSink arena =
-  let sinkName = FOL.uniqueName "sink" $ Set.map (locName arena) $ locSet arena
+  let sinkName = FOL.uniquePrefix "sink" $ Set.map (locName arena) $ locSet arena
       (arena0, sink) = addLoc arena sinkName
       arena1 = setDomain arena0 sink FOL.true
    in (setTrans arena1 sink sink FOL.true, sink)

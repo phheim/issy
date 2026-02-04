@@ -144,9 +144,9 @@ iterA acst g attr shadow = go (doIterA acst g) (OL.fromSet (preds g shadow)) [] 
 -------------------------------------------------------------------------------
 lemmaSymbols :: Variables -> AccState -> (Term, Term, Term, Function, Symbol, AccState)
 lemmaSymbols vars acst =
-  let base = FOL.uniqueName "b" $ usedSyms acst
-      step = FOL.uniqueName "s" $ usedSyms acst
-      conc = FOL.uniqueName "c" $ usedSyms acst
+  let base = FOL.uniquePrefix "b" $ usedSyms acst
+      step = FOL.uniquePrefix "s" $ usedSyms acst
+      conc = FOL.uniquePrefix "c" $ usedSyms acst
       prime = FOL.uniquePrefix "prime_" $ usedSyms acst
       lsym = LemSyms base step conc prime
    in ( Vars.unintPredTerm vars base

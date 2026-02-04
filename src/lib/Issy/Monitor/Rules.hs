@@ -91,7 +91,7 @@ data GlobalS = GlobalS
 
 globalState :: Variables -> GlobalS
 globalState vars =
-  let fpn = FOL.uniqueName "fixpointpred" $ Vars.allSymbols vars
+  let fpn = FOL.uniquePrefix "fixpointpred" $ Vars.allSymbols vars
    in GlobalS
         { vars = vars
         , fixpointPred = fpn

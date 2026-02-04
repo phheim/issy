@@ -304,8 +304,8 @@ prepareBox conf reach boxTerms = go [] [] boxTerms
                 | FOL.SReal `elem` FOL.sorts boxTerm = FOL.SReal
                 | otherwise = FOL.SInt
           let newname upper
-                | upper = FOL.uniqueName "upper" syms
-                | otherwise = FOL.uniqueName "lower" syms
+                | upper = FOL.uniquePrefix "upper" syms
+                | otherwise = FOL.uniquePrefix "lower" syms
           let newvar upper = FOL.var (newname upper) sort
           let newbox upper = (boxTerm, (upper, (newname upper, sort)))
           up <- boundIn conf True boxTerm reach
@@ -323,7 +323,7 @@ prepareBox conf reach boxTerms = go [] [] boxTerms
 
 boundIn :: Config -> Bool -> Term -> Term -> IO Bool
 boundIn conf upper dimTerm reach = do
-  let boundName = FOL.unusedName "bound" $ FOL.andf [dimTerm, reach]
+  let boundName = FOL.unusedPrefix "bound" $ FOL.andf [dimTerm, reach]
   let bound
         | FOL.SReal `elem` FOL.sorts dimTerm = FOL.rvarT boundName
         | otherwise = FOL.ivarT boundName
@@ -389,7 +389,7 @@ usefullTargetVar conf player arena var =
 
 varPlayerControlled :: Config -> Player -> Arena -> Symbol -> IO Bool
 varPlayerControlled conf player arena var = do
-  let cVarName = FOL.uniqueName ("copy_" ++ var) $ usedSymbols arena
+  let cVarName = FOL.uniquePrefix ("copy_" ++ var) $ usedSymbols arena
   let cvar = FOL.var cVarName (sortOf arena var)
   let st = SymSt.symSt (locations arena) $ const $ cvar `FOL.equal` Vars.mk (vars arena) var
   SMT.unsat conf
@@ -400,7 +400,7 @@ varProgress :: Config -> Arena -> Symbol -> IO Bool
 varProgress conf arena var
   | not (FOL.isNumber (sortOf arena var)) = pure False
   | otherwise = do
-    let bVarName = FOL.uniqueName ("bound_" ++ var) $ usedSymbols arena
+    let bVarName = FOL.uniquePrefix ("bound_" ++ var) $ usedSymbols arena
     let prefix = FOL.uniquePrefix "prefix_" $ usedSymbols arena
     let varBound = FOL.var bVarName (sortOf arena var)
     let varAbs = FOL.absT $ Vars.mk (vars arena) var

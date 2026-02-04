@@ -30,9 +30,7 @@ module Issy.Logic.FOL
   , comparisionFunctions
   , -- Symbol handling
     symbols
-  , uniqueName
   , uniquePrefix
-  , unusedName
   , unusedPrefix
   , -- Term construction (generic)
     constT
@@ -96,7 +94,14 @@ module Issy.Logic.FOL
   , isNumericT
   , nonBoolTerms
   , -- Transformations
-    pushdownQE
+    mapSymbol
+  , removePref
+  , mapTerm
+  , mapTermM
+  , setSymbolTo
+  , setTerm
+  , replaceUF
+  , pushdownQE
   , removeDangling
   , -- Model handling
     Model
@@ -105,13 +110,6 @@ module Issy.Logic.FOL
   , modelAddT
   , sanitizeModel
   , setModel
-  , mapTerm
-  , mapTermFor
-  , mapTermM
-  , mapSymbol
-  , setTerm
-  , replaceUF
-  , removePref
   , -- Cheap SMT
     underapproxSAT
   ) where
@@ -252,7 +250,6 @@ instance Propositional Term where
       Func FAnd fs -> PAnd $ map toProp fs
       Func FOr fs -> POr $ map toProp fs
       Func FNot [f] -> PNot $ toProp f
-            -- TODO: multi imply?
       Func FImply [f, g] -> POr [PNot (toProp f), toProp g]
       Const (CBool c) -> PConst c
       t -> PLit t
@@ -282,9 +279,6 @@ symbols =
     Lambda _ f -> symbols f
     _ -> Set.empty
 
-uniqueName :: Symbol -> Set Symbol -> Symbol
-uniqueName = uniquePrefix --TODO: this is even more stupid than I rembered, remove that
-
 -- | Starting with a given (symbol) prefix, generate a prefix that is unique a unique
 -- prefix in the given set of symbol. This generated prefix can be used e.g. as unique
 -- name, or to generate unique names by appeding symbols to it.
@@ -296,9 +290,6 @@ uniquePrefix prefix names
     h n
       | any ((prefix ++ show n) `isPrefixOf`) names = h (n + 1)
       | otherwise = prefix ++ show n
-
-unusedName :: Symbol -> Term -> Symbol
-unusedName prefix f = uniqueName prefix (symbols f) -- TODO: dito, remove
 
 -- | Generate a unused prefix, like 'uniquePrefix', but in the context of a term,
 -- i.e. the prefix will be unique in the context of the symbols of the term.
@@ -860,13 +851,6 @@ setSymbolTo :: Symbol -> Term -> Term -> Term
 setSymbolTo var term =
   mapTerm $ \var' _ ->
     if var == var'
-      then Just term
-      else Nothing
-
-mapTermFor :: Symbol -> Term -> Term -> Term --TODO another duplicate to remove
-mapTermFor var term =
-  mapTerm $ \v _ ->
-    if v == var
       then Just term
       else Nothing
 
