@@ -28,6 +28,7 @@ import Issy.Compiler.Base
 parse :: [Token] -> PRes AstSpec
 parse = fmap fst . parseSpec
 
+---------------------------------------------------------------------------------------------------
 parseSpec :: [Token] -> PRes (AstSpec, [Token])
 parseSpec =
   \case
@@ -143,76 +144,6 @@ parseTrans ts = do
   (term, ts) <- parseTerm ts
   pure (id1, id2, term, ts)
 
---
--- Parse basics
---
-check :: (String -> Bool) -> String -> Pos -> String -> PRes ()
-check pred name p id = unless (pred id) $ perr p $ "Found illegal " ++ name ++ " \"" ++ id ++ "\""
-
-checkID :: Pos -> String -> PRes ()
-checkID = check isProperID "identifier"
-
-isKeyword :: String -> Bool
-isKeyword =
-  flip
-    elem
-    [ "assume"
-    , "assert"
-    , "input"
-    , "state"
-    , "loc"
-    , "from"
-    , "with"
-    , "game"
-    , "formula"
-    , "int"
-    , "bool"
-    , "real"
-    , "def"
-    , "F"
-    , "X"
-    , "G"
-    , "U"
-    , "W"
-    , "R"
-    , "Safety"
-    , "Reachability"
-    , "Buechi"
-    , "CoBuechi"
-    , "ParityMaxOdd"
-    , "keep"
-    , "havoc"
-    ]
-
-isProperID :: String -> Bool
-isProperID s =
-  not (isKeyword s)
-    && (case s of
-          [] -> False
-          c:s ->
-            (c `elem` ['a' .. 'z'] ++ ['A' .. 'Z'])
-              && all (`elem` ['a' .. 'z'] ++ ['A' .. 'Z'] ++ ['0' .. '9'] ++ ['_']) s)
-
-isId :: String -> Bool
-isId s =
-  case reverse s of
-    '\'':s -> isProperID (reverse s)
-    _ -> isProperID s
-
-parseInteger :: Pos -> String -> PRes Integer
-parseInteger p str =
-  case readMaybe str of
-    Just n -> pure n
-    Nothing -> expectErr p str "natural number"
-
-parseRat :: Pos -> String -> PRes Rational
-parseRat p str =
-  let (int, frac) = second (drop 1) $ span (/= '.') str
-   in (% (10 ^ (toEnum (length frac) :: Integer))) <$> parseInteger p (int ++ frac)
-
---
--- Parsing with prescedence
---
 parseRPLTL :: [Token] -> PRes (AstTF, [Token])
 parseRPLTL =
   parseOps
@@ -262,7 +193,7 @@ parseAtom t ts =
       ts <- exact ts ")"
       pure (AAHavoc (tpos t) ids, ts)
     name -> do
-      check isId name (tpos t) "identifier"
+      checkPrimeID (tpos t) name
       pure (AAVar (tpos t) name, ts)
   where
     getIds acc ts = do
@@ -293,7 +224,7 @@ parseGroundTerm =
                case parseRat (tpos t) name of
                  Right n -> pure (AConstReal (tpos t) n, ts)
                  _ -> do
-                   check isId name (tpos t) "identifier"
+                   checkPrimeID (tpos t) name
                    pure (AGVar (tpos t) name, ts))
     (unPred AGUexp [([("!", AGUNot)], 5), ([("-", AGUMinus)], 12), ([("abs", AGUAbs)], 13)])
     (binPred
@@ -306,6 +237,74 @@ parseGroundTerm =
        ])
     (posStr . tpos)
 
+---------------------------------------------------------------------------------------------------
+-- Identifier and Constant parsing
+---------------------------------------------------------------------------------------------------
+keywords :: [String]
+keywords =
+  [ "assume"
+  , "assert"
+  , "input"
+  , "state"
+  , "loc"
+  , "from"
+  , "with"
+  , "game"
+  , "formula"
+  , "int"
+  , "bool"
+  , "real"
+  , "def"
+  , "F"
+  , "X"
+  , "G"
+  , "U"
+  , "W"
+  , "R"
+  , "Safety"
+  , "Reachability"
+  , "Buechi"
+  , "CoBuechi"
+  , "ParityMaxOdd"
+  , "keep"
+  , "havoc"
+  ]
+
+isProperID :: String -> Bool
+isProperID s =
+  (s `notElem` keywords)
+    && (case s of
+          [] -> False
+          c:s ->
+            (c `elem` ['a' .. 'z'] ++ ['A' .. 'Z'])
+              && all (`elem` ['a' .. 'z'] ++ ['A' .. 'Z'] ++ ['0' .. '9'] ++ ['_']) s)
+
+isId :: String -> Bool
+isId s =
+  case reverse s of
+    '\'':s -> isProperID (reverse s)
+    _ -> isProperID s
+
+checkID :: Pos -> String -> PRes ()
+checkID p s = unless (isProperID s) $ perr p $ "Expected unprimed identifier, found " ++ s
+
+checkPrimeID :: Pos -> String -> PRes ()
+checkPrimeID p s = unless (isId s) $ perr p $ "Expected identifier, found " ++ s
+
+parseInteger :: Pos -> String -> PRes Integer
+parseInteger p str =
+  case readMaybe str of
+    Just n -> pure n
+    Nothing -> expectErr p str "natural number"
+
+parseRat :: Pos -> String -> PRes Rational
+parseRat p str =
+  let (int, frac) = second (drop 1) $ span (/= '.') str
+   in (% (10 ^ (toEnum (length frac) :: Integer))) <$> parseInteger p (int ++ frac)
+
+---------------------------------------------------------------------------------------------------
+-- Generic Precendence Parser
+---------------------------------------------------------------------------------------------------
 pars :: (Token -> Bool, Token -> Bool)
 pars = ((== "(") . tval, (== ")") . tval)
 
@@ -331,7 +330,7 @@ binPred op preds =
           Nothing -> Nothing
           Just (opName, pl, pr) -> Just (op (tpos t) opName, pl, pr)
 
--- TODO Move to own module!
+-- | Generic operator precedence parser
 parseOps ::
      (Eq t)
   => (t -> Bool, t -> Bool)
@@ -382,9 +381,9 @@ parseOps (lpar, rpar) parseAtom unOp binOp posToken = go
                   (e2, ts) <- parseOp rp ts
                   parseBin (op e1 e2) pred ts
 
---
--- Helpers, TODO: maybe also move partially to other module
---
+---------------------------------------------------------------------------------------------------
+-- Helpers
+---------------------------------------------------------------------------------------------------
 peak :: [Token] -> String -> PRes (String, Pos)
 peak ts msg =
   case ts of
@@ -429,3 +428,4 @@ apply3 f =
   \case
     Left err -> Left err
     Right (a, b, c, t) -> Right (f a b c, t)
+---------------------------------------------------------------------------------------------------
