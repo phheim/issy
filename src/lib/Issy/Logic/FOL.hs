@@ -28,59 +28,61 @@ module Issy.Logic.FOL
     predefined
   , booleanFunctions
   , comparisionFunctions
-  , -- Term construction
-    forAll
+  , -- Term construction (generic)
+    constT
+  , var
+  , func
+  , equal
+  , forAll
   , exists
   , lambda
-  , true
+  , unintFunc
+  , -- Term construction (booleans)
+    true
   , false
+  , boolConst
+  , bvarT
   , andf
   , andfL
   , orf
   , orfL
   , neg
   , impl
+  , implyT
   , iff
   , xor
-  , ite
-  , distinct
   , exactlyOne
   , atMostOne
-  , var
-  , invertC
-  , numberT
-  , constT
-  , boolConst
-  , intConst
+  , ite
+  , distinct
+  , -- Term construction (arithmetic)
+    intConst
   , realConst
-  , bvarT
-  , ivarT
-  , rvarT
+  , numberT
   , zeroT
   , oneT
-  , func
-  , unintFunc
+  , ivarT
+  , rvarT
+  , toRealT
   , leqT
-  , geqT
   , ltT
+  , geqT
   , gtT
-  , equal
   , addT
+  , invT
   , subT
   , minusT
   , multT
-  , invT
-  , implyT
-  , realdivT
   , intdivT
-  , absT
   , modT
-  , toRealT
-  , isNumber
+  , realdivT
+  , absT
+  , invertC
+  , -- Query methods
+    isNumber
   , isInteger
   , isNumericT
-  , -- Query methods
-    bindings
+  , bindings
   , frees
   , sorts
   , decls
@@ -266,6 +268,466 @@ instance Propositional Term where
       PLit f -> f
 
 ---------------------------------------------------------------------------------------------------
+-- Construction
+---------------------------------------------------------------------------------------------------
+-- | Construct generic constant.
+constT :: Constant -> Term
+constT = Const
+
+-- | Construct simple variable with given name and sort.
+var :: Symbol -> Sort -> Term
+var = Var
+
+-- | Construct generic function.
+func :: Function -> [Term] -> Term
+func = Func
+
+-- | Construct equality.
+equal :: Term -> Term -> Term
+equal (Const (CInt a)) (Const (CInt b)) = boolConst (a == b)
+equal (Const (CInt a)) (Const (CReal b)) = boolConst ((a % 1) == b)
+equal (Const (CReal a)) (Const (CInt b)) = boolConst (a == (b % 1))
+equal (Const (CReal a)) (Const (CReal b)) = boolConst (a == b)
+equal a b = func FEq [a, b]
+
+-- | Construct universal quantification for the variables listed, if they are free.
+forAll :: [Symbol] -> Term -> Term
+forAll vars f = quantifyL (bindings f !?) Forall f vars
+
+-- | Construct existential quantification for the variables listed, if they are free.
+exists :: [Symbol] -> Term -> Term
+exists vars f = quantifyL (bindings f !?) Exists f vars
+
+-- | Construct lambda term.
+lambda :: Symbol -> Sort -> Term -> Term
+lambda v s t = Lambda s (quantify v t)
+
+quantifyL :: (Symbol -> Maybe Sort) -> Quantifier -> Term -> [Symbol] -> Term
+quantifyL types q f =
+  \case
+    [] -> f
+    v:vr ->
+      case types v of
+        Nothing -> quantifyL types q f vr
+        Just t -> Quant q t (quantify v (quantifyL types q f vr))
+
+quantify :: Symbol -> Term -> Term
+quantify var = quant 0
+  where
+    quant n =
+      \case
+        Var v t
+          | v == var -> QVar n
+          | otherwise -> Var v t
+        Quant q b f -> Quant q b (quant (n + 1) f)
+        Lambda t f -> Lambda t (quant (n + 1) f)
+        Func f fs -> Func f (quant n <$> fs)
+        QVar v -> QVar v
+        Const c -> Const c
+
+-- | Construct an uninterpreted function term with simple variables as arguments, i.e.
+-- terms of the from "foo (a, b, c)" where "a" , "b", "c" are variable names.
+unintFunc :: String -> Sort -> [(Symbol, Sort)] -> Term
+unintFunc name resSort args = Func (CustomF name (map snd args) resSort) $ map (uncurry Var) args
+
+---------------------------------------------------------------------------------------------------
+-- | Construct the boolean constant true.
+true :: Term
+true = Const (CBool True)
+
+-- | Construct the boolean constant false.
+false :: Term
+false = Const (CBool False)
+
+-- | Construct a boolean constant.
+boolConst :: Bool -> Term
+boolConst = constT . CBool
+
+-- | Construct variable with boolean sort.
+bvarT :: String -> Term
+bvarT name = Var name SBool
+
+-- | Construct a boolean conjunction.
+andf :: [Term] -> Term
+andf xs
+  | false `elem` xs = false
+  | otherwise =
+    case go xs of
+      [] -> true
+      [x] -> x
+      xs -> func FAnd xs
+  where
+    go =
+      \case
+        [] -> []
+        Const (CBool True):xr -> go xr
+        Func FAnd xs:ys -> go $ xs ++ ys
+        t:xr -> t : go xr
+
+-- | Generator to construct a boolean conjunction.
+andfL :: [a] -> (a -> Term) -> Term
+andfL xs f = andf $ map f xs
+
+-- | Construct a boolean disjunction.
+orf :: [Term] -> Term
+orf xs
+  | true `elem` xs = true
+  | otherwise =
+    case filter (/= false) xs of
+      [] -> false
+      [x] -> x
+      xs -> Func FOr xs
+
+-- | Generator to construct a boolean disjunction.
+orfL :: [a] -> (a -> Term) -> Term
+orfL xs f = orf $ map f xs
+
+-- | Construct a boolean negation.
+neg :: Term -> Term
+neg =
+  \case
+    Const (CBool True) -> false
+    Const (CBool False) -> true
+    Func FNot [f] -> f
+    Func FLt [f, g] -> geqT f g
+    Func FLte [f, g] -> gtT f g
+    f -> Func FNot [f]
+
+-- | Construct a boolean implication.
+impl :: Term -> Term -> Term
+impl f g = orf [neg f, g]
+
+-- | Construct a syntactic boolean implication.
+implyT :: Term -> Term -> Term
+implyT a b = func FImply [a, b]
+
+-- | Construct a boolean equivalence.
+iff :: Term -> Term -> Term
+iff f g = andf [impl f g, impl g f]
+
+-- | Construct a boolean exclusive-or.
+xor :: Term -> Term -> Term
+xor f g = neg (iff f g)
+
+-- | Construct an term that holds if exactly one sub-term is true.
+exactlyOne :: [Term] -> Term
+exactlyOne fs = andf (orf fs : map (\f -> f `impl` andf [neg g | g <- fs, g /= f]) fs)
+
+-- | Construct a term that is true if at most one of its sub-terms are true.
+atMostOne :: [Term] -> Term
+atMostOne fs = geqT oneT $ func FAdd $ map (\f -> ite f oneT zeroT) fs
+
+-- | Construct an if-then-else term.
+ite :: Term -> Term -> Term -> Term
+ite c t e
+  | t == e = t
+  | otherwise = Func FIte [c, t, e]
+
+-- | Construct a distinct term, i.e. the term that is true if
+-- all sub-terms are different.
+distinct :: [Term] -> Term
+distinct = Func FDistinct
+
+---------------------------------------------------------------------------------------------------
+-- | Construct an integer constant.
+intConst :: Integer -> Term
+intConst = constT . CInt
+
+-- | Construct an real-valued constant.
+realConst :: Rational -> Term
+realConst = constT . CReal
+
+-- | Construct an number constant in a polymorphic manner. Integer constants are
+-- constructed if possible.
+numberT :: Real a => a -> Term
+numberT num =
+  let r = toRational num
+   in if denominator r == 1
+        then Const (CInt (numerator r))
+        else Const (CReal r)
+
+-- | Construct the integer zero constant.
+zeroT :: Term
+zeroT = Const (CInt 0)
+
+-- | Construct the integer one constant.
+oneT :: Term
+oneT = Const (CInt 1)
+
+-- | Construct an integer sorted variable.
+ivarT :: String -> Term
+ivarT name = Var name SInt
+
+-- | Construct an real sorted variable.
+rvarT :: String -> Term
+rvarT name = Var name SReal
+
+-- | Construct a term to cast an integer sorted-term to a real-sorted term.
+toRealT :: Term -> Term
+toRealT a = func FToReal [a]
+
+-- | Construct an less-or-equal-than term.
+leqT :: Term -> Term -> Term
+leqT (Const (CInt a)) (Const (CInt b)) = boolConst (a <= b)
+leqT (Const (CInt a)) (Const (CReal b)) = boolConst ((a % 1) <= b)
+leqT (Const (CReal a)) (Const (CInt b)) = boolConst (a <= (b % 1))
+leqT (Const (CReal a)) (Const (CReal b)) = boolConst (a <= b)
+leqT t (Const (CInt n))
+  | isInteger t = func FLt [t, Const (CInt (n + 1))]
+  | otherwise = func FLte [t, Const (CInt n)]
+leqT a b = func FLte [a, b]
+
+-- | Construct an less-than term.
+ltT :: Term -> Term -> Term
+ltT (Const (CInt a)) (Const (CInt b)) = boolConst (a < b)
+ltT (Const (CInt a)) (Const (CReal b)) = boolConst ((a % 1) < b)
+ltT (Const (CReal a)) (Const (CInt b)) = boolConst (a < (b % 1))
+ltT (Const (CReal a)) (Const (CReal b)) = boolConst (a < b)
+ltT (Const (CInt n)) t
+  | isInteger t = func FLte [Const (CInt (n + 1)), t]
+  | otherwise = func FLt [Const (CInt n), t]
+ltT a b = func FLt [a, b]
+
+-- | Construct an greater-or-equal-than term.
+geqT :: Term -> Term -> Term
+geqT a b = leqT b a
+
+-- | Construct an greater-than term.
+gtT :: Term -> Term -> Term
+gtT a b = ltT b a
+
+-- | Construct a sum of terms with the neutral element zero.
+addT :: [Term] -> Term
+addT =
+  \case
+    [] -> zeroT
+    [t] -> t
+    ts ->
+      case first sumC (filterC (flatten ts)) of
+        (c, []) -> Const c
+        (CInt 0, [t]) -> t
+        (CReal 0, [t]) -> t
+        (CInt 0, ts) -> Func FAdd ts
+        (CReal 0, ts) -> Func FAdd ts
+        (c, ts) -> Func FAdd $ Const c : ts
+  where
+    flatten [] = []
+    flatten (Func FAdd sts:tr) = flatten $ sts ++ tr
+    flatten (t:tr) = t : flatten tr
+
+-- | Construct the inversion of a term, where the inversion of t is -t.
+invT :: Term -> Term
+invT =
+  \case
+    Const (CInt n) -> Const $ CInt (-n)
+    Const (CReal n) -> Const $ CReal (-n)
+    Func FAdd ts -> addT $ map invT ts
+    Func FMul (t:tr) -> multT $ invT t : tr
+    t -> Func FMul [Const (CInt (-1)), t]
+
+-- | Construct the difference of two terms.
+subT :: Term -> Term -> Term
+subT a b = minusT [a, b]
+
+-- | Construct a generic difference of terms, where all the remaining terms
+-- are subtracted from the first one. 'undefined' if the list is empty.
+minusT :: [Term] -> Term
+minusT =
+  \case
+    [] -> error "assert: empty minus"
+    [x] -> invT x
+    x:xr -> addT (x : map invT xr)
+
+-- | Construct the product of terms with the neutral element one.
+multT :: [Term] -> Term
+multT =
+  \case
+    [] -> oneT
+    [t] -> t
+    ts ->
+      case first multC (filterC (flatten ts)) of
+        (c, []) -> Const c
+        (CInt 1, [t]) -> t
+        (CReal 1, [t]) -> t
+        (CInt 1, ts) -> Func FMul ts
+        (CReal 1, ts) -> Func FMul ts
+        (CInt 0, _) -> zeroT
+        (CReal 0, _) -> zeroT
+        (c, ts) -> Func FMul $ Const c : ts
+  where
+    flatten [] = []
+    flatten (Func FMul sts:tr) = flatten $ sts ++ tr
+    flatten (t:tr) = t : flatten tr
+
+filterC :: [Term] -> ([Constant], [Term])
+filterC =
+  \case
+    [] -> ([], [])
+    Const c:ts -> first (c :) $ filterC ts
+    t:ts -> second (t :) $ filterC ts
+
+sumC :: [Constant] -> Constant
+sumC = foldl go (CInt 0)
+  where
+    go (CInt m) (CInt n) = CInt $ m + n
+    go (CReal m) (CReal n) = CReal $ m + n
+    go (CInt m) (CReal n) = CReal $ (m % 1) + n
+    go (CReal m) (CInt n) = CReal $ m + (n % 1)
+    go _ _ = error "assert: can only sum integers and reals"
+
+multC :: [Constant] -> Constant
+multC = foldl go (CInt 1)
+  where
+    go (CInt m) (CInt n) = CInt $ m * n
+    go (CReal m) (CReal n) = CReal $ m * n
+    go (CInt m) (CReal n) = CReal $ (m % 1) * n
+    go (CReal m) (CInt n) = CReal $ m * (n % 1)
+    go _ _ = error "assert: can only sum integers and reals"
+
+-- | Construct the integer-division of two terms.
+intdivT :: Term -> Term -> Term
+intdivT a b = func FDivInt [a, b]
+
+-- | Construct the modulo of the integer-division of two terms.
+modT :: Term -> Term -> Term
+modT a b = func FMod [a, b]
+
+-- | Construct the real-value division of two terms.
+realdivT :: Term -> Term -> Term
+realdivT (Const (CReal a)) (Const (CReal b)) = Const $ CReal (a / b)
+realdivT a b = func FDivReal [a, b]
+
+-- | Construct the absolute value of a term.
+absT :: Term -> Term
+absT a = func FAbs [a]
+
+-- | Invert a constant by taking the boolean negation or 1 / k for an number k.
+-- Is undefined if k is zero.
+invertC :: Constant -> Constant
+invertC =
+  \case
+    CBool b -> CBool $ not b
+    CReal r -> CReal $ 1 / r
+    CInt n
+      | n == 1 || n == -1 -> CInt n
+      | otherwise -> CReal $ 1 % n
+
+---------------------------------------------------------------------------------------------------
+-- Query Methods
+---------------------------------------------------------------------------------------------------
+isNumericT :: Term -> Bool
+isNumericT =
+  \case
+    Var _ sort -> isNumber sort
+    Const (CInt _) -> True
+    Const (CReal _) -> True
+    Func FIte [_, t, e] -> isNumericT t && isNumericT e
+    Func func fs
+      | func `elem` [FAdd, FMul, FAbs, FMod, FDivInt, FDivReal, FToReal] -> all isNumericT fs
+      | otherwise -> False
+    _ -> False
+
+isInteger :: Term -> Bool
+isInteger =
+  \case
+    Var _ SInt -> True
+    Const (CInt _) -> True
+    Func FAdd fs -> all isInteger fs
+    Func FMul fs -> all isInteger fs
+    Func FAbs _ -> True
+    Func FMod _ -> True
+    Func FDivInt _ -> True
+    _ -> False
+
+isFuncSort :: Sort -> Bool
+isFuncSort =
+  \case
+    SFunc _ _ -> True
+    _ -> False
+
+isNumber :: Sort -> Bool
+isNumber = (`elem` [SInt, SReal])
+
+quantifierFree :: Term -> Bool
+quantifierFree =
+  \case
+    Func _ fs -> all quantifierFree fs
+    Quant {} -> False
+    Lambda _ _ -> False
+    _ -> True
+
+ufFree :: Term -> Bool
+ufFree =
+  \case
+    Var _ _ -> True
+    Const _ -> True
+    QVar _ -> True
+    Func (CustomF {}) _ -> False
+    Func _ fs -> all ufFree fs
+    Quant _ _ f -> ufFree f
+    Lambda _ f -> ufFree f
+
+bindingsS :: Term -> Set (Symbol, Sort)
+bindingsS =
+  \case
+    Var v s -> Set.singleton (v, s)
+    Func f args ->
+      case f of
+        CustomF f sarg starg ->
+          Set.unions (Set.singleton (f, SFunc sarg starg) : map bindingsS args)
+        _ -> Set.unions (map bindingsS args)
+    Quant _ _ f -> bindingsS f
+    Lambda _ f -> bindingsS f
+    _ -> Set.empty
+
+sorts :: Term -> Set Sort
+sorts =
+  \case
+    Var _ s -> Set.singleton s
+    Func f args ->
+      case f of
+        CustomF _ sarg starg -> Set.fromList (starg : sarg) `Set.union` Set.unions (map sorts args)
+        _ -> Set.unions $ map sorts args
+    Quant _ s f -> Set.singleton s `Set.union` sorts f
+    Lambda _ f -> sorts f
+    _ -> Set.empty
+
+frees :: Term -> Set Symbol
+frees = Set.map fst . Set.filter (not . isFuncSort . snd) . bindingsS
+
+decls :: Term -> Set Symbol
+decls = Set.map fst . bindingsS
+
+bindings :: Term -> Map Symbol Sort
+bindings =
+  Map.fromListWithKey
+    (\v s s' ->
+       if s == s'
+         then s
+         else error ("Assertion: Found variable " ++ v ++ " with different sorts"))
+    . Set.toList
+    . bindingsS
+
+symbols :: Term -> Set Symbol
+symbols =
+  \case
+    Var s _ -> Set.singleton s
+    Func (CustomF f _ _) args -> Set.unions $ Set.singleton f : map symbols args
+    Func _ args -> Set.unions $ map symbols args
+    Quant _ _ f -> symbols f
+    Lambda _ f -> symbols f
+    _ -> Set.empty
+
+nonBoolTerms :: Term -> Set Term
+nonBoolTerms =
+  \case
+    Const (CBool _) -> Set.empty
+    Func f args
+      | f `elem` booleanFunctions -> Set.unions $ map nonBoolTerms args
+      | otherwise -> Set.singleton $ Func f args
+    f -> Set.singleton f
+
+---------------------------------------------------------------------------------------------------
 -- Models
 ---------------------------------------------------------------------------------------------------
 -- | Representation of a model for the free variables in a 'Term'
@@ -437,189 +899,6 @@ replaceUF name argVars body = go
         Var v t -> Var v t
 
 ---------------------------------------------------------------------------------------------------
-true :: Term
-true = Const (CBool True)
-
-false :: Term
-false = Const (CBool False)
-
-andf :: [Term] -> Term
-andf xs
-  | false `elem` xs = false
-  | otherwise =
-    case go xs of
-      [] -> true
-      [x] -> x
-      xs -> func FAnd xs
-  where
-    go =
-      \case
-        [] -> []
-        Const (CBool True):xr -> go xr
-        Func FAnd xs:ys -> go $ xs ++ ys
-        t:xr -> t : go xr
-
-andfL :: [a] -> (a -> Term) -> Term
-andfL xs f = andf $ map f xs
-
-orf :: [Term] -> Term
-orf xs
-  | true `elem` xs = true
-  | otherwise =
-    case filter (/= false) xs of
-      [] -> false
-      [x] -> x
-      xs -> Func FOr xs
-
-orfL :: [a] -> (a -> Term) -> Term
-orfL xs f = orf $ map f xs
-
-neg :: Term -> Term
-neg =
-  \case
-    Const (CBool True) -> false
-    Const (CBool False) -> true
-    Func FNot [f] -> f
-    Func FLt [f, g] -> geqT f g
-    Func FLte [f, g] -> gtT f g
-    f -> Func FNot [f]
-
-ite :: Term -> Term -> Term -> Term
-ite c t e
-  | t == e = t
-  | otherwise = Func FIte [c, t, e]
-
-impl :: Term -> Term -> Term
-impl f g = orf [neg f, g]
-
-iff :: Term -> Term -> Term
-iff f g = andf [impl f g, impl g f]
-
-xor :: Term -> Term -> Term
-xor f g = neg (iff f g)
-
-distinct :: [Term] -> Term
-distinct = Func FDistinct
-
-exactlyOne :: [Term] -> Term
-exactlyOne fs = andf (orf fs : map (\f -> f `impl` andf [neg g | g <- fs, g /= f]) fs)
-
-atMostOne :: [Term] -> Term
-atMostOne fs = geqT oneT $ func FAdd $ map (\f -> ite f oneT zeroT) fs
-
-quantify :: Symbol -> Term -> Term
-quantify var = quant 0
-  where
-    quant n =
-      \case
-        Var v t
-          | v == var -> QVar n
-          | otherwise -> Var v t
-        Quant q b f -> Quant q b (quant (n + 1) f)
-        Lambda t f -> Lambda t (quant (n + 1) f)
-        Func f fs -> Func f (quant n <$> fs)
-        QVar v -> QVar v
-        Const c -> Const c
-
-quantifyL :: (Symbol -> Maybe Sort) -> Quantifier -> Term -> [Symbol] -> Term
-quantifyL types q f =
-  \case
-    [] -> f
-    v:vr ->
-      case types v of
-        Nothing -> quantifyL types q f vr
-        Just t -> Quant q t (quantify v (quantifyL types q f vr))
-
-forAll :: [Symbol] -> Term -> Term
-forAll vars f = quantifyL (bindings f !?) Forall f vars
-
-exists :: [Symbol] -> Term -> Term
-exists vars f = quantifyL (bindings f !?) Exists f vars
-
-lambda :: Symbol -> Sort -> Term -> Term
-lambda v s t = Lambda s (quantify v t)
-
----------------------------------------------------------------------------------------------------
-quantifierFree :: Term -> Bool
-quantifierFree =
-  \case
-    Func _ fs -> all quantifierFree fs
-    Quant {} -> False
-    Lambda _ _ -> False
-    _ -> True
-
-ufFree :: Term -> Bool
-ufFree =
-  \case
-    Var _ _ -> True
-    Const _ -> True
-    QVar _ -> True
-    Func (CustomF {}) _ -> False
-    Func _ fs -> all ufFree fs
-    Quant _ _ f -> ufFree f
-    Lambda _ f -> ufFree f
-
-bindingsS :: Term -> Set (Symbol, Sort)
-bindingsS =
-  \case
-    Var v s -> Set.singleton (v, s)
-    Func f args ->
-      case f of
-        CustomF f sarg starg ->
-          Set.unions (Set.singleton (f, SFunc sarg starg) : map bindingsS args)
-        _ -> Set.unions (map bindingsS args)
-    Quant _ _ f -> bindingsS f
-    Lambda _ f -> bindingsS f
-    _ -> Set.empty
-
-sorts :: Term -> Set Sort
-sorts =
-  \case
-    Var _ s -> Set.singleton s
-    Func f args ->
-      case f of
-        CustomF _ sarg starg -> Set.fromList (starg : sarg) `Set.union` Set.unions (map sorts args)
-        _ -> Set.unions $ map sorts args
-    Quant _ s f -> Set.singleton s `Set.union` sorts f
-    Lambda _ f -> sorts f
-    _ -> Set.empty
-
-frees :: Term -> Set Symbol
-frees = Set.map fst . Set.filter (not . isFuncSort . snd) . bindingsS
-
-decls :: Term -> Set Symbol
-decls = Set.map fst . bindingsS
-
-bindings :: Term -> Map Symbol Sort
-bindings =
-  Map.fromListWithKey
-    (\v s s' ->
-       if s == s'
-         then s
-         else error ("Assertion: Found variable " ++ v ++ " with different sorts"))
-    . Set.toList
-    . bindingsS
-
-symbols :: Term -> Set Symbol
-symbols =
-  \case
-    Var s _ -> Set.singleton s
-    Func (CustomF f _ _) args -> Set.unions $ Set.singleton f : map symbols args
-    Func _ args -> Set.unions $ map symbols args
-    Quant _ _ f -> symbols f
-    Lambda _ f -> symbols f
-    _ -> Set.empty
-
-nonBoolTerms :: Term -> Set Term
-nonBoolTerms =
-  \case
-    Const (CBool _) -> Set.empty
-    Func f args
-      | f `elem` booleanFunctions -> Set.unions $ map nonBoolTerms args
-      | otherwise -> Set.singleton $ Func f args
-    f -> Set.singleton f
-
----------------------------------------------------------------------------------------------------
 uniqueName :: Symbol -> Set Symbol -> Symbol
 uniqueName = uniquePrefix
 
@@ -644,230 +923,6 @@ removePref pref =
     if pref `isPrefixOf` v
       then drop (length pref) v
       else v
-
----------------------------------------------------------------------------------------------------
-var :: Symbol -> Sort -> Term
-var = Var
-
-filterC :: [Term] -> ([Constant], [Term])
-filterC =
-  \case
-    [] -> ([], [])
-    Const c:ts -> first (c :) $ filterC ts
-    t:ts -> second (t :) $ filterC ts
-
-sumC :: [Constant] -> Constant
-sumC = foldl go (CInt 0)
-  where
-    go (CInt m) (CInt n) = CInt $ m + n
-    go (CReal m) (CReal n) = CReal $ m + n
-    go (CInt m) (CReal n) = CReal $ (m % 1) + n
-    go (CReal m) (CInt n) = CReal $ m + (n % 1)
-    go _ _ = error "assert: can only sum integers and reals"
-
-multC :: [Constant] -> Constant
-multC = foldl go (CInt 1)
-  where
-    go (CInt m) (CInt n) = CInt $ m * n
-    go (CReal m) (CReal n) = CReal $ m * n
-    go (CInt m) (CReal n) = CReal $ (m % 1) * n
-    go (CReal m) (CInt n) = CReal $ m * (n % 1)
-    go _ _ = error "assert: can only sum integers and reals"
-
-invertC :: Constant -> Constant
-invertC =
-  \case
-    CBool b -> CBool $ not b
-    CReal r -> CReal $ 1 / r
-    CInt n
-      | n == 1 || n == -1 -> CInt n
-      | otherwise -> CReal $ 1 % n
-
-numberT :: Real a => a -> Term
-numberT num =
-  let r = toRational num
-   in if denominator r == 1
-        then Const (CInt (numerator r))
-        else Const (CReal r)
-
-constT :: Constant -> Term
-constT = Const
-
-boolConst :: Bool -> Term
-boolConst = constT . CBool
-
-intConst :: Integer -> Term
-intConst = constT . CInt
-
-realConst :: Rational -> Term
-realConst = constT . CReal
-
--- More constructors
-bvarT :: String -> Term
-bvarT name = Var name SBool
-
-ivarT :: String -> Term
-ivarT name = Var name SInt
-
-rvarT :: String -> Term
-rvarT name = Var name SReal
-
-zeroT :: Term
-zeroT = Const (CInt 0)
-
-minusOne :: Term
-minusOne = Const (CInt (-1))
-
-oneT :: Term
-oneT = Const (CInt 1)
-
-func :: Function -> [Term] -> Term
-func = Func
-
-implyT :: Term -> Term -> Term
-implyT a b = func FImply [a, b]
-
-realdivT :: Term -> Term -> Term
-realdivT (Const (CReal a)) (Const (CReal b)) = Const $ CReal (a / b)
-realdivT a b = func FDivReal [a, b]
-
-intdivT :: Term -> Term -> Term
-intdivT a b = func FDivInt [a, b]
-
-modT :: Term -> Term -> Term
-modT a b = func FMod [a, b]
-
-absT :: Term -> Term
-absT a = func FAbs [a]
-
-toRealT :: Term -> Term
-toRealT a = func FAbs [a]
-
-unintFunc :: String -> Sort -> [(Symbol, Sort)] -> Term
-unintFunc name resSort args = Func (CustomF name (map snd args) resSort) $ map (uncurry Var) args
-
-isNumericT :: Term -> Bool
-isNumericT =
-  \case
-    Var _ sort -> isNumber sort
-    Const (CInt _) -> True
-    Const (CReal _) -> True
-    Func FIte [_, t, e] -> isNumericT t && isNumericT e
-    Func func fs
-      | func `elem` [FAdd, FMul, FAbs, FMod, FDivInt, FDivReal, FToReal] -> all isNumericT fs
-      | otherwise -> False
-    _ -> False
-
-isInteger :: Term -> Bool
-isInteger =
-  \case
-    Var _ SInt -> True
-    Const (CInt _) -> True
-    Func FAdd fs -> all isInteger fs
-    Func FMul fs -> all isInteger fs
-    Func FAbs _ -> True
-    Func FMod _ -> True
-    Func FDivInt _ -> True
-    _ -> False
-
-isFuncSort :: Sort -> Bool
-isFuncSort =
-  \case
-    SFunc _ _ -> True
-    _ -> False
-
-leqT :: Term -> Term -> Term
-leqT (Const (CInt a)) (Const (CInt b)) = boolConst (a <= b)
-leqT (Const (CInt a)) (Const (CReal b)) = boolConst ((a % 1) <= b)
-leqT (Const (CReal a)) (Const (CInt b)) = boolConst (a <= (b % 1))
-leqT (Const (CReal a)) (Const (CReal b)) = boolConst (a <= b)
-leqT t (Const (CInt n))
-  | isInteger t = func FLt [t, Const (CInt (n + 1))]
-  | otherwise = func FLte [t, Const (CInt n)]
-leqT a b = func FLte [a, b]
-
-ltT :: Term -> Term -> Term
-ltT (Const (CInt a)) (Const (CInt b)) = boolConst (a < b)
-ltT (Const (CInt a)) (Const (CReal b)) = boolConst ((a % 1) < b)
-ltT (Const (CReal a)) (Const (CInt b)) = boolConst (a < (b % 1))
-ltT (Const (CReal a)) (Const (CReal b)) = boolConst (a < b)
-ltT (Const (CInt n)) t
-  | isInteger t = func FLte [Const (CInt (n + 1)), t]
-  | otherwise = func FLt [Const (CInt n), t]
-ltT a b = func FLt [a, b]
-
-geqT :: Term -> Term -> Term
-geqT a b = leqT b a
-
-gtT :: Term -> Term -> Term
-gtT a b = ltT b a
-
-equal :: Term -> Term -> Term
-equal (Const (CInt a)) (Const (CInt b)) = boolConst (a == b)
-equal (Const (CInt a)) (Const (CReal b)) = boolConst ((a % 1) == b)
-equal (Const (CReal a)) (Const (CInt b)) = boolConst (a == (b % 1))
-equal (Const (CReal a)) (Const (CReal b)) = boolConst (a == b)
-equal a b = func FEq [a, b]
-
-multT :: [Term] -> Term
-multT =
-  \case
-    [] -> oneT
-    [t] -> t
-    ts ->
-      case first multC (filterC (flatten ts)) of
-        (c, []) -> Const c
-        (CInt 1, [t]) -> t
-        (CReal 1, [t]) -> t
-        (CInt 1, ts) -> Func FMul ts
-        (CReal 1, ts) -> Func FMul ts
-        (CInt 0, _) -> zeroT
-        (CReal 0, _) -> zeroT
-        (c, ts) -> Func FMul $ Const c : ts
-  where
-    flatten [] = []
-    flatten (Func FMul sts:tr) = flatten $ sts ++ tr
-    flatten (t:tr) = t : flatten tr
-
-addT :: [Term] -> Term
-addT =
-  \case
-    [] -> zeroT
-    [t] -> t
-    ts ->
-      case first sumC (filterC (flatten ts)) of
-        (c, []) -> Const c
-        (CInt 0, [t]) -> t
-        (CReal 0, [t]) -> t
-        (CInt 0, ts) -> Func FAdd ts
-        (CReal 0, ts) -> Func FAdd ts
-        (c, ts) -> Func FAdd $ Const c : ts
-  where
-    flatten [] = []
-    flatten (Func FAdd sts:tr) = flatten $ sts ++ tr
-    flatten (t:tr) = t : flatten tr
-
-minusT :: [Term] -> Term
-minusT =
-  \case
-    [] -> error "assert: empty minus"
-    [x] -> invT x
-    x:xr -> addT (x : map invT xr)
-
-subT :: Term -> Term -> Term
-subT a b = minusT [a, b]
-
-invT :: Term -> Term
-invT =
-  \case
-    Const (CInt n) -> Const $ CInt (-n)
-    Const (CReal n) -> Const $ CReal (-n)
-    Func FAdd ts -> addT $ map invT ts
-    Func FMul (t:tr) -> multT $ invT t : tr
-    t -> Func FMul [minusOne, t]
-
-isNumber :: Sort -> Bool
-isNumber = (`elem` [SInt, SReal])
 
 ---------------------------------------------------------------------------------------------------
 -- Transformations
