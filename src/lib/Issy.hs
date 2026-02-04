@@ -15,6 +15,10 @@ module Issy
     compile
   , -- Data
     Specification
+  , Objective
+  , Arena
+  , RPArena
+  , FPSystem
   , -- Config
     Config(..)
   , defaultConfig
@@ -23,16 +27,16 @@ module Issy
   , emptyStats
   , printStats
   , -- Solving
-    solve
-  , fromRPG
-  , fromSG
-  , solveSpec
+    solveSpec
   , solveSG
   , solveRPG
   , -- Translation
     tslToRPG
   , tslToRPLTL
   , specToSG
+  , rpgToFP
+  , sgToFP
+  , specToFP
   , -- Printing
     printLLIssyFormat
   , printRPG
@@ -53,7 +57,6 @@ module Issy
   , fpToMuCLP
   , rpgToSG
   , rpgToTSLT
-  , gameToFP
   ) where
 
 ---------------------------------------------------------------------------------------------------
@@ -70,12 +73,12 @@ import Issy.Config (Config(..), defaultConfig)
 import Issy.Statistics (Stats, emptyStats, printStats)
 
 -- Encoding
-import Issy.Encoders.FullMuCLP (fpToMuCLP)
+import Issy.Encoders.FullMuCLP (fpToMuCLP) -- TODO: This is more of a printer
 import Issy.Encoders.LTLMT (specToLTLMT)
-import Issy.Encoders.MuCLP (rpgToMuCLP)
+import Issy.Encoders.MuCLP (rpgToMuCLP) -- TODO: this can be removed in its own commit
 import Issy.Encoders.Sweap (specToSweap)
 import Issy.Encoders.TSLT (rpgToTSLT)
-import Issy.Encoders.ToFixpoints (gameToFP)
+import Issy.Encoders.ToFixpoints (FPSystem, gameToFP) -- TODO: This is more of a translator
 
 -- Parsers
 import Issy.Parsers.LLIssyFormat (parseLLIssyFormat)
@@ -118,4 +121,17 @@ solveRPG :: Config -> (RPArena, Objective) -> IO (Bool, Stats, Maybe (IO String)
 solveRPG config
   | removeRPGs config = solveSG config . rpgToSG
   | otherwise = solve config (emptyStats config) . fromRPG
+
+-- | Translate an reactive program game into a fixpoint system
+rpgToFP :: (RPArena, Objective) -> FPSystem
+rpgToFP = uncurry gameToFP . fromRPG
+
+-- | Translate an symbolic game into a fixpoint system
+sgToFP :: (Arena, Objective) -> FPSystem
+sgToFP = uncurry gameToFP . fromSG
+
+-- | Translate a generic specification into a fixpoint system. This might include
+-- translating temporal logic to games
+specToFP :: Config -> Specification -> IO FPSystem
+specToFP config spec = sgToFP <$> specToSG config spec
 ---------------------------------------------------------------------------------------------------
