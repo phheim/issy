@@ -129,7 +129,7 @@ sgToFP :: (Arena, Objective) -> FPSystem
 sgToFP = uncurry gameToFP . fromSG
 
 -- | Translate a generic specification into a fixpoint system. This might include
--- translating temporal logic to games
+-- translating temporal logic formulas to games if those are present.
 specToFP :: Config -> Specification -> IO FPSystem
 specToFP config spec = sgToFP <$> specToSG config spec
 ---------------------------------------------------------------------------------------------------
