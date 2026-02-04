@@ -112,6 +112,8 @@ module Issy.Logic.FOL
   , setModel
   , -- Cheap SMT
     underapproxSAT
+  , -- Sort checker
+    sortCheck
   ) where
 
 ---------------------------------------------------------------------------------------------------
@@ -1000,41 +1002,6 @@ setModel :: Model -> Term -> Term
 setModel (Model m) = mapTermM m
 
 ---------------------------------------------------------------------------------------------------
--- Type Check
----------------------------------------------------------------------------------------------------
--- TODO: implement?
---typeCheck :: Term -> Either String Sort
---typeCheck = go (const Nothing)
---    where
---        go varType = \case
---            Var _ sort -> Right sort -- TODO: check also consitency of type
---            Const (CInt _) -> Right SInt
---            Const (CReal _) -> Right SReal
---            Const (CBool _) -> Right SBool
---            QVar n -> case varType n of
---                            Nothing -> Left "found unmapped quantified variable"
---                            Just sort -> Right sort
---            Quant _ sort term -> go (\n -> if n == 0 then Just sort else varType (n - 1)) term
---            Lambda sort term -> error "TODO IMPLEMENT"
---            Func func args ->
---                case (func, map (go varType) args) of
---                    (CustomF _ argSort resSort, args)
---                        | argSort == args -> Right resSort
---                        | otherwise -> Left "sorts do not match function application"
---                    (FAnd, args) -> boolOp args
---                    (FOr, args) -> boolOp args
---                    (FDistinct, args) -> boolOp args
---                    (FNot, [SBool]) -> Right SBool
---                    (FNot, _) -> Left "illegal usage of 'not'"
---                    _ -> error "TODO IMPLEMENT"
---        boolOp args
---         | all (==SBool) args = Right SBool
---         | otherwise = Left "TODO: Proper error"
---
---
--- Pre-Simplification / Pre-Simplification check
---
----------------------------------------------------------------------------------------------------
 -- Cheap SMT
 ---------------------------------------------------------------------------------------------------
 -- | Computes an cheap under-approximation of SMT satisfiability. If this methods return 'True',
@@ -1071,4 +1038,107 @@ underapproxSAT = go . normNNF
           | otherwise -> comp `elem` [FEq, FLt, FLte]
         Func FNot [Func FEq [Var v1 _, Var v2 _]] -> v1 /= v2
         f -> go $ Func FAnd [f]
+
+---------------------------------------------------------------------------------------------------
+-- Sort checker
+---------------------------------------------------------------------------------------------------
+-- | Check if a term is well sorted an return the resulting sort. This check is
+-- for our custom interpretation of the sort that are implemented here. In general, the SMTLib
+-- standard might be more liberal what kind of arity and compatible sort it allows. For example,
+-- "(< 1 2 3)" or "(= 4 true)" are valid SMTLib2 formulas but are not valid here. Note
+-- that for now this checker is not production ready and should only be used to server warnings.
+sortCheck :: Term -> Either String Sort
+sortCheck fullTerm = go (const Nothing) fullTerm
+  where
+    sortOf = Map.fromList $ Set.toList $ bindingsS fullTerm
+    go varType =
+      \case
+        Var name sort
+          | (sortOf !? name) == Just sort -> Right sort
+          | otherwise -> Left $ "variable " ++ name ++ " has inconsitent sort"
+        Const (CInt _) -> Right SInt
+        Const (CReal _) -> Right SReal
+        Const (CBool _) -> Right SBool
+        QVar n ->
+          case varType n of
+            Nothing -> Left "found unmapped quantified variable"
+            Just sort -> Right sort
+        Quant _ sort term -> do
+          res <-
+            flip go term $ \n ->
+              if n == 0
+                then Just sort
+                else varType (n - 1)
+          if res /= SBool
+            then Left "term under quantifiers must be boolean"
+            else Right SBool
+        Lambda sort term -> do
+          sub <-
+            flip go term $ \n ->
+              if n == 0
+                then Just sort
+                else varType (n - 1)
+          case sub of
+            SFunc args res -> Right $ SFunc (sort : args) res
+            sub -> Right $ SFunc [sort] sub
+        Func func args -> do
+          args <- mapM (go varType) args
+          case (func, args) of
+            (CustomF _ argSort resSort, args)
+              | argSort == args -> Right resSort
+              | otherwise -> Left "sorts do not match function application"
+            (FAnd, args) -> checkAllBools args
+            (FOr, args) -> checkAllBools args
+            (FDistinct, args) -> checkAllBools args
+            (FNot, [SBool]) -> Right SBool
+            (FNot, _) -> Left "illegal usage of 'not'"
+            (FImply, [SBool, SBool]) -> Right SBool
+            (FImply, _) -> Left "illegal usage of '=>'"
+            (FIte, [SBool, s1, s2])
+              | s1 == s2 -> Right s1
+              | isNumber s1 && isNumber s2 -> Right SReal
+              | otherwise -> Left "found incompatible sorts for 'ite'"
+            (FIte, _) -> Left "illegal usage of 'ite'"
+            (FEq, [s1, s2])
+              | s1 == s2 -> Right SBool
+              | isNumber s1 && isNumber s2 -> Right SBool
+              | otherwise -> Left "found incompatible sorts for '='"
+            (FEq, _) -> Left "illegal usage of '='"
+            (FLt, [s1, s2])
+              | isNumber s1 && isNumber s2 -> Right SBool
+              | otherwise -> Left "found non-number for '<'"
+            (FLt, _) -> Left "illegal usage of '<'"
+            (FLte, [s1, s2])
+              | isNumber s1 && isNumber s2 -> Right SBool
+              | otherwise -> Left "found non-number for '<='"
+            (FLte, _) -> Left "illegal usage of '<='"
+            (FAdd, args) -> checkNumbers args
+            (FMul, args) -> checkNumbers args
+            (FDivReal, [s1, s2])
+              | isNumber s1 && isNumber s2 -> Right SReal -- this might be a problem
+              | otherwise -> Left "found non-number for '/'"
+            (FDivReal, _) -> Left "illegal usage of '/'"
+            (FAbs, [s])
+              | isNumber s -> Right SInt
+              | otherwise -> Left "found non-number for 'abs'"
+            (FAbs, _) -> Left "illegal usage of 'abs'"
+            (FToReal, [s])
+              | isNumber s -> Right SReal
+              | otherwise -> Left "found non-number for 'to_real'"
+            (FToReal, _) -> Left "illegal usage of 'to_real'"
+            (FMod, [SInt, SInt]) -> Right SInt
+            (FMod, _) -> Left "illegal usage of 'mod'"
+            (FDivInt, [SInt, SInt]) -> Right SInt
+            (FDivInt, _) -> Left "illegal usage of 'div'"
+
+checkNumbers :: [Sort] -> Either String Sort
+checkNumbers args
+  | all (== SInt) args = Right SInt
+  | all isNumber args = Right SReal
+  | otherwise = Left "Found non-number for operator on numbers"
+
+checkAllBools :: [Sort] -> Either String Sort
+checkAllBools args
+  | all (== SBool) args = Right SBool
+  | otherwise = Left "Found non-boolean sort in operator that expected only bools"
 ---------------------------------------------------------------------------------------------------
