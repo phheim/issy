@@ -68,17 +68,17 @@ import qualified Issy.Logic.FOL as FOL
 -- Data Structure
 ---------------------------------------------------------------------------------------------------
 data Arena
-  = RPG RPG.Game
+  = RPG RPG.RPArena
   | Sym Sym.Arena
   deriving (Eq, Ord, Show)
 
-fromRPG :: (RPG.Game, a) -> (Arena, a)
+fromRPG :: (RPG.RPArena, a) -> (Arena, a)
 fromRPG = first RPG
 
 fromSG :: (Sym.Arena, a) -> (Arena, a)
 fromSG = first Sym
 
-liftG :: (RPG.Game -> a) -> (Sym.Arena -> a) -> Arena -> a
+liftG :: (RPG.RPArena -> a) -> (Sym.Arena -> a) -> Arena -> a
 liftG f _ (RPG g) = f g
 liftG _ h (Sym a) = h a
 
@@ -125,11 +125,11 @@ cpreSys :: Arena -> SymSt -> Loc -> Term
 cpreSys = liftG RPG.cpreSys Sym.cpreSys
 
 loopArena :: Arena -> Loc -> (Arena, Loc)
-loopArena (RPG g) = first RPG . RPG.loopGame g
+loopArena (RPG g) = first RPG . RPG.loopArena g
 loopArena (Sym a) = first Sym . Sym.loopArena a
 
 inducedSubArena :: Arena -> Set Loc -> (Arena, (Loc -> Loc, Set Loc))
-inducedSubArena (RPG g) = first RPG . RPG.inducedSubGame g
+inducedSubArena (RPG g) = first RPG . RPG.inducedSubArena g
 inducedSubArena (Sym a) = first Sym . Sym.inducedSubArena a
 
 independentProgVars :: Config -> Arena -> IO (Set Symbol)

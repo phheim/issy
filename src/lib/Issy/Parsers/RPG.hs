@@ -39,7 +39,7 @@ import Text.Read (readMaybe)
 
 import Issy.Games.Locations (Loc)
 import Issy.Games.Objectives (Objective(..), WinningCondition(..))
-import Issy.Games.ReactiveProgramArena (Game(variables), Transition(..))
+import Issy.Games.ReactiveProgramArena (RPArena(variables), Transition(..))
 import qualified Issy.Games.ReactiveProgramArena as RPG
 import qualified Issy.Games.Variables as Vars
 import Issy.Logic.FOL (Sort(..), Symbol, Term)
@@ -87,12 +87,12 @@ pExpect nm str =
     TLPar:_ -> perr nm ("Expected '" ++ str ++ "' found '(' ")
     TRPar:_ -> perr nm ("Expected '" ++ str ++ "' found '(' ")
 
-trySortOf :: Game -> Symbol -> Maybe Sort
+trySortOf :: RPArena -> Symbol -> Maybe Sort
 trySortOf g v
   | v `elem` Vars.allSymbols (variables g) = Just $ Vars.sortOf (variables g) v
   | otherwise = Nothing
 
-pUpd :: Game -> [Token] -> PRes ((Symbol, Term), [Token])
+pUpd :: RPArena -> [Token] -> PRes ((Symbol, Term), [Token])
 pUpd g =
   \case
     TLPar:TId n:ts -> do
@@ -104,7 +104,7 @@ pUpd g =
         _ -> perr "pUpd" "Expected closing ')'"
     _ -> perr "pUpd" "Unkown pattern while parsing update found"
 
-pSelect :: (Game, PState) -> [Token] -> PRes ((Map Symbol Term, Loc), [Token])
+pSelect :: (RPArena, PState) -> [Token] -> PRes ((Map Symbol Term, Loc), [Token])
 pSelect (g, pst) ts = do
   (upds, tr) <- pList (pUpd g) ts
   if uniqueFirsts upds
@@ -116,7 +116,7 @@ pSelect (g, pst) ts = do
            _ -> perr "pSelect" "Expected location identifer after update list"
     else perr "pSelect" "cells cannot be update twice"
 
-pTrans :: (Game, PState) -> [Token] -> PRes (Transition, [Token])
+pTrans :: (RPArena, PState) -> [Token] -> PRes (Transition, [Token])
 pTrans (g, pst) =
   \case
     TId "if":ts -> do
@@ -167,7 +167,7 @@ pAnnotatedType =
     "Real" -> return (SReal, False)
     s -> perr "pAnnotatedType" ("Unkown type '" ++ s ++ "'")
 
-pGame :: (Game, PState) -> [Token] -> PRes (Game, Objective)
+pGame :: (RPArena, PState) -> [Token] -> PRes (RPArena, Objective)
 pGame (g, pst) =
   \case
     [] -> do
@@ -240,7 +240,7 @@ pGame (g, pst) =
     TLPar:_ -> perr "pGame" "Found '(' instead of keyword"
     TRPar:_ -> perr "pGame" "Found ')' instead of keyword"
 
-parseRPG :: String -> Either String (Game, Objective)
+parseRPG :: String -> Either String (RPArena, Objective)
 parseRPG str =
   let empty = PState {wcPS = Nothing, rankP = Map.empty, namesL = Map.empty, setInit = Nothing}
    in pGame (RPG.empty Vars.empty, empty) (tokenize str)

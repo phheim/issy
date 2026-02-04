@@ -59,8 +59,8 @@ module Issy
 ---------------------------------------------------------------------------------------------------
 -- Data Structures
 import Issy.Games.Objectives (Objective)
-import qualified Issy.Games.ReactiveProgramArena as RPG (Game)
-import qualified Issy.Games.SymbolicArena as SG (Arena)
+import Issy.Games.ReactiveProgramArena (RPArena)
+import Issy.Games.SymbolicArena (Arena)
 
 -- Compilation
 import Issy.Compiler (compile)
@@ -110,11 +110,11 @@ solveSpec :: Config -> Specification -> IO (Bool, Stats, Maybe (IO String))
 solveSpec config spec = specToSG config spec >>= solveSG config
 
 -- | Apply 'solve' to symbolic games
-solveSG :: Config -> (SG.Arena, Objective) -> IO (Bool, Stats, Maybe (IO String))
+solveSG :: Config -> (Arena, Objective) -> IO (Bool, Stats, Maybe (IO String))
 solveSG config = solve config (emptyStats config) . fromSG
 
 -- | Apply 'solve' to reactive program games
-solveRPG :: Config -> (RPG.Game, Objective) -> IO (Bool, Stats, Maybe (IO String))
+solveRPG :: Config -> (RPArena, Objective) -> IO (Bool, Stats, Maybe (IO String))
 solveRPG config
   | removeRPGs config = solveSG config . rpgToSG
   | otherwise = solve config (emptyStats config) . fromRPG

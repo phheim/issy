@@ -21,18 +21,18 @@ import qualified Data.Set as Set
 import Issy.Games.Locations (Loc)
 import qualified Issy.Games.Locations as Locs
 import Issy.Games.Objectives (Objective(..), WinningCondition(..))
-import Issy.Games.ReactiveProgramArena (Game, Transition(..))
+import Issy.Games.ReactiveProgramArena (RPArena, Transition(..))
 import qualified Issy.Games.ReactiveProgramArena as RPG
 import qualified Issy.Games.Variables as Vars
 import Issy.Logic.FOL (Constant(..), Function(..), Sort(..), Symbol, Term(..))
 
-outputs :: Game -> [Symbol]
+outputs :: RPArena -> [Symbol]
 outputs = Vars.stateVarL . RPG.variables
 
-inputs :: Game -> [Symbol]
+inputs :: RPArena -> [Symbol]
 inputs = Vars.inputL . RPG.variables
 
-sortOf :: Game -> Symbol -> Sort
+sortOf :: RPArena -> Symbol -> Sort
 sortOf = Vars.sortOf . RPG.variables
 
 encSort :: Sort -> String
@@ -101,11 +101,11 @@ encTerm upd =
         [o1, o2] -> "(" ++ encTerm upd o1 ++ " " ++ op ++ " " ++ encTerm upd o2 ++ ")"
         _ -> error (op ++ "is a binary operator")
 
-encPred :: Game -> String -> (Symbol -> String) -> [Symbol] -> Loc -> String
+encPred :: RPArena -> String -> (Symbol -> String) -> [Symbol] -> Loc -> String
 encPred _ name sToStr syms l =
   name ++ show (Locs.toNumber l) ++ concatMap (\v -> " (" ++ sToStr v ++ ")") syms
 
-encTrans :: String -> Game -> Transition -> String
+encTrans :: String -> RPArena -> Transition -> String
 encTrans pname g =
   \case
     TIf p tt tf ->
@@ -126,7 +126,7 @@ encTrans pname g =
         "false"
         upds
 
-encFullTrans :: String -> Game -> Loc -> String
+encFullTrans :: String -> RPArena -> Loc -> String
 encFullTrans pname g l =
   "("
     ++ (if not (null (inputs g))
@@ -137,7 +137,7 @@ encFullTrans pname g l =
     ++ encTrans pname g (RPG.trans g l)
     ++ ");"
 
-encReach :: Game -> Set Loc -> Loc -> String
+encReach :: RPArena -> Set Loc -> Loc -> String
 encReach g reach l =
   let head =
         encPred g "APred" (\s -> s ++ ": " ++ encSort (sortOf g s)) (outputs g) l ++ ": bool =mu "
@@ -146,7 +146,7 @@ encReach g reach l =
               then "true;"
               else encPred g "APred" id (outputs g) l ++ " \\/ " ++ encFullTrans "APred" g l)
 
-encSafe :: Game -> Set Loc -> Loc -> String
+encSafe :: RPArena -> Set Loc -> Loc -> String
 encSafe g safe l =
   let head =
         encPred g "APred" (\s -> s ++ ": " ++ encSort (sortOf g s)) (outputs g) l ++ ": bool =nu "
@@ -155,7 +155,7 @@ encSafe g safe l =
               then encPred g "APred" id (outputs g) l ++ " /\\ " ++ encFullTrans "APred" g l
               else "false;")
 
-encBuech :: Game -> Set Loc -> Loc -> (String, String)
+encBuech :: RPArena -> Set Loc -> Loc -> (String, String)
 encBuech g fset l =
   let headGFP =
         encPred g "GPred" (\s -> s ++ ": " ++ encSort (sortOf g s)) (outputs g) l ++ ": bool =nu "
@@ -167,27 +167,27 @@ encBuech g fset l =
                then encFullTrans "GPred" g l
                else encFullTrans "LPred" g l)
 
-encAll :: String -> Game -> Loc -> String
+encAll :: String -> RPArena -> Loc -> String
 encAll pname g init =
   "forall "
     ++ concatMap (\s -> "(" ++ s ++ ": " ++ encSort (sortOf g s) ++ ")") (outputs g)
     ++ ". "
     ++ encPred g pname id (outputs g) init
 
-encReachable :: Game -> Loc -> Set Loc -> String
+encReachable :: RPArena -> Loc -> Set Loc -> String
 encReachable g init reach =
   unlines (encAll "APred" g init : "s.t." : map (encReach g reach) (Set.toList (RPG.locations g)))
 
-encSafety :: Game -> Loc -> Set Loc -> String
+encSafety :: RPArena -> Loc -> Set Loc -> String
 encSafety g init safe =
   unlines (encAll "APred" g init : "s.t." : map (encSafe g safe) (Set.toList (RPG.locations g)))
 
-encBuechi :: Game -> Loc -> Set Loc -> String
+encBuechi :: RPArena -> Loc -> Set Loc -> String
 encBuechi g init fset =
   let (gs, ls) = unzip (encBuech g fset <$> Set.toList (RPG.locations g))
    in unlines $ encAll "LPred" g init : "s.t." : gs ++ ls
 
-rpgToMuCLP :: Game -> Objective -> String
+rpgToMuCLP :: RPArena -> Objective -> String
 rpgToMuCLP g obj =
   case winningCond obj of
     Reachability reach -> encReachable g (initialLoc obj) reach

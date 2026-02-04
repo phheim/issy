@@ -19,7 +19,7 @@ import qualified Data.Set as Set
 import Issy.Games.Locations (Loc)
 import qualified Issy.Games.Locations as Locs
 import Issy.Games.Objectives (Objective(..), WinningCondition(..))
-import Issy.Games.ReactiveProgramArena (Game, Transition(..))
+import Issy.Games.ReactiveProgramArena (RPArena, Transition(..))
 import qualified Issy.Games.ReactiveProgramArena as RPG
 import qualified Issy.Games.Variables as Vars
 import Issy.Logic.FOL
@@ -52,7 +52,7 @@ printTrans wl =
     wUpd (s, t) = "(" ++ s ++ " " ++ SMTLib.toString t ++ ")"
     wSys (upd, l) = "(" ++ concatMap wUpd (Map.toList upd) ++ ") " ++ wl l ++ " "
 
-printRPG :: (Game, Objective) -> String
+printRPG :: (RPArena, Objective) -> String
 printRPG (g, obj) =
   unlines
     $ ["type " ++ printWC (winningCond obj), ""]

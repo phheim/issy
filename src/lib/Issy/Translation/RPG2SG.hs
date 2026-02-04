@@ -28,7 +28,7 @@ import qualified Issy.Logic.FOL as FOL
 -- | Implements the translation of the reactive program game as the symbolic game. Note that
 -- since the 'Loc'ations in the arenas change, the 'Objective' has to be translated too. Hence,
 -- do not use the old objective on the new arena.
-rpgToSG :: (RPG.Game, Objective) -> (SG.Arena, Objective)
+rpgToSG :: (RPG.RPArena, Objective) -> (SG.Arena, Objective)
 rpgToSG (rpg, objRPG) =
   let arena0 = SG.empty $ RPG.variables rpg
       (arena1, oldToNew) =

@@ -63,7 +63,7 @@ rpltlToSG cfg spec = do
 ---------------------------------------------------------------------------------------------------
 -- | Translates a TSL specification into a reactive program game. Depending on the flags in
 -- the configuration monitor pruning might be invoked. Also, the external tool ltl2tgba is called.
-tslToRPG :: Config -> TL.Spec TSLMT.Atom -> IO (RPG.Game, Objective)
+tslToRPG :: Config -> TL.Spec TSLMT.Atom -> IO (RPG.RPArena, Objective)
 tslToRPG cfg spec = do
   (game, obj) <- TSL2RPG.tsl2rpg cfg spec
   if pruneGame cfg

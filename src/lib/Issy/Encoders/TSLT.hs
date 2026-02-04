@@ -20,12 +20,12 @@ import qualified Data.Set as Set
 import Issy.Games.Locations (Loc)
 import qualified Issy.Games.Locations as Locs
 import Issy.Games.Objectives (Objective(..), WinningCondition(..))
-import Issy.Games.ReactiveProgramArena (Game, Transition(..))
+import Issy.Games.ReactiveProgramArena (RPArena, Transition(..))
 import qualified Issy.Games.ReactiveProgramArena as RPG
 import qualified Issy.Games.Variables as Vars
 import Issy.Logic.FOL (Constant(..), Function(..), Sort(..), Symbol, Term(..))
 
-sortOf :: Game -> Symbol -> Sort
+sortOf :: RPArena -> Symbol -> Sort
 sortOf = Vars.sortOf . RPG.variables
 
 encConst :: Bool -> Constant -> String
@@ -85,10 +85,10 @@ encTerm upd =
   where
     op name args = "(" ++ name ++ concatMap ((" " ++) . encTerm upd) args ++ ")"
 
-encLoc :: Game -> Loc -> String
+encLoc :: RPArena -> Loc -> String
 encLoc _ l = "[loc  <- i" ++ show (Locs.toNumber l) ++ "()]"
 
-encTrans :: Game -> Transition -> String
+encTrans :: RPArena -> Transition -> String
 encTrans g =
   \case
     TIf p tt tf ->
@@ -113,13 +113,13 @@ encTrans g =
         ++ encLoc g l
         ++ ")"
 
-encState :: Game -> String
+encState :: RPArena -> String
 encState g =
   "//-- State: "
     ++ concatMap (\v -> encVar False v (sortOf g v) ++ ", ") (Vars.stateVarL (RPG.variables g))
     ++ "loc"
 
-encInputs :: Game -> String
+encInputs :: RPArena -> String
 encInputs g =
   case Vars.inputL (RPG.variables g) of
     [] -> ""
@@ -127,7 +127,7 @@ encInputs g =
   where
     encV v = encVar False v (sortOf g v)
 
-encGame :: Loc -> Game -> String
+encGame :: Loc -> RPArena -> String
 encGame init g =
   unlines
     $ [ encState g
@@ -149,12 +149,12 @@ encGame init g =
              (Set.toList (RPG.locations g))
         ++ ["}"]
 
-encCond :: Game -> String -> Set Loc -> String
+encCond :: RPArena -> String -> Set Loc -> String
 encCond g op loc =
   let locs = Set.toList loc
    in "guarantee { " ++ op ++ "(" ++ concatMap (\l -> encLoc g l ++ " || ") locs ++ "false);}"
 
-rpgToTSLT :: Game -> Objective -> String
+rpgToTSLT :: RPArena -> Objective -> String
 rpgToTSLT g obj =
   unlines
     [ encGame (initialLoc obj) g

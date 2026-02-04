@@ -18,12 +18,12 @@ import Issy.Prelude
 import qualified Issy.Utils.OpenList as OL
 
 import Issy.Games.Objectives (Objective(..), WinningCondition(..))
-import Issy.Games.ReactiveProgramArena (Game, Transition(..))
+import Issy.Games.ReactiveProgramArena (RPArena, Transition(..))
 import qualified Issy.Games.ReactiveProgramArena as RPG
 import Issy.Monitor (Monitor, State, Trans(..), Verdict(..))
 import qualified Issy.Monitor as Mon
 
-onTheFlyProduct :: Config -> Game -> Objective -> Monitor -> IO (Game, Objective)
+onTheFlyProduct :: Config -> RPArena -> Objective -> Monitor -> IO (RPArena, Objective)
 onTheFlyProduct cfg game obj monitor = do
   cfg <- pure $ setName "RPG x Monitor" cfg
   unless (Mon.variables monitor == RPG.variables game)
@@ -50,7 +50,7 @@ emptyProd = Product {explored = Set.empty, interTrans = []}
 initLocState :: Loc -> Monitor -> (Loc, State)
 initLocState init monitor = (init, Mon.initial monitor)
 
-explore :: Config -> Game -> Loc -> Monitor -> IO (Monitor, Product)
+explore :: Config -> RPArena -> Loc -> Monitor -> IO (Monitor, Product)
 explore cfg game init mon = go (OL.fromList [initLocState init mon]) mon emptyProd
   where
     go openList mon prod =
@@ -110,7 +110,7 @@ traversTransition cfg mon state = go Set.empty mon
             Nothing -> not (RPG.isSelfUpdate (v, tm)) && validComb upd ur
     --
 
-productToGame :: Game -> Monitor -> Product -> (Game, Loc, Loc, (Loc, State) -> Loc)
+productToGame :: RPArena -> Monitor -> Product -> (RPArena, Loc, Loc, (Loc, State) -> Loc)
 productToGame game mon prod =
   let (g0, winEnv) = RPG.addSink (RPG.empty (RPG.variables game)) "winEnv"
       (g1, winSys) = RPG.addSink g0 "winSys"

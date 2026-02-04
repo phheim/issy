@@ -22,7 +22,7 @@ import Issy.Prelude
 
 import Issy.Games.Objectives (Objective(..))
 import qualified Issy.Games.Objectives as Obj
-import Issy.Games.ReactiveProgramArena (Game, Transition(..))
+import Issy.Games.ReactiveProgramArena (RPArena, Transition(..))
 import qualified Issy.Games.ReactiveProgramArena as RPG
 import qualified Issy.Games.Variables as Vars
 import qualified Issy.Logic.TSLMT as TSL
@@ -34,7 +34,7 @@ import Issy.Utils.Extra (intmapSet)
 ---------------------------------------------------------------------------------------------------
 -- | Translates a TSL specification into a reactive program game.
 -- During this process the external tool ltl2tgba is called.
-tsl2rpg :: Config -> TL.Spec TSL.Atom -> IO (Game, Objective)
+tsl2rpg :: Config -> TL.Spec TSL.Atom -> IO (RPArena, Objective)
 tsl2rpg cfg spec = do
   let tsl = TSL.pullBoolF $ TL.toFormula spec
   let vars = TL.variables spec
@@ -83,7 +83,7 @@ tsl2ltlMap vars tslFormula = (TL.And (tslFormula : constr), (atoms2ap !), (ap2at
     atoms2ap = Map.fromList atomsAp
     ap2atoms = Map.fromList (map swap atomsAp)
 
-doa2game :: Variables -> (String -> TSL.Atom) -> DOA.DOA String -> (Game, Objective)
+doa2game :: Variables -> (String -> TSL.Atom) -> DOA.DOA String -> (RPArena, Objective)
 doa2game vars atomOf doa =
   let game0 = RPG.empty vars
       (game1, stateMap) = foldl addLocs (game0, Map.empty) (DOA.states doa)
