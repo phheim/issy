@@ -1,17 +1,19 @@
 ---------------------------------------------------------------------------------------------------
 -- |
 -- Module      : Issy.Logic.Polyhedra
--- Description : Operations and represenations interval of numbers
--- Copyright   : (c) Philippe Heim, 2025
+-- Description : Interval of numbers
+-- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
 --
+-- This module implements a representation and operations on intervals in the integers
+-- and real numbers.
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe #-}
 
 ---------------------------------------------------------------------------------------------------
 module Issy.Logic.Interval
   ( Interval
-  , -- Basic operations
+  , -- Basic checks
     elemOf
   , isEmpty
   , isFull
@@ -19,10 +21,10 @@ module Issy.Logic.Interval
     fullInterval
   , ltInterval
   , lteInterval
-  , intersect
   , eqInterval
   , -- Set operations
     included
+  , intersect
   , tryDisjunct
   , tryDisjunctInt
   , -- Scaling
@@ -47,21 +49,6 @@ data Interval = Interval
   { upper :: UBound
   , lower :: LBound
   } deriving (Eq, Ord, Show)
-
-fullInterval :: Interval
-fullInterval = Interval {upper = PlusInfinity, lower = MinusInfinity}
-
-ltInterval :: Real a => a -> Interval
-ltInterval r = fullInterval {upper = LTVal False (toRational r)}
-
-lteInterval :: Real a => a -> Interval
-lteInterval r = fullInterval {upper = LTVal True (toRational r)}
-
-eqInterval :: Real a => a -> Interval
-eqInterval r = Interval {upper = LTVal True (toRational r), lower = GTVal True (toRational r)}
-
-elemOf :: Real a => a -> Interval -> Bool
-elemOf = included . eqInterval
 
 -- | 'UBound' is a type for optional inclusive/exclusive upper rational bounds
 data UBound
@@ -107,39 +94,49 @@ instance Ord LBound where
         | eq2 && not eq1 -> LT
         | otherwise -> EQ
 
-intersect :: Interval -> Interval -> Interval
-intersect b1 b2 = Interval {upper = min (upper b1) (upper b2), lower = min (lower b1) (lower b2)}
-
-included :: Interval -> Interval -> Bool
-included b1 b2 = upper b1 <= upper b2 && lower b1 <= lower b2
-
+-- | Check if an interval is empty in the real value space.
 isEmpty :: Interval -> Bool
 isEmpty intv =
   case (lower intv, upper intv) of
     (GTVal leq lval, LTVal ueq uval) -> uval < lval || (uval == lval && (not leq || not ueq))
     _ -> False
 
+-- | Check if an interval represents the full space.
 isFull :: Interval -> Bool
 isFull intv =
   case (lower intv, upper intv) of
     (MinusInfinity, PlusInfinity) -> True
     _ -> False
 
-tryDisjunctInt :: Interval -> Interval -> Maybe Interval
-tryDisjunctInt i1 i2 = tryDisjunct (liftBorders i1) (liftBorders i2)
-  where
-    liftBorders i = Interval {upper = liftUp (upper i), lower = liftLow (lower i)}
-    liftUp PlusInfinity = PlusInfinity
-    liftUp (LTVal inc r)
-      | denominator r /= 1 = LTVal False (ceiling r % 1)
-      | inc = LTVal False (r + 1)
-      | otherwise = LTVal False r
-    liftLow MinusInfinity = MinusInfinity
-    liftLow (GTVal inc r)
-      | denominator r /= 1 = GTVal False (floor r % 1)
-      | inc = GTVal False (r - 1)
-      | otherwise = GTVal False r
+-- | Check if a number is included in an interval.
+elemOf :: Real a => a -> Interval -> Bool
+elemOf = included . eqInterval
 
+-- | The interval over the full space of number from minus to plus infinity.
+fullInterval :: Interval
+fullInterval = Interval {upper = PlusInfinity, lower = MinusInfinity}
+
+-- | The interval open interval the represents all numbers smaller k, i.e. (- infinity, k).
+ltInterval :: Real a => a -> Interval
+ltInterval r = fullInterval {upper = LTVal False (toRational r)}
+
+-- | The interval closed interval the represents all numbers smaller-equal k, i.e. (- infinity, k].
+lteInterval :: Real a => a -> Interval
+lteInterval r = fullInterval {upper = LTVal True (toRational r)}
+
+-- | The interval that represents a single point, i.e. [k, k].
+eqInterval :: Real a => a -> Interval
+eqInterval r = Interval {upper = LTVal True (toRational r), lower = GTVal True (toRational r)}
+
+-- | Check if one interval is included in the other one.
+included :: Interval -> Interval -> Bool
+included b1 b2 = upper b1 <= upper b2 && lower b1 <= lower b2
+
+-- | Intersection of two intervals.
+intersect :: Interval -> Interval -> Interval
+intersect b1 b2 = Interval {upper = min (upper b1) (upper b2), lower = min (lower b1) (lower b2)}
+
+-- | Try to compute the disjunction of two intervals in the real space.
 tryDisjunct :: Interval -> Interval -> Maybe Interval
 tryDisjunct i1 i2
   | isEmpty i1 = Just i2
@@ -157,8 +154,27 @@ tryDisjunct i1 i2
       | lr == ur && not uinc && not linc = True
       | otherwise = False
 
+-- | Try to compute the disjunction of two intervals on the integer grid. This means
+-- that interval that do not touch but, do not have any integer points between them are
+-- joined. For example, [-2, 0.6) and [0.8, 4) would be unified to [-2, 4].
+tryDisjunctInt :: Interval -> Interval -> Maybe Interval
+tryDisjunctInt i1 i2 = tryDisjunct (liftBorders i1) (liftBorders i2)
+  where
+    liftBorders i = Interval {upper = liftUp (upper i), lower = liftLow (lower i)}
+    liftUp PlusInfinity = PlusInfinity
+    liftUp (LTVal inc r)
+      | denominator r /= 1 = LTVal False (ceiling r % 1)
+      | inc = LTVal False (r + 1)
+      | otherwise = LTVal False r
+    liftLow MinusInfinity = MinusInfinity
+    liftLow (GTVal inc r)
+      | denominator r /= 1 = GTVal False (floor r % 1)
+      | inc = GTVal False (r - 1)
+      | otherwise = GTVal False r
+
 -- | 'scale' applies to the interval, if interpreted as inequality constraint, the
--- | equivalence operation "multiply be the given factor"
+-- | equivalence operation "multiply be the given factor". Note that for a negative
+-- scaling factor this will "swap" the bounds.
 scale :: Rational -> Interval -> Interval
 scale k intv
   | k < 0 = scale (-k) $ multMinusOne intv
@@ -188,43 +204,7 @@ multMinusOne intv =
           LTVal incl r -> GTVal incl (-r)
    in Interval {upper = up, lower = lw}
 
--- | TODO
-inLow :: Interval -> Term -> Term
-inLow intv term =
-  case lower intv of
-    MinusInfinity -> FOL.true
-    GTVal eq bound
-      | eq -> term `FOL.geqT` FOL.numberT bound
-      | otherwise -> term `FOL.gtT` FOL.numberT bound
-
--- | TODO
-ltLow :: Interval -> Term -> Term
-ltLow intv term =
-  case lower intv of
-    MinusInfinity -> FOL.false
-    GTVal eq bound
-      | eq -> term `FOL.ltT` FOL.numberT bound
-      | otherwise -> term `FOL.leqT` FOL.numberT bound
-
--- | TODO
-inUpp :: Interval -> Term -> Term
-inUpp intv term =
-  case upper intv of
-    PlusInfinity -> FOL.true
-    LTVal eq bound
-      | eq -> term `FOL.leqT` FOL.numberT bound
-      | otherwise -> term `FOL.ltT` FOL.numberT bound
-
--- | TODO
-gtUpp :: Interval -> Term -> Term
-gtUpp intv term =
-  case upper intv of
-    PlusInfinity -> FOL.false
-    LTVal eq bound
-      | eq -> term `FOL.gtT` FOL.numberT bound
-      | otherwise -> term `FOL.geqT` FOL.numberT bound
-
--- | Generates the 'Term' that a given 'Term' is inside the interval
+-- | Generate the term which expresses that a given term is inside the interval.
 isInside :: Term -> Interval -> Term
 isInside t intv =
   case isSingleton intv of
@@ -235,6 +215,46 @@ isInside t intv =
         Just i
           | FOL.isInteger t -> t `FOL.equal` FOL.intConst i
           | otherwise -> FOL.andf [inLow intv t, inUpp intv t]
+
+-- | Generate the term which expresses that a given term is within (larger or equal)
+-- the intervals lower bound.
+inLow :: Interval -> Term -> Term
+inLow intv term =
+  case lower intv of
+    MinusInfinity -> FOL.true
+    GTVal eq bound
+      | eq -> term `FOL.geqT` FOL.numberT bound
+      | otherwise -> term `FOL.gtT` FOL.numberT bound
+
+-- | Generate the term which expresses that a given term is smaller than the
+-- intervals lower bound, i.e. outside of the interval.
+ltLow :: Interval -> Term -> Term
+ltLow intv term =
+  case lower intv of
+    MinusInfinity -> FOL.false
+    GTVal eq bound
+      | eq -> term `FOL.ltT` FOL.numberT bound
+      | otherwise -> term `FOL.leqT` FOL.numberT bound
+
+-- | Generate the term which expresses that a given term is within (smaller or equal)
+-- the intervals upper bound.
+inUpp :: Interval -> Term -> Term
+inUpp intv term =
+  case upper intv of
+    PlusInfinity -> FOL.true
+    LTVal eq bound
+      | eq -> term `FOL.leqT` FOL.numberT bound
+      | otherwise -> term `FOL.ltT` FOL.numberT bound
+
+-- | Generate the term which expresses that a given term is greater than the
+-- intervals upper bound, i.e. outside of the interval.
+gtUpp :: Interval -> Term -> Term
+gtUpp intv term =
+  case upper intv of
+    PlusInfinity -> FOL.false
+    LTVal eq bound
+      | eq -> term `FOL.gtT` FOL.numberT bound
+      | otherwise -> term `FOL.geqT` FOL.numberT bound
 
 isSingleton :: Interval -> Maybe Rational
 isSingleton intv =
