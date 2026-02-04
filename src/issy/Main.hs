@@ -49,36 +49,29 @@ main = do
     case (mode, inputFormat) of
       (Compile, HighLevel) -> liftErr (compile input)
       (Compile, _) -> die "invalid arguments: can only compile issy format"
-      -- Print
       (Print, LowLevel) -> printLLIssyFormat <$> getSpec cfg input LowLevel
       (Print, RPG) -> printRPG <$> liftErr (parseRPG input)
       (Print, _) -> die "invalid arguments: can only print low-level format and rpg-format"
-      -- To Game
       (ToGame, LowLevel) -> printSG <$> (specToSG cfg =<< getSpec cfg input LowLevel)
       (ToGame, HighLevel) -> printSG <$> (specToSG cfg =<< getSpec cfg input HighLevel)
       (ToGame, RPG) -> printRPG <$> liftErr (parseRPG input)
       (ToGame, TSLMT) -> printRPG <$> (tslToRPG cfg =<< parseTSL input)
-      -- Solving
       (Solve, LowLevel) -> printRes cfg =<< solveSpec cfg =<< getSpec cfg input LowLevel
       (Solve, HighLevel) -> printRes cfg =<< solveSpec cfg =<< getSpec cfg input HighLevel
       (Solve, RPG) -> printRes cfg =<< solveRPG cfg =<< liftErr (parseRPG input)
       (Solve, TSLMT) -> do
         printRes cfg =<< solveRPG cfg =<< tslToRPG cfg =<< parseTSL input
-      -- Encode to TSLMT
       (EncodeTSLMT, RPG) -> uncurry rpgToTSLT <$> liftErr (parseRPG input)
       (EncodeTSLMT, _) -> die "invalid arguments: can only encode RPGs to TSLMT at the moment"
-      -- Encode to LLissy
       (EncodeLLIssy, HighLevel) -> die "invalid arguments: use '--compile' instead"
       (EncodeLLIssy, LowLevel) -> die "invalid arguments: use '--print' instead"
       (EncodeLLIssy, TSLMT) ->
         printLLIssyFormat . specFromRPLTL <$> (tslToRPLTL cfg =<< parseTSL input)
       (EncodeLLIssy, RPG) -> printSG . rpgToSG <$> liftErr (parseRPG input)
-      -- Encode to MuCLP
-      (EncodeMuCLP, RPG) -> fpToMuCLP . rpgToFP <$> liftErr (parseRPG input)
-      (EncodeMuCLP, TSLMT) -> fpToMuCLP . rpgToFP <$> (tslToRPG cfg =<< parseTSL input)
-      (EncodeMuCLP, LowLevel) -> fpToMuCLP <$> (specToFP cfg =<< getSpec cfg input LowLevel)
-      (EncodeMuCLP, HighLevel) -> fpToMuCLP <$> (specToFP cfg =<< getSpec cfg input HighLevel)
-      -- Encode to LTLMT
+      (EncodeMuCLP, RPG) -> printMuCLP . rpgToFP <$> liftErr (parseRPG input)
+      (EncodeMuCLP, TSLMT) -> printMuCLP . rpgToFP <$> (tslToRPG cfg =<< parseTSL input)
+      (EncodeMuCLP, LowLevel) -> printMuCLP <$> (specToFP cfg =<< getSpec cfg input LowLevel)
+      (EncodeMuCLP, HighLevel) -> printMuCLP <$> (specToFP cfg =<< getSpec cfg input HighLevel)
       (EncodeLTLMT, LowLevel) -> specToLTLMT <$> getSpec cfg input LowLevel
       (EncodeLTLMT, HighLevel) -> specToLTLMT <$> getSpec cfg input HighLevel
       (EncodeLTLMT, RPG) -> do
@@ -89,7 +82,6 @@ main = do
         spec <- specFromRPLTL <$> (tslToRPLTL cfg =<< parseTSL input)
         checkSpecification cfg spec >>= liftErr
         pure $ specToLTLMT spec
-      -- Encode to Sweap
       (EncodeSweap, LowLevel) -> specToSweap <$> getSpec cfg input LowLevel
       (EncodeSweap, HighLevel) -> specToSweap <$> getSpec cfg input HighLevel
       (EncodeSweap, RPG) -> do
@@ -303,11 +295,11 @@ help =
   , "   --to-game : translate the input specification to a game without temporal logic"
   , "   --print   : pretty print a llissy or RPG spec"
   , ""
-  , "   --encode-muclp       : encode any spec to MuCLP used by 'muval'"
+  , "   --encode-muclp       : encode any spec to a MuCLP system used by 'muval'"
   , "   --encode-ltlmt       : encode any spec as LTLMT formula used by 'Syntheos'"
   , "   --encode-sweap       : encode any spec as specification used by 'Sweap'"
   , "   --encode-llissy      : encode an RPG or TSLMT spec as llissy specifciation"
-  , "   --encode-tslmt       : encode an RPG spec to TSLMT"
+  , "   --encode-tslmt       : encode an RPG spec as TSLMT formula"
   , ""
   , "   --version : returns the version of Issy"
   , ""

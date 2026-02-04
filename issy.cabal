@@ -39,7 +39,6 @@ library
     , Issy.Compiler.Parser
     , Issy.Compiler.Writer
     , Issy.Config
-    , Issy.Encoders.FullMuCLP
     , Issy.Encoders.LTLMT
     , Issy.Encoders.Sweap
     , Issy.Encoders.ToFixpoints
@@ -78,6 +77,7 @@ library
     , Issy.Parsers.TSLMT
     , Issy.Prelude
     , Issy.Printers.LLIssyFormat
+    , Issy.Printers.MuCLP
     , Issy.Printers.RPG
     , Issy.Printers.SymbolicGame
     , Issy.Printers.SMTLib

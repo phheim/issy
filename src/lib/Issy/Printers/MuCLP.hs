@@ -1,6 +1,6 @@
 ---------------------------------------------------------------------------------------------------
 -- |
--- Module      : Issy.Encoders.FullMuCLP
+-- Module      : Issy.Printers.MuCLP
 -- Description : TODO DOCUMENT
 -- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
@@ -8,8 +8,8 @@
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
-module Issy.Encoders.FullMuCLP
-  ( fpToMuCLP
+module Issy.Printers.MuCLP
+  ( printMuCLP
   ) where
 
 import Data.Fixed (Nano, showFixed)
@@ -22,8 +22,8 @@ import Issy.Logic.FOL (Constant(..), Quantifier(..), Sort(..), Term(..))
 import qualified Issy.Logic.FOL as FOL
 import Issy.Printers.SMTLib (funcToString)
 
-fpToMuCLP :: FPSystem -> String
-fpToMuCLP fpSystem =
+printMuCLP :: FPSystem -> String
+printMuCLP fpSystem =
   unlines
     $ encTerm (systemTerm fpSystem)
         : "s.t."

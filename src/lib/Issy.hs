@@ -39,6 +39,7 @@ module Issy
   , specToFP
   , -- Printing
     printLLIssyFormat
+  , printMuCLP
   , printRPG
   , printSG
   , -- Parsing
@@ -53,7 +54,6 @@ module Issy
   , -- Encoding
     specToLTLMT
   , specToSweap
-  , fpToMuCLP
   , rpgToSG
   , rpgToTSLT
   ) where
@@ -72,7 +72,6 @@ import Issy.Config (Config(..), defaultConfig)
 import Issy.Statistics (Stats, emptyStats, printStats)
 
 -- Encoding
-import Issy.Encoders.FullMuCLP (fpToMuCLP) -- TODO: This is more of a printer
 import Issy.Encoders.LTLMT (specToLTLMT)
 import Issy.Encoders.Sweap (specToSweap)
 import Issy.Encoders.TSLT (rpgToTSLT)
@@ -85,6 +84,7 @@ import Issy.Parsers.TSLMT (parseTSL)
 
 -- Printers
 import Issy.Printers.LLIssyFormat (printLLIssyFormat)
+import Issy.Printers.MuCLP (printMuCLP)
 import Issy.Printers.RPG (printRPG)
 import Issy.Printers.SymbolicGame (printSG)
 
