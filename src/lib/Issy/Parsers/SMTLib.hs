@@ -6,13 +6,19 @@
 -- License     : The Unlicense
 --
 ---------------------------------------------------------------------------------------------------
--------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
--------------------------------------------------------------------------------
-module Issy.Parsers.SMTLib where
+---------------------------------------------------------------------------------------------------
+module Issy.Parsers.SMTLib
+  ( extractModel
+  , parseTerm
+  , tryParseInt
+  , tryParseRat
+  , sortValue
+  , parseFuncName
+  ) where
 
--------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
 import Data.Char (digitToInt, isDigit)
 import qualified Data.Map.Strict as Map
 import Data.Map.Strict ((!?))
@@ -23,7 +29,7 @@ import Issy.Logic.FOL (Function(CustomF), Model, Sort(..), Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
 import Issy.Parsers.SMTLibLexer (Token(..), tokenize)
 
--------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
 type PRes a = Either String a
 
 perr :: String -> String -> PRes a
