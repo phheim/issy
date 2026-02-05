@@ -73,7 +73,6 @@ library
     , Issy.Parsers.RPG
     , Issy.Parsers.SExpression
     , Issy.Parsers.SMTLib
-    , Issy.Parsers.SMTLibLexer
     , Issy.Parsers.TSLMT
     , Issy.Prelude
     , Issy.Printers.LLIssyFormat

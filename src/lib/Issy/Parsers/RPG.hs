@@ -45,7 +45,7 @@ import qualified Issy.Games.Variables as Vars
 import Issy.Logic.FOL (Sort(..), Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Parsers.SMTLib as SMTLib (parseTerm, sortValue)
-import Issy.Parsers.SMTLibLexer (Token(..), tokenize)
+import Issy.Parsers.SMTLib (Token(..), tokenize)
 
 type PRes a = Either String a
 

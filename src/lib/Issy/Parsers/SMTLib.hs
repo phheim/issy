@@ -16,6 +16,9 @@ module Issy.Parsers.SMTLib
   , tryParseRat
   , sortValue
   , parseFuncName
+  , readTransformZ3
+  , Token(..)
+  , tokenize
   ) where
 
 ---------------------------------------------------------------------------------------------------
@@ -27,9 +30,42 @@ import Data.Set (Set)
 
 import Issy.Logic.FOL (Function(CustomF), Model, Sort(..), Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
-import Issy.Parsers.SMTLibLexer (Token(..), tokenize)
 
 ---------------------------------------------------------------------------------------------------
+data Token
+  = TLPar
+  | TRPar
+  | TId String
+  deriving (Eq, Ord, Show)
+
+tokenize :: String -> [Token]
+tokenize =
+  \case
+    [] -> []
+    ';':tr -> slComment tr
+    ' ':tr -> tokenize tr
+    '\n':tr -> tokenize tr
+    '\r':tr -> tokenize tr
+    '\t':tr -> tokenize tr
+    '(':tr -> TLPar : tokenize tr
+    ')':tr -> TRPar : tokenize tr
+    cs -> tokenizeID "" cs
+  where
+    tokenizeID :: String -> String -> [Token]
+    tokenizeID ident =
+      \case
+        [] -> [TId (reverse ident)]
+        c:s
+          | c `elem` [' ', '\n', '\t', '\r', ')', '('] -> TId (reverse ident) : tokenize (c : s)
+          | otherwise -> tokenizeID (c : ident) s
+    --
+    slComment :: String -> [Token]
+    slComment =
+      \case
+        [] -> []
+        '\n':s -> tokenize s
+        _:s -> slComment s
+
 type PRes a = Either String a
 
 perr :: String -> String -> PRes a
@@ -262,4 +298,20 @@ parseModel frees ts = fst . fst <$> psexpr pFunDef (FOL.emptyModel, []) ts
       (s, ts) <- psort ts
       ts <- pread TRPar ts "pSortedVar"
       Right (acc ++ [(v, s)], ts)
+
+readTransformZ3 :: (Symbol -> Maybe Sort) -> String -> Either String Term
+readTransformZ3 ty str =
+  case tokenize str of
+    TLPar:TId "goals":TLPar:TId "goal":tr -> FOL.andf <$> readGoals tr
+    ts -> Left $ "Invalid pattern for goals: " ++ show ts
+  where
+    readGoals =
+      \case
+        [] -> Left "assertion: found [] before ')' while reading goals"
+        TId (':':_):_:tr -> readGoals tr
+        [TRPar, TRPar] -> Right []
+        ts ->
+          case parseTerm ty ts of
+            Left err -> Left err
+            Right (f, tr) -> (f :) <$> readGoals tr
 ---------------------------------------------------------------------------------------------------

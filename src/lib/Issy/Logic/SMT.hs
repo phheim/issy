@@ -34,11 +34,10 @@ import qualified Data.Set as Set
 import System.Exit (die)
 
 import Issy.Config (Config, debug, z3cmd)
-import Issy.Logic.FOL (Model, Sort, Symbol, Term)
+import Issy.Logic.FOL (Model, Term)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.Polyhedra as Poly (normalize)
 import qualified Issy.Parsers.SMTLib as SMTLib
-import qualified Issy.Parsers.SMTLibLexer as SMTLib
 import qualified Issy.Printers.SMTLib as SMTLib
 import Issy.Utils.Extra (noTimeout, runTO)
 import Issy.Utils.Logging
@@ -147,7 +146,7 @@ simplifyTacs conf to tactics f
   | FOL.ufFree f = do
     let query = SMTLib.toQuery f ++ "(apply " ++ z3TacticList tactics ++ ")"
     callz3 conf to query $ \res ->
-      case readTransformZ3 (FOL.bindings f !?) (SMTLib.tokenize res) of
+      case SMTLib.readTransformZ3 (FOL.bindings f !?) res of
         Right res -> Just res
         _ -> Nothing
   | otherwise = pure $ Just f
@@ -161,7 +160,7 @@ trySimplifyUF conf to f
   | otherwise = do
     let query = SMTLib.toQuery f ++ "(apply " ++ z3TacticList z3SimplifyUF ++ ")"
     callz3 conf to query $ \res ->
-      case readTransformZ3 (FOL.bindings f !?) (SMTLib.tokenize res) of
+      case SMTLib.readTransformZ3 (FOL.bindings f !?) res of
         Right res -> Just $ Poly.normalize res
         _ -> Nothing
 
@@ -171,22 +170,6 @@ z3TacticList =
     [] -> error "assertion: non-empty tactic list not allowed"
     [t] -> t
     t:tr -> "(and-then " ++ t ++ " " ++ z3TacticList tr ++ ")"
-
-readTransformZ3 :: (Symbol -> Maybe Sort) -> [SMTLib.Token] -> Either String Term
-readTransformZ3 ty =
-  \case
-    SMTLib.TLPar:SMTLib.TId "goals":SMTLib.TLPar:SMTLib.TId "goal":tr -> FOL.andf <$> readGoals tr
-    ts -> Left $ "Invalid pattern for goals: " ++ show ts
-  where
-    readGoals =
-      \case
-        [] -> Left "assertion: found [] before ')' while reading goals"
-        SMTLib.TId (':':_):_:tr -> readGoals tr
-        [SMTLib.TRPar, SMTLib.TRPar] -> Right []
-        ts ->
-          case SMTLib.parseTerm ty ts of
-            Left err -> Left err
-            Right (f, tr) -> (f :) <$> readGoals tr
 
 ---------------------------------------------------------------------------------------------------
 -- Optimal Solving
