@@ -83,10 +83,9 @@ import Issy.Parsers.RPG (parseRPG)
 import Issy.Parsers.TSLMT (parseTSL)
 
 -- Printers
-import Issy.Printers.LLIssyFormat (printLLIssyFormat)
+import Issy.Printers.LLIssyFormat (printLLIssyFormat, printSG)
 import Issy.Printers.MuCLP (printMuCLP)
 import Issy.Printers.RPG (printRPG)
-import Issy.Printers.SymbolicGame (printSG)
 
 -- Solvers
 import Issy.Solver.GameInterface (fromRPG, fromSG)

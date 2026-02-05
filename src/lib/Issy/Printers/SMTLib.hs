@@ -1,11 +1,11 @@
 ---------------------------------------------------------------------------------------------------
 -- |
 -- Module      : Issy.Printers.SMTLib
--- Description : TODO DOCUMENT
+-- Description : SMTLib printer
 -- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
 --
----------------------------------------------------------------------------------------------------
+-- This module implements printing methods to the SMTLib (version 2) format.
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
@@ -32,9 +32,16 @@ import qualified Issy.Logic.FOL as FOL
 -- the variable is names PREFIX ++ DEPTH. So given a de-Brunijn index I
 -- the variables name is PREFIX ++ (DEPTH - I)
 ---------------------------------------------------------------------------------------------------
+-- | Print a terms as an SMTlib term expression. For example, a term "x + 1 < 0" is printed as
+-- "(< (x + 1) 0)". Non-boolean terms can be printed.
 toString :: Term -> String
 toString f = t2Term (FOL.unusedPrefix "qv" f ++ "x", 0) f
 
+-- | Print a term as an SMTlib query. In constrast to 'toString' this includes declaring
+-- the variables and asserting the term expression of the statements. Hence, the term should
+-- be of boolean sort. However, non tactics or satisfiability checking command are printed.
+-- For example, the term "x + 1 < 0" is printed as 
+-- "(declare-const x Int)(assert (< (x + 1) 0))".
 toQuery :: Term -> String
 toQuery f =
   concatMap
@@ -54,7 +61,7 @@ toQuery f =
     ++ toString f
     ++ ")"
 
----------------------------------------------------------------------------------------------------
+-- | SMTLib representation of a sort symbol.
 sortToString :: Sort -> String
 sortToString =
   \case
@@ -87,6 +94,7 @@ t2Term a =
     hQwant t f =
       fst a ++ show (snd a) ++ " " ++ sortToString t ++ ")) " ++ t2Term (fst a, snd a + 1) f ++ ")"
 
+-- | SMTLib representation of a function symbol.
 funcToString :: Function -> String
 funcToString =
   \case
@@ -107,5 +115,4 @@ funcToString =
     FToReal -> "to_real"
     FMod -> "mod"
     FDivInt -> "div"
----------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------

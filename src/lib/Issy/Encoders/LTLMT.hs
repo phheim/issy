@@ -10,7 +10,6 @@
 
 module Issy.Encoders.LTLMT
   ( specToLTLMT
-  , toFormula
   ) where
 
 import Issy.Prelude

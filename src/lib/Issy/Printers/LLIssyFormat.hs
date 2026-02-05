@@ -1,17 +1,21 @@
 ---------------------------------------------------------------------------------------------------
 -- |
 -- Module      : Issy.Printers.LLIssyFormat
--- Description : TODO DOCUMENT
+-- Description : LLissy format printer
 -- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
 --
+-- This module implements printing to the llissy format.
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
+---------------------------------------------------------------------------------------------------
 module Issy.Printers.LLIssyFormat
   ( printLLIssyFormat
+  , printSG
   ) where
 
+---------------------------------------------------------------------------------------------------
 import Data.Map.Strict ((!))
 
 import Issy.Games.Locations (Loc)
@@ -27,6 +31,9 @@ import qualified Issy.Printers.SMTLib as SMTLib (toString)
 import Issy.Specification (Specification)
 import qualified Issy.Specification as Spec
 
+---------------------------------------------------------------------------------------------------
+-- | Print a general specification in the llissy format. This may include several 
+-- formual and games.
 printLLIssyFormat :: Specification -> String
 printLLIssyFormat spec =
   ps
@@ -35,6 +42,11 @@ printLLIssyFormat spec =
     , mps printGame (Spec.games spec)
     ]
 
+-- | Print a single symbolic game in the llissy format.
+printSG :: (SG.Arena, Objective) -> String
+printSG = printLLIssyFormat . uncurry Spec.specFromSymbolicGame
+
+---------------------------------------------------------------------------------------------------
 printVars :: Variables -> String
 printVars vars =
   mps

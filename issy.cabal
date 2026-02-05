@@ -79,7 +79,6 @@ library
     , Issy.Printers.LLIssyFormat
     , Issy.Printers.MuCLP
     , Issy.Printers.RPG
-    , Issy.Printers.SymbolicGame
     , Issy.Printers.SMTLib
     , Issy.Products.RPGMonitor
     , Issy.Products.SGMonitor

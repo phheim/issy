@@ -1,17 +1,20 @@
 ---------------------------------------------------------------------------------------------------
 -- |
 -- Module      : Issy.Printers.RPG
--- Description : TODO DOCUMENT
+-- Description : RPG format printer
 -- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
 --
+-- This module implements printing to the reactive program game specification format.
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
+---------------------------------------------------------------------------------------------------
 module Issy.Printers.RPG
   ( printRPG
   ) where
 
+---------------------------------------------------------------------------------------------------
 import Data.Map.Strict ((!))
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
@@ -25,6 +28,7 @@ import qualified Issy.Games.Variables as Vars
 import Issy.Logic.FOL
 import qualified Issy.Printers.SMTLib as SMTLib
 
+---------------------------------------------------------------------------------------------------
 printSort :: Sort -> String
 printSort =
   \case
@@ -52,6 +56,7 @@ printTrans wl =
     wUpd (s, t) = "(" ++ s ++ " " ++ SMTLib.toString t ++ ")"
     wSys (upd, l) = "(" ++ concatMap wUpd (Map.toList upd) ++ ") " ++ wl l ++ " "
 
+-- | Print an reactive program game in its specification format.
 printRPG :: (RPArena, Objective) -> String
 printRPG (g, obj) =
   unlines
