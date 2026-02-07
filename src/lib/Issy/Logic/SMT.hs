@@ -1,11 +1,13 @@
 ---------------------------------------------------------------------------------------------------
 -- |
 -- Module      : Issy.Logic.SMT
--- Description : TODO DOCUMENT
+-- Description : SMT operations
 -- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
 --
----------------------------------------------------------------------------------------------------
+-- This module implements different SMT-solver base operations like satisfiability checking,
+-- model generation, and simplifications. For this Z3 is used. We require at
+-- least version "4.13.0" ov Z3.
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
@@ -45,18 +47,26 @@ import Issy.Utils.Logging
 ---------------------------------------------------------------------------------------------------
 -- SMT Solving
 ---------------------------------------------------------------------------------------------------
+-- | Check if a term is satisfiable, i.e. if there exists a model for the free variable
+-- such that the formula evaluates to true. This method might diverge.
 sat :: Config -> Term -> IO Bool
 sat conf = noTimeout . trySat conf Nothing
 
+-- | Check if a term in unsatisfiable, i.e. 'sat' is false. This method might diverge.
 unsat :: Config -> Term -> IO Bool
 unsat conf f = not <$> sat conf f
 
+-- | Check if a term is valid, i.e. for all models for the free variables
+-- the formula evaluates to true. This method might diverge.
 valid :: Config -> Term -> IO Bool
 valid conf f = not <$> sat conf (FOL.neg f)
 
+-- | Like 'sat' but returns the model if it exists. This method might diverge.
 satModel :: Config -> Term -> IO (Maybe Model)
 satModel conf = noTimeout . trySatModel conf Nothing
 
+-- | Like 'sat' but with an optional timeout. The timeout is given in seconds.
+-- If a timeout is given, this methods will terminate.
 trySat :: Config -> Maybe Int -> Term -> IO (Maybe Bool)
 trySat conf to f
   | f == FOL.true = pure $ Just True
@@ -72,6 +82,9 @@ trySat conf to f
         's':'a':'t':_ -> Just True
         _ -> Nothing
 
+-- | Like 'trySat' but returns the model if it exists. For the result
+-- 'Nothing' means a timeout occurred and 'Just Nothing' means that no model
+-- exists, i.e. the term is unsatisfiable.
 trySatModel :: Config -> Maybe Int -> Term -> IO (Maybe (Maybe Model))
 trySatModel conf to f = do
   let query = SMTLib.toQuery f ++ satCommand f ++ "(get-model)"
@@ -108,14 +121,18 @@ z3SimplifyQEFree =
 z3SimplifyUF :: [String]
 z3SimplifyUF = ["simplify", "blast-term-ite", "nnf", "propagate-ineqs", "qe", "simplify"]
 
+-- | Simplifies a term using SMT tactics. The given term must be free
+-- of uninterpreted functions. The methods might diverge.
 simplify :: Config -> Term -> IO Term
 simplify conf = noTimeout . trySimplify conf Nothing
 
 simplifyWith :: Term -> [String]
-simplifyWith term -- TODO: add case for only doing the polyhedra stuff, i.e. if isQFLIRA?? (different type might be a problem thoug)
+simplifyWith term
   | FOL.quantifierFree term = z3SimplifyQEFree
   | otherwise = z3Simplify
 
+-- | Like 'simplify' but with an optional timeout in seconds.
+-- If a timeout is given, this methods will terminate.
 trySimplify :: Config -> Maybe Int -> Term -> IO (Maybe Term)
 trySimplify conf to term = do
   simpTerm <- simplifyTacs conf to (simplifyWith term) term
@@ -151,9 +168,13 @@ simplifyTacs conf to tactics f
         _ -> Nothing
   | otherwise = pure $ Just f
 
+-- | Simplifies a term with uninterpreted functions using SMT tactics.
+-- Note that this is less powerful than 'simplify', which should be used
+-- when possible. The methods might diverge.
 simplifyUF :: Config -> Term -> IO Term
 simplifyUF conf = noTimeout . trySimplifyUF conf Nothing
 
+-- | Like 'simplifyUF' but with an optional timeout in seconds.
 trySimplifyUF :: Config -> Maybe Int -> Term -> IO (Maybe Term)
 trySimplifyUF conf to f
   | f == FOL.true || f == FOL.false = pure (Just f)
@@ -174,9 +195,15 @@ z3TacticList =
 ---------------------------------------------------------------------------------------------------
 -- Optimal Solving
 ---------------------------------------------------------------------------------------------------
+-- | Given a boolean constraint and a list of numeric terms, try to find a model for the
+-- free variables, that satisfies the constraint and Pareto maximizes the numeric terms, i.e.
+-- find an model such that there is no other model where the value of on of the optimization
+-- term increases, while the vale of the other ones do not decrease.
 optPareto :: Config -> Term -> [Term] -> IO (Maybe Model)
 optPareto conf f = noTimeout . tryOptPareto conf Nothing f
 
+-- | Like 'optPareto' but with an optional timeout in seconds.
+-- If a timeout is given, this methods will terminate.
 tryOptPareto :: Config -> Maybe Int -> Term -> [Term] -> IO (Maybe (Maybe Model))
 tryOptPareto conf to f maxTerms = do
   f <- simplify conf f

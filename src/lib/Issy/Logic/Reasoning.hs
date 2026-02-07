@@ -2,7 +2,7 @@
 -- |
 -- Module      : Issy.Logic.Reasoning
 -- Description : More complex algorithms for logic reasoning
--- Copyright   : (c) Philippe Heim, 2025
+-- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
 --
 -- This module contains more complex algorithms to reason on logic which go
@@ -126,13 +126,17 @@ tryEqElim conf vars pre term var = do
                 else pure $ Just eq
             else go pre eqr
 
+-- | Heuristically extract all terms that are set to equal in a given terms to 
+-- a given variable. For, example in the term "(x = (y + 1)) && (x > z) (3 = x)", 
+-- for "x" this are the terms "3" and "y + 1". This method works syntactically, and
+-- hence things likes "2x = x + 1" can be missed.
 equalitiesFor :: Symbol -> Term -> Set Term
 equalitiesFor var = go
   where
     go =
       \case
         Func FEq [st1, st2]
-          | var `elem` FOL.frees st1 && var `elem` FOL.frees st2 -> go st1 `Set.union` go st2 -- While there might be casese like 2x = x + 1 that could also be handled, this should be taken care of by simplification operations
+          | var `elem` FOL.frees st1 && var `elem` FOL.frees st2 -> go st1 `Set.union` go st2
           | var `elem` FOL.frees st2 -> go $ Func FEq [st2, st1]
           | var `elem` FOL.frees st1 ->
             case st1 of

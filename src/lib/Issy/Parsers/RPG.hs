@@ -48,7 +48,7 @@ import qualified Issy.Games.ReactiveProgramArena as RPG
 import qualified Issy.Games.Variables as Vars
 import Issy.Logic.FOL (Sort(..), Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
-import qualified Issy.Parsers.SMTLib as SMTLib (parseTerm, parseSort)
+import qualified Issy.Parsers.SMTLib as SMTLib (parseSort, parseTerm)
 import Issy.Parsers.SMTLib (Token(..), tokenize)
 
 ---------------------------------------------------------------------------------------------------

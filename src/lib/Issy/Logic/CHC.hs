@@ -1,10 +1,12 @@
 ---------------------------------------------------------------------------------------------------
 -- |
 -- Module      : Issy.Logic.CHC
--- Description : TODO DOCUMENT
+-- Description : Operations for constrained horn clauses
 -- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
---
+-- 
+-- This module implements some query mechanism for constrains horn clauses (CHC). This includes
+-- normal CHC and MaxCHC.
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
@@ -36,6 +38,8 @@ import Issy.Utils.Logging
 ---------------------------------------------------------------------------------------------------
 -- CHC solving
 ---------------------------------------------------------------------------------------------------
+-- | Given a named predicate, its argument sorts, and CHC style implications, use Z3 to 
+-- check whether the resulting CHC statement holds.
 check :: Config -> Symbol -> [Sort] -> [([Term], Term)] -> IO (Maybe Bool)
 check conf invPred sorts constraints = do
   let query = chcEncode invPred sorts constraints
@@ -73,7 +77,8 @@ callCHCSolver conf query = do
 ---------------------------------------------------------------------------------------------------
 -- MaxCHC
 ---------------------------------------------------------------------------------------------------
---TODO: this is somewhat ugly and should be removed
+-- | Given some initialization and some transition contraint in CHC shape, compute the maximum
+-- predicate that satisfies this. Note that this methods uses CHCMax and is not very stable.
 computeFP :: Config -> Variables -> Symbol -> Term -> Term -> IO (Maybe Term)
 computeFP cfg vars fpPred init trans
   | invalidSorts [([init], trans)] = do
@@ -255,5 +260,4 @@ parseFP vars fpPred sr =
         [] -> ""
         ':':'=':sr -> sr
         c:sr -> c : gotoAssign sr
----------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------

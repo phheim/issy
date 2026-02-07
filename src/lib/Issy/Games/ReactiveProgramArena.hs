@@ -72,31 +72,37 @@ import qualified Issy.Utils.OpenList as OL
 ---------------------------------------------------------------------------------------------------
 -- RPG Transitions
 ---------------------------------------------------------------------------------------------------
+-- | If-then-else-tree shaped representation of a transition in a reactive program arena.
 data Transition
   = TIf Term Transition Transition
-  -- ^ guarded branch on some quanitifer-free formula
+  -- ^ guarded branch on some quantifier-free formula
   | TSys [(Map Symbol Term, Loc)]
   -- ^ system selection with not-empty and unique mapping
   deriving (Eq, Ord, Show)
 
+-- | Return all the successor locations of a transition.
 succT :: Transition -> Set Loc
 succT =
   \case
     TIf _ tt te -> succT tt `Set.union` succT te
     TSys choices -> Set.fromList (snd <$> choices)
 
+-- | Moddify all terms in a transitions, both predicate terms as
+-- well as update terms.
 mapTerms :: (Term -> Term) -> Transition -> Transition
 mapTerms m =
   \case
     TIf p tt te -> TIf (m p) (mapTerms m tt) (mapTerms m te)
     TSys upds -> TSys $ map (first (fmap m)) upds
 
+-- | Moddify all updates of a transition.
 mapUpdates :: (Map Symbol Term -> Map Symbol Term) -> Transition -> Transition
 mapUpdates m = go
   where
     go (TIf p tt te) = TIf p (go tt) (go te)
     go (TSys upds) = TSys $ map (first m) upds
 
+-- | Create a self-loop transition.
 selfLoop :: Loc -> Transition
 selfLoop l = TSys [(Map.empty, l)]
 
@@ -147,7 +153,7 @@ usedSymbols g =
         TSys choices -> Set.unions (concatMap (map (FOL.symbols . snd) . Map.toList . fst) choices)
 
 ---------------------------------------------------------------------------------------------------
--- Construction and basic moddification
+-- Construction and basic modification
 ---------------------------------------------------------------------------------------------------
 empty :: Variables -> RPArena
 empty vars =

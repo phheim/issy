@@ -16,14 +16,14 @@ module Issy.Parsers.SMTLib
   ( -- Parser
     extractModel
   , parseGoals
-    -- Components
-  , parseSort
+  , -- Components
+    parseSort
   , tryParseInt
   , tryParseRat
   , tryParseFuncName
   , parseTerm
-  -- Lexer
-  , Token(..)
+  , -- Lexer
+    Token(..)
   , tokenize
   ) where
 
@@ -344,5 +344,4 @@ tokenize =
         [] -> []
         '\n':s -> tokenize s
         _:s -> slComment s
-
 ---------------------------------------------------------------------------------------------------
