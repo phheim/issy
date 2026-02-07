@@ -1,17 +1,28 @@
 ---------------------------------------------------------------------------------------------------
 -- |
 -- Module      : Issy.Parsers.TSLMT
--- Description : TODO DOCUMENT
+-- Description : TSLMT format parser
 -- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
 --
+-- This module implements parsing the TSLMT format. This is an extension of the normal
+-- TSL format but without imports. For the extensions, we use a custom format that is different
+-- from the ones that either TeMoS or Raboniel use. Our format starts with one variable
+-- declaration per line (empty lines allowed) where each declaration has the form
+-- "[inp | var] SORT ID" separated by a single white-space only. This header is ended
+-- by a line with the content "SPECIFICATION". As functions we support "and", "or", "not",
+-- "ite", "add", "sub", "mul", "div", "mod", "abs", "to_real", "eq", "lt", "gt", "lte", "gte".
+-- We also support the constants "true", "false", and integer and real constants staring with "i"
+-- and "r" in their name each.
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
+---------------------------------------------------------------------------------------------------
 module Issy.Parsers.TSLMT
   ( parseTSL
   ) where
 
+---------------------------------------------------------------------------------------------------
 import Data.Char (isAsciiLower, isAsciiUpper)
 
 import TSL
@@ -33,6 +44,7 @@ import qualified Issy.Logic.TSLMT as TSLMT
 import qualified Issy.Logic.Temporal as TL
 import Issy.Parsers.SMTLib (tryParseInt, tryParseRat)
 
+---------------------------------------------------------------------------------------------------
 -- Declarations have the form
 --  [inp | var] SORT ID
 --
@@ -192,6 +204,8 @@ translateSpec vars spec =
         , TL.guarantees = transform <$> TSL.guarantees spec
         }
 
+-- | Parse a TSLMT specification. Throws an IO error or is undefined upon
+-- and invalid TSLMT string.
 parseTSL :: String -> IO (TL.Spec TSLMT.Atom)
 parseTSL s =
   case parseDecls s of

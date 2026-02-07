@@ -146,7 +146,7 @@ simplifyTacs conf to tactics f
   | FOL.ufFree f = do
     let query = SMTLib.toQuery f ++ "(apply " ++ z3TacticList tactics ++ ")"
     callz3 conf to query $ \res ->
-      case SMTLib.readTransformZ3 (FOL.bindings f !?) res of
+      case SMTLib.parseGoals (FOL.bindings f !?) res of
         Right res -> Just res
         _ -> Nothing
   | otherwise = pure $ Just f
@@ -160,7 +160,7 @@ trySimplifyUF conf to f
   | otherwise = do
     let query = SMTLib.toQuery f ++ "(apply " ++ z3TacticList z3SimplifyUF ++ ")"
     callz3 conf to query $ \res ->
-      case SMTLib.readTransformZ3 (FOL.bindings f !?) res of
+      case SMTLib.parseGoals (FOL.bindings f !?) res of
         Right res -> Just $ Poly.normalize res
         _ -> Nothing
 

@@ -1,17 +1,20 @@
 ---------------------------------------------------------------------------------------------------
 -- |
 -- Module      : Issy.Parsers.LLIssyFormat
--- Description : TODO DOCUMENT
+-- Description : LLissy format parser
 -- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
 --
+-- This module implements the parser for the LLissy format.
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
+---------------------------------------------------------------------------------------------------
 module Issy.Parsers.LLIssyFormat
   ( parseLLIssyFormat
   ) where
 
+---------------------------------------------------------------------------------------------------
 import Control.Monad (foldM, unless, when)
 import Data.Map.Strict (Map, (!), (!?))
 import qualified Data.Map.Strict as Map
@@ -29,13 +32,12 @@ import Issy.Logic.FOL (Sort(..), Term)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.Temporal as TL
 import Issy.Parsers.SExpression (PRes, Pos, SExpr(..), getPos, parse, perr)
-import qualified Issy.Parsers.SMTLib as SMTLib (parseFuncName, tryParseInt, tryParseRat)
+import qualified Issy.Parsers.SMTLib as SMTLib (tryParseFuncName, tryParseInt, tryParseRat)
 import Issy.Specification (Specification)
 import qualified Issy.Specification as Spec
 
---
--- Main method
---
+---------------------------------------------------------------------------------------------------
+-- | Parse a specification in the LLissy format.
 parseLLIssyFormat :: String -> Either String Specification
 parseLLIssyFormat input = do
   sexpr <- parse input
@@ -58,9 +60,9 @@ parseLLIssyFormat input = do
         Right spec -> pure spec
         Left err -> perr (getPos s) err
 
---
+---------------------------------------------------------------------------------------------------
 -- Variable Declaration
---
+---------------------------------------------------------------------------------------------------
 keywords :: [String]
 keywords = ["true", "false", "and", "or", "not", "distinct", "ite", "abs", "mod", "div", "to_real"]
 
@@ -107,9 +109,9 @@ isVarName =
     idStarts = ['a' .. 'z'] ++ ['A' .. 'Z']
     idSymbols = idStarts ++ ['0' .. '9'] ++ ['\'', '_']
 
---
+---------------------------------------------------------------------------------------------------
 -- Formula
---
+---------------------------------------------------------------------------------------------------
 parseSpec :: Variables -> SExpr -> PRes (TL.Spec Term)
 parseSpec vars =
   \case
@@ -145,9 +147,9 @@ parseFormula vars = go
           pure $ TL.BExp TL.Release f1 f2
         s -> perr (getPos s) "Expected RP-LTL formula"
 
---
+---------------------------------------------------------------------------------------------------
 -- Game
---
+---------------------------------------------------------------------------------------------------
 parseGame :: Variables -> SExpr -> PRes (Arena, Objective)
 parseGame vars =
   \case
@@ -210,9 +212,9 @@ lookupLoc strTo pos str =
     Just a -> pure a
     Nothing -> perr pos $ "\"" ++ str ++ "\" not found"
 
---
+---------------------------------------------------------------------------------------------------
 -- Term
---
+---------------------------------------------------------------------------------------------------
 parseTerm :: Variables -> SExpr -> PRes Term
 parseTerm vars = go
   where
@@ -230,7 +232,7 @@ parseTerm vars = go
                   Just r -> pure $ FOL.Const $ FOL.CReal r
                   Nothing -> perr p $ "Found undeclared variables or constant \"" ++ name ++ "\""
         SPar _ (SId p name:args) ->
-          case SMTLib.parseFuncName name of
+          case SMTLib.tryParseFuncName name of
             Just func -> mapM go args >>= func
             Nothing -> perr p $ "Found unkown function while parsing term: \"" ++ name ++ "\""
         s -> perr (getPos s) "Found unkown pattern while parsing term"

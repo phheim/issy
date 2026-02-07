@@ -1,22 +1,28 @@
 ---------------------------------------------------------------------------------------------------
 -- |
 -- Module      : Issy.Parsers.SMTLib
--- Description : TODO DOCUMENT
+-- Description : SMTLib Parser
 -- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
 --
+-- This module implements parsing of the SMTLib (version 2) format. Note that some of the
+-- internals are exposed, but one should avoid using them. Furthermore, not all of SMTLib is
+-- currently supported.
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
 ---------------------------------------------------------------------------------------------------
 module Issy.Parsers.SMTLib
-  ( extractModel
-  , parseTerm
+  ( -- Parser
+    extractModel
+  , parseGoals
+    -- Components
+  , parseSort
   , tryParseInt
   , tryParseRat
-  , sortValue
-  , parseFuncName
-  , readTransformZ3
+  , tryParseFuncName
+  , parseTerm
+  -- Lexer
   , Token(..)
   , tokenize
   ) where
@@ -32,40 +38,6 @@ import Issy.Logic.FOL (Function(CustomF), Model, Sort(..), Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
 
 ---------------------------------------------------------------------------------------------------
-data Token
-  = TLPar
-  | TRPar
-  | TId String
-  deriving (Eq, Ord, Show)
-
-tokenize :: String -> [Token]
-tokenize =
-  \case
-    [] -> []
-    ';':tr -> slComment tr
-    ' ':tr -> tokenize tr
-    '\n':tr -> tokenize tr
-    '\r':tr -> tokenize tr
-    '\t':tr -> tokenize tr
-    '(':tr -> TLPar : tokenize tr
-    ')':tr -> TRPar : tokenize tr
-    cs -> tokenizeID "" cs
-  where
-    tokenizeID :: String -> String -> [Token]
-    tokenizeID ident =
-      \case
-        [] -> [TId (reverse ident)]
-        c:s
-          | c `elem` [' ', '\n', '\t', '\r', ')', '('] -> TId (reverse ident) : tokenize (c : s)
-          | otherwise -> tokenizeID (c : ident) s
-    --
-    slComment :: String -> [Token]
-    slComment =
-      \case
-        [] -> []
-        '\n':s -> tokenize s
-        _:s -> slComment s
-
 type PRes a = Either String a
 
 perr :: String -> String -> PRes a
@@ -76,6 +48,60 @@ data TermExpr
   | EList [TermExpr]
   deriving (Eq, Ord, Show)
 
+---------------------------------------------------------------------------------------------------
+-- | Get an model from the SMTLib representation given the set of free variables.
+extractModel :: Set Symbol -> String -> Model
+extractModel frees str =
+  case parseModel frees (tokenize str) of
+    Right m -> FOL.sanitizeModel frees m
+    Left err -> error $ err ++ " in \"" ++ str ++ "\""
+
+parseModel :: Set Symbol -> [Token] -> PRes Model
+parseModel frees ts = fst . fst <$> psexpr pFunDef (FOL.emptyModel, []) ts
+  where
+    pFunDef :: (Model, [(Symbol, Sort)]) -> [Token] -> PRes ((Model, [(Symbol, Sort)]), [Token])
+    pFunDef (m, auxF) ts = do
+      ts <- pread TLPar ts "parseModel"
+      ts <- pread (TId "define-fun") ts "parseModel"
+      (name, ts) <- preadID ts "parseModel"
+      (svars, ts) <- psexpr pSortedVar [] ts
+      (ret, ts) <- psort ts
+      (body, ts) <- parseTerm (Map.fromList (auxF ++ svars) !?) ts
+      ts <- pread TRPar ts "parseModel"
+      let func = foldr (uncurry FOL.lambda) body svars
+      let ftype = SFunc (map snd svars) ret
+      let auxF' =
+            if name `notElem` frees
+              then auxF ++ [(name, ftype)]
+              else auxF
+      Right ((FOL.modelAddT name func m, auxF'), ts)
+    pSortedVar :: [(Symbol, Sort)] -> [Token] -> PRes ([(Symbol, Sort)], [Token])
+    pSortedVar acc ts = do
+      ts <- pread TLPar ts "pSortedVar"
+      (v, ts) <- preadID ts "pSortedVar"
+      (s, ts) <- psort ts
+      ts <- pread TRPar ts "pSortedVar"
+      Right (acc ++ [(v, s)], ts)
+
+-- | Parse SMTLib "goals". This is a Z3 specific feature and represent the current
+-- goals as printed after the application of tactics to the current assertions.
+parseGoals :: (Symbol -> Maybe Sort) -> String -> Either String Term
+parseGoals ty str =
+  case tokenize str of
+    TLPar:TId "goals":TLPar:TId "goal":tr -> FOL.andf <$> readGoals tr
+    ts -> Left $ "Invalid pattern for goals: " ++ show ts
+  where
+    readGoals =
+      \case
+        [] -> Left "assertion: found [] before ')' while reading goals"
+        TId (':':_):_:tr -> readGoals tr
+        [TRPar, TRPar] -> Right []
+        ts ->
+          case parseTerm ty ts of
+            Left err -> Left err
+            Right (f, tr) -> (f :) <$> readGoals tr
+
+---------------------------------------------------------------------------------------------------
 parseTermExpr :: [Token] -> PRes (TermExpr, [Token])
 parseTermExpr =
   \case
@@ -126,7 +152,7 @@ exprToTerm ty =
     EList [EVar "not", r] -> FOL.neg <$> exprToTerm ty r
     EList (EVar n:r) -> do
       args <- mapM (exprToTerm ty) r
-      case parseFuncName n of
+      case tryParseFuncName n of
         Just pfunc -> pfunc args
         Nothing ->
           case ty n of
@@ -136,8 +162,53 @@ exprToTerm ty =
     EList [t] -> exprToTerm ty t
     _ -> perr "exprToTerm" "Unknown pattern"
 
-parseFuncName :: String -> Maybe ([Term] -> PRes Term)
-parseFuncName fname =
+parseConstTerm :: (String -> Maybe Sort) -> String -> PRes Term
+parseConstTerm types =
+  \case
+    "true" -> Right $ FOL.boolConst True
+    "false" -> Right $ FOL.boolConst False
+    "0" -> Right $ FOL.intConst 0
+    s ->
+      case tryParseInt 0 s of
+        Just n -> Right $ FOL.intConst n
+        Nothing ->
+          case tryParseRat 1 0 s of
+            Just r -> Right $ FOL.realConst r
+            Nothing ->
+              case types s of
+                Just t -> Right $ FOL.var s t
+                Nothing ->
+                  perr "parseConstTerm" ("'" ++ s ++ "' is no constant term or declared constant")
+
+exprToQuant :: (Symbol -> Term -> Term) -> (String -> Maybe Sort) -> [TermExpr] -> PRes Term
+exprToQuant qw ty =
+  \case
+    [EList ((EList [EVar v, EVar t]):br), tr] -> do
+      s <- parseSort t
+      qw v
+        <$> exprToQuant
+              qw
+              (\x ->
+                 if x == v
+                   then Just s
+                   else ty x)
+              [EList br, tr]
+    [EList [], tr] -> exprToTerm ty tr
+    _ -> perr "exprToQuant" "Expected binding list"
+
+---------------------------------------------------------------------------------------------------
+-- | Parse an SMTLib sort name.
+parseSort :: String -> PRes Sort
+parseSort =
+  \case
+    "Bool" -> Right SBool
+    "Int" -> Right SInt
+    "Real" -> Right SReal
+    s -> perr "parseSort" ("Unkown sort '" ++ s ++ "'")
+
+-- | Parse an SMTLib function name.
+tryParseFuncName :: String -> Maybe ([Term] -> PRes Term)
+tryParseFuncName fname =
   case fname of
     "and" -> Just $ Right . FOL.andf
     "or" -> Just $ Right . FOL.orf
@@ -161,30 +232,13 @@ parseFuncName fname =
     _ -> Nothing
   where
     liftUOp op [t] = Right $ op t
-    liftUOp _ _ = perr "parseFuncName" $ "\'" ++ fname ++ "\' expects only one argument"
+    liftUOp _ _ = perr "tryParseFuncName" $ "\'" ++ fname ++ "\' expects only one argument"
     liftBOp op [t1, t2] = Right $ op t1 t2
-    liftBOp _ _ = perr "parseFuncName" $ "\'" ++ fname ++ "\' expects exactly two arguments"
+    liftBOp _ _ = perr "tryParseFuncName" $ "\'" ++ fname ++ "\' expects exactly two arguments"
     liftTOp op [t1, t2, t3] = Right $ op t1 t2 t3
-    liftTOp _ _ = perr "parseFuncName" $ "\'" ++ fname ++ "\' expects exactly three arguments"
+    liftTOp _ _ = perr "tryParseFuncName" $ "\'" ++ fname ++ "\' expects exactly three arguments"
 
-parseConstTerm :: (String -> Maybe Sort) -> String -> PRes Term
-parseConstTerm types =
-  \case
-    "true" -> Right $ FOL.boolConst True
-    "false" -> Right $ FOL.boolConst False
-    "0" -> Right $ FOL.intConst 0
-    s ->
-      case tryParseInt 0 s of
-        Just n -> Right $ FOL.intConst n
-        Nothing ->
-          case tryParseRat 1 0 s of
-            Just r -> Right $ FOL.realConst r
-            Nothing ->
-              case types s of
-                Just t -> Right $ FOL.var s t
-                Nothing ->
-                  perr "parseConstTerm" ("'" ++ s ++ "' is no constant term or declared constant")
-
+-- | Parse an decimal integer number.
 tryParseInt :: Integer -> String -> Maybe Integer
 tryParseInt n =
   \case
@@ -193,6 +247,7 @@ tryParseInt n =
       | isDigit c -> tryParseInt (10 * n + toEnum (digitToInt c)) s
       | otherwise -> Nothing
 
+-- | Parse an decimal rational number.
 tryParseRat :: Integer -> Rational -> String -> Maybe Rational
 tryParseRat level r =
   \case
@@ -203,36 +258,17 @@ tryParseRat level r =
       | isDigit c -> tryParseRat (level * 10) (r + toEnum (digitToInt c) % level) s
       | otherwise -> Nothing
 
-sortValue :: String -> PRes Sort
-sortValue =
-  \case
-    "Bool" -> Right SBool
-    "Int" -> Right SInt
-    "Real" -> Right SReal
-    s -> perr "sortValue" ("Unkown sort '" ++ s ++ "'")
-
-exprToQuant :: (Symbol -> Term -> Term) -> (String -> Maybe Sort) -> [TermExpr] -> PRes Term
-exprToQuant qw ty =
-  \case
-    [EList ((EList [EVar v, EVar t]):br), tr] -> do
-      s <- sortValue t
-      qw v
-        <$> exprToQuant
-              qw
-              (\x ->
-                 if x == v
-                   then Just s
-                   else ty x)
-              [EList br, tr]
-    [EList [], tr] -> exprToTerm ty tr
-    _ -> perr "exprToQuant" "Expected binding list"
-
+-- | Parse an SMTLib term from an already tokenized form, given the sort of the free
+-- variables.
 parseTerm :: (String -> Maybe Sort) -> [Token] -> PRes (Term, [Token])
 parseTerm ty ts = do
   (e, tr) <- parseTermExpr ts
   t <- exprToTerm ty e
   Right (t, tr)
 
+---------------------------------------------------------------------------------------------------
+-- Helpers
+---------------------------------------------------------------------------------------------------
 pread :: Token -> [Token] -> String -> PRes [Token]
 pread ref ts func =
   case ts of
@@ -266,52 +302,47 @@ psexpr sub acc ts = pread TLPar ts "psexpr" >>= rec acc
         TRPar:ts -> Right (acc, ts)
         ts -> sub acc ts >>= uncurry rec
 
-extractModel :: Set Symbol -> String -> Model
-extractModel frees str =
-  case parseModel frees (tokenize str) of
-    Right m -> FOL.sanitizeModel frees m
-    Left err -> error $ err ++ " in \"" ++ str ++ "\""
+---------------------------------------------------------------------------------------------------
+-- Lexer
+---------------------------------------------------------------------------------------------------
+-- | Token representation for SMTLib lexing.
+data Token
+  = TLPar
+  -- ^ Representation of "("
+  | TRPar
+  -- ^ Representation of ")"
+  | TId String
+  -- ^ Representation of a string that is not white space.
+  deriving (Eq, Ord, Show)
 
-parseModel :: Set Symbol -> [Token] -> PRes Model
-parseModel frees ts = fst . fst <$> psexpr pFunDef (FOL.emptyModel, []) ts
+-- | Turn a string into tokens. Note that this lexer is maximally permissive, i.e. it
+-- currently does not fail.
+tokenize :: String -> [Token]
+tokenize =
+  \case
+    [] -> []
+    ';':tr -> slComment tr
+    ' ':tr -> tokenize tr
+    '\n':tr -> tokenize tr
+    '\r':tr -> tokenize tr
+    '\t':tr -> tokenize tr
+    '(':tr -> TLPar : tokenize tr
+    ')':tr -> TRPar : tokenize tr
+    cs -> tokenizeID "" cs
   where
-    pFunDef :: (Model, [(Symbol, Sort)]) -> [Token] -> PRes ((Model, [(Symbol, Sort)]), [Token])
-    pFunDef (m, auxF) ts = do
-      ts <- pread TLPar ts "parseModel"
-      ts <- pread (TId "define-fun") ts "parseModel"
-      (name, ts) <- preadID ts "parseModel"
-      (svars, ts) <- psexpr pSortedVar [] ts
-      (ret, ts) <- psort ts
-      (body, ts) <- parseTerm (Map.fromList (auxF ++ svars) !?) ts
-      ts <- pread TRPar ts "parseModel"
-      let func = foldr (uncurry FOL.lambda) body svars
-      let ftype = SFunc (map snd svars) ret
-      let auxF' =
-            if name `notElem` frees
-              then auxF ++ [(name, ftype)]
-              else auxF
-      Right ((FOL.modelAddT name func m, auxF'), ts)
-    pSortedVar :: [(Symbol, Sort)] -> [Token] -> PRes ([(Symbol, Sort)], [Token])
-    pSortedVar acc ts = do
-      ts <- pread TLPar ts "pSortedVar"
-      (v, ts) <- preadID ts "pSortedVar"
-      (s, ts) <- psort ts
-      ts <- pread TRPar ts "pSortedVar"
-      Right (acc ++ [(v, s)], ts)
-
-readTransformZ3 :: (Symbol -> Maybe Sort) -> String -> Either String Term
-readTransformZ3 ty str =
-  case tokenize str of
-    TLPar:TId "goals":TLPar:TId "goal":tr -> FOL.andf <$> readGoals tr
-    ts -> Left $ "Invalid pattern for goals: " ++ show ts
-  where
-    readGoals =
+    tokenizeID :: String -> String -> [Token]
+    tokenizeID ident =
       \case
-        [] -> Left "assertion: found [] before ')' while reading goals"
-        TId (':':_):_:tr -> readGoals tr
-        [TRPar, TRPar] -> Right []
-        ts ->
-          case parseTerm ty ts of
-            Left err -> Left err
-            Right (f, tr) -> (f :) <$> readGoals tr
+        [] -> [TId (reverse ident)]
+        c:s
+          | c `elem` [' ', '\n', '\t', '\r', ')', '('] -> TId (reverse ident) : tokenize (c : s)
+          | otherwise -> tokenizeID (c : ident) s
+    --
+    slComment :: String -> [Token]
+    slComment =
+      \case
+        [] -> []
+        '\n':s -> tokenize s
+        _:s -> slComment s
+
 ---------------------------------------------------------------------------------------------------

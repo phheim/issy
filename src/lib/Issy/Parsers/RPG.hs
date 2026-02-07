@@ -1,10 +1,11 @@
 ---------------------------------------------------------------------------------------------------
 -- |
 -- Module      : Issy.Parsers.RPG
--- Description : TODO DOCUMENT
+-- Description : RPG format parser
 -- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
 --
+-- This module implements parsing the reactive program game specification format.
 ---------------------------------------------------------------------------------------------------
 --
 -- Update := "(" ("(" ID TERM ")")* ")" ID
@@ -24,12 +25,15 @@
 --
 --  GameDescipition := GameItem*
 --
+---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
+---------------------------------------------------------------------------------------------------
 module Issy.Parsers.RPG
   ( parseRPG
   ) where
 
+---------------------------------------------------------------------------------------------------
 import Control.Monad (unless, when)
 import Data.Map.Strict (Map, (!), (!?))
 import qualified Data.Map.Strict as Map
@@ -44,9 +48,10 @@ import qualified Issy.Games.ReactiveProgramArena as RPG
 import qualified Issy.Games.Variables as Vars
 import Issy.Logic.FOL (Sort(..), Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
-import qualified Issy.Parsers.SMTLib as SMTLib (parseTerm, sortValue)
+import qualified Issy.Parsers.SMTLib as SMTLib (parseTerm, parseSort)
 import Issy.Parsers.SMTLib (Token(..), tokenize)
 
+---------------------------------------------------------------------------------------------------
 type PRes a = Either String a
 
 perr :: String -> String -> PRes a
@@ -186,7 +191,7 @@ pGame (g, pst) =
            in Right (g, obj)
     --
     TId "input":TId n:TId s:tr -> do
-      sv <- SMTLib.sortValue s
+      sv <- SMTLib.parseSort s
       when (n `elem` Vars.allSymbols (variables g))
         $ perr "pGame" ("Input '" ++ n ++ "' already found")
       let vars = Vars.addInput (variables g) n sv
@@ -240,6 +245,7 @@ pGame (g, pst) =
     TLPar:_ -> perr "pGame" "Found '(' instead of keyword"
     TRPar:_ -> perr "pGame" "Found ')' instead of keyword"
 
+-- | Parse an reactive program game from its specification format.
 parseRPG :: String -> Either String (RPArena, Objective)
 parseRPG str =
   let empty = PState {wcPS = Nothing, rankP = Map.empty, namesL = Map.empty, setInit = Nothing}

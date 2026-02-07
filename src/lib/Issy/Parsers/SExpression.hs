@@ -1,28 +1,35 @@
 ---------------------------------------------------------------------------------------------------
 -- |
 -- Module      : Issy.Parsers.SExpression
--- Description : TODO DOCUMENT
+-- Description : S-expression parser
 -- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
 --
+-- This module implements a generic parser for s-expressions with SMTLib/Lisp like '; 'comments.
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
+---------------------------------------------------------------------------------------------------
 module Issy.Parsers.SExpression
-  ( parse
-  , SExpr(..)
+  ( SExpr(..)
   , Pos(..)
+  , PRes
+  , parse
   , getPos
   , perr
-  , PRes
   ) where
 
+---------------------------------------------------------------------------------------------------
 import Data.Bifunctor (first)
 import Data.Char (isAscii, isPrint, ord)
 
+---------------------------------------------------------------------------------------------------
+-- | Representation of a position in a parsed file or string.
 data Pos = Pos
   { lineNum :: Word
+  -- ^ the line number in the string, starting from one
   , pos :: Word
+  -- ^ the column within a line, starting from one
   } deriving (Eq, Ord, Show)
 
 nextSymbol :: Pos -> Pos
@@ -31,11 +38,15 @@ nextSymbol p = p {pos = pos p + 1}
 nextLine :: Pos -> Pos
 nextLine p = Pos {lineNum = lineNum p + 1, pos = 1}
 
+---------------------------------------------------------------------------------------------------
+-- | Representation of a generic parser result.
 type PRes a = Either String a
 
+-- | Create an parser error at a given position with an error message.
 perr :: Pos -> String -> Either String a
 perr p msg = Left $ "Parser error [" ++ show (lineNum p) ++ ":" ++ show (pos p) ++ "] : " ++ msg
 
+---------------------------------------------------------------------------------------------------
 data Token
   = TLPar Pos
   | TRPar Pos
@@ -82,11 +93,18 @@ tokenize = go (Pos {lineNum = 1, pos = 1})
           | isAscii c && isPrint c -> goID sp (c : acc) (nextSymbol p) sr
           | otherwise -> perr p $ "Found illegal character '" ++ [c] ++ "' (" ++ show (ord c) ++ ")"
 
+---------------------------------------------------------------------------------------------------
+-- | Tree representation of a parsed s-expression.
 data SExpr
   = SId Pos String
+  -- ^ leafs of the tree are the identifiers/names in the expression
   | SPar Pos [SExpr]
+  -- ^ inner nodes are just list of s-expressions
   deriving (Eq, Ord, Show)
 
+-- | Return the position of an s-expression in the parsed input. For
+-- a identifier this is the start of the identifier string and for
+-- a list the opening parenthesis.
 getPos :: SExpr -> Pos
 getPos =
   \case
@@ -115,6 +133,8 @@ parseSExprs =
       (e, ts) <- parseSExpr ts
       first (e :) <$> parseSExprs ts
 
+---------------------------------------------------------------------------------------------------
+-- | Parse a single s-expression.
 parse :: String -> Either String SExpr
 parse str = do
   tokens <- tokenize (cleanupNL str)
