@@ -214,8 +214,8 @@ check cfg a = go $ Set.toList $ locSet a
               $ FOL.impl (domain a l)
               $ Vars.existsI v
               $ Vars.existsX' v
-              $ FOL.orfL (Set.toList (locSet a))
-              $ \l' -> FOL.andf [Vars.primeT v (domain a l'), trans a l l']
+              $ FOL.orfL (Set.toList (locSet a)) $ \l' ->
+              FOL.andf [Vars.primeT v (domain a l'), trans a l l']
           if c
             then go lr
             else pure $ Just $ locName a l ++ " might be blocking!"
@@ -262,10 +262,9 @@ cpreEnv a d l =
           $ FOL.andf
               [ validInput a l
               , Vars.forallX' v
-                  $ FOL.andfL (succL a l)
-                  $ \l' ->
-                      FOL.andf [trans a l l', Vars.primeT v (domain a l')]
-                        `FOL.impl` Vars.primeT v (SymSt.get d l')
+                  $ FOL.andfL (succL a l) $ \l' ->
+                  FOL.andf [trans a l l', Vars.primeT v (domain a l')]
+                    `FOL.impl` Vars.primeT v (SymSt.get d l')
               ]
    in FOL.andf [f, domain a l]
 
@@ -282,8 +281,8 @@ sysPre :: Arena -> Loc -> (Loc -> Term) -> Term
 sysPre a l d =
   let v = variables a
    in Vars.existsX' v
-        $ FOL.orfL (succL a l)
-        $ \l' -> FOL.andf [trans a l l', Vars.primeT v (domain a l'), Vars.primeT v (d l')]
+        $ FOL.orfL (succL a l) $ \l' ->
+        FOL.andf [trans a l l', Vars.primeT v (domain a l'), Vars.primeT v (d l')]
 
 removeAttrSys :: Config -> SymSt -> Arena -> IO Arena
 removeAttrSys conf st arena = do

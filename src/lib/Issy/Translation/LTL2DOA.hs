@@ -27,8 +27,7 @@ import Hanoi
   , AcceptanceType(..)
   , Formula(..)
   , HOA(..)
-  , HOAAcceptanceName(Buchi, ParityMaxEven, ParityMaxOdd,
-                  ParityMinEven, ParityMinOdd, Streett)
+  , HOAAcceptanceName(Buchi, ParityMaxEven, ParityMaxOdd, ParityMinEven, ParityMinOdd, Streett)
   , HOAProperty(COLORED, COMPLETE, DETERMINISTIC)
   )
 import qualified Hanoi as HOA (State, atomicProps, parse, printHOA, states)
@@ -220,11 +219,10 @@ parityAccept :: (HOA.State -> DOA.State) -> HOA -> Map AcceptanceSet Word -> DOA
 parityAccept fromState hoa parity =
   DOA.ParityMaxOdd
     $ Map.fromList
-    $ flip map (HOA.states hoa)
-    $ \st ->
-        case Set.toList <$> stateAcceptance hoa st of
-          Just [accSet] -> (fromState st, parity ! accSet)
-          _ -> error "expected colored automaton"
+    $ flip map (HOA.states hoa) $ \st ->
+    case Set.toList <$> stateAcceptance hoa st of
+      Just [accSet] -> (fromState st, parity ! accSet)
+      _ -> error "expected colored automaton"
 
 getInitial :: (HOA.State -> DOA.State) -> HOA -> DOA.State
 getInitial fromState hoa =

@@ -1,13 +1,17 @@
 ---------------------------------------------------------------------------------------------------
 -- |
 -- Module      : Issy.Encoders.ToFixpoints
--- Description : TODO DOCUMENT
+-- Description : Fixpoints encodings
 -- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
 --
+-- This module implements representations of (nested) fixpoint equations and encoding from
+-- symbolic games to them. At the moment the target is MuVal, i.e. the semantics of these
+-- fixpoint systems should match MuCLP.
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe #-}
 
+---------------------------------------------------------------------------------------------------
 module Issy.Encoders.ToFixpoints
   ( FPSystem(..)
   , FPTerm(..)
@@ -15,6 +19,7 @@ module Issy.Encoders.ToFixpoints
   , gameToFP
   ) where
 
+---------------------------------------------------------------------------------------------------
 import qualified Data.Map.Strict as Map
 import Issy.Prelude
 
@@ -24,22 +29,39 @@ import qualified Issy.Games.Variables as Vars
 import qualified Issy.Logic.FOL as FOL
 import Issy.Solver.GameInterface
 
+---------------------------------------------------------------------------------------------------
+-- | Representation of a fixpoint equation system.
 data FPSystem = FPSystem
   { systemTerm :: Term
+    -- ^ top-level closed term that should hold. This term might
+    -- include references to fixpoint predicates, which are represented
+    -- as uninterpreted functions.
   , fpTerms :: Map Symbol FPTerm
+    -- ^ all fixpoint terms that appear in the equation system
   } deriving (Eq, Ord, Show)
 
+-- | Representation of a fixpoint predicate in a fixpoint equation system.
 data FPTerm = FPTerm
   { fpType :: FPType
+    -- ^ the type of fixpoint, i.e. if this is a least or greatest fixpoint
   , fpSignature :: [(Symbol, Sort)]
+    -- ^ the variables names an sort of the fixpoint predicate
   , term :: Term
+    -- ^ the predicates body which might also include fixpoint
+    -- predicates (including itself) represented as uninterpreted functions
   } deriving (Eq, Ord, Show)
 
+-- | Enum for the fixpoint type
 data FPType
   = GFP
+  -- ^ the greatest fixpoint
   | LFP
+  -- ^ the least fixpoint
   deriving (Eq, Ord, Show)
 
+---------------------------------------------------------------------------------------------------
+-- | Represent the solution of symbolic game (i.e. if the system wins) as a nested
+-- fixpoint system.
 gameToFP :: Arena -> Objective -> FPSystem
 gameToFP arena obj =
   case winningCond obj of

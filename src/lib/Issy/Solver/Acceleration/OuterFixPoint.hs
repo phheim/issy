@@ -82,8 +82,7 @@ precise :: Player -> Arena -> Function -> SymSt -> Term
 precise player arena stepFun d =
   Vars.forallX (vars arena)
     $ expandStep (vars arena) stepFun
-    $ FOL.andfL (locationL arena)
-    $ \l -> FOL.impl (cpre player arena d l) $ get d l
+    $ FOL.andfL (locationL arena) $ \l -> FOL.impl (cpre player arena d l) $ get d l
 
 iterA :: Config -> Player -> Arena -> SymSt -> (SymSt, SyBo)
 iterA conf player arena attr = go 0 attr $ Synt.returnOn attr $ Synt.normSyBo conf arena

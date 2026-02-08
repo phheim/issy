@@ -121,14 +121,12 @@ globalStateTSL vars updates =
         , aux = map snd updAux
         , exactlyOneUpd =
             FOL.andf
-              $ flip map (Vars.stateVarL vars)
-              $ \var ->
-                  FOL.exactlyOne $ map (FOL.bvarT . snd) $ filter ((== var) . fst . fst) updAux
+              $ flip map (Vars.stateVarL vars) $ \var ->
+              FOL.exactlyOne $ map (FOL.bvarT . snd) $ filter ((== var) . fst . fst) updAux
         , updateEffect =
             FOL.andf
-              $ flip map updAux
-              $ \((var, term), aux) ->
-                  FOL.impl (FOL.bvarT aux) $ FOL.equal term $ Vars.primeT vars $ Vars.mk vars var
+              $ flip map updAux $ \((var, term), aux) ->
+              FOL.impl (FOL.bvarT aux) $ FOL.equal term $ Vars.primeT vars $ Vars.mk vars var
         }
 
 -------------------------------------------------------------------------------

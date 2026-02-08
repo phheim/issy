@@ -1,17 +1,21 @@
 ---------------------------------------------------------------------------------------------------
 -- |
 -- Module      : Issy.Encoders.ToFormula
--- Description : TODO DOCUMENT
+-- Description : Encode a specification as single formula
 -- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
 --
+-- This module implements encoding mixed game-and-formula specifications as a single
+-- RPLTL formula. This is then used as basis for other encoding mechanisms.
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe #-}
 
+---------------------------------------------------------------------------------------------------
 module Issy.Encoders.ToFormula
   ( toFormula
   ) where
 
+---------------------------------------------------------------------------------------------------
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Issy.Prelude
@@ -24,6 +28,10 @@ import qualified Issy.Logic.Temporal as TL
 import qualified Issy.Specification as Spec
 import Issy.Specification (Specification)
 
+---------------------------------------------------------------------------------------------------
+-- | Encode a specification, which might contain several RPLTL formulas as well as games,
+-- into a single RPLTL formula. If games are present, this method will create new auxillary
+-- variables.
 toFormula :: Specification -> (Variables, TL.Formula Term)
 toFormula spec =
   let vars = Spec.variables spec

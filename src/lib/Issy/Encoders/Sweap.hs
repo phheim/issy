@@ -1,17 +1,22 @@
 ---------------------------------------------------------------------------------------------------
 -- |
 -- Module      : Issy.Encoders.Sweap
--- Description : TODO DOCUMENT
+-- Description : Encodes to sweap's format
 -- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
 --
+-- This module implements the encoding and printing of mixed specifications
+-- to sweap's (https://github.com/shaunazzopardi/sweap) LTL formulas over program arenas
+-- format.
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
+---------------------------------------------------------------------------------------------------
 module Issy.Encoders.Sweap
   ( specToSweap
   ) where
 
+---------------------------------------------------------------------------------------------------
 import Issy.Prelude
 
 import Issy.Encoders.ToFormula (toFormula)
@@ -23,6 +28,10 @@ import qualified Issy.Logic.Temporal as TL
 import Issy.Specification (Specification)
 import Issy.Utils.Extra (enclose, paraInbetween)
 
+---------------------------------------------------------------------------------------------------
+-- | Encode and print a specification into the formalism and format used by sweap.
+-- Due to the restirction in sweap's formalism this encoding is quiete extensive and
+-- could probably be optimized.
 specToSweap :: Specification -> String
 specToSweap = uncurry formulaToSweap . toFormula
 

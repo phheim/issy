@@ -77,12 +77,11 @@ applySucessorRules ::
   -> IO (Trans [([(Bool, Symbol, Term)], M.State)], GlobalS)
 applySucessorRules cfg oldState =
   recLeafs
-    $ recList
-    $ \gls (prop, choices, est) -> do
-        let st = fromExpansionState oldState est
-        st <- pure $ normSt $ addFacts [prop] st
-        (st, gls) <- applyRules cfg gls st
-        pure ((choices, st), gls)
+    $ recList $ \gls (prop, choices, est) -> do
+    let st = fromExpansionState oldState est
+    st <- pure $ normSt $ addFacts [prop] st
+    (st, gls) <- applyRules cfg gls st
+    pure ((choices, st), gls)
 
 computeExpansion ::
      Config
@@ -119,11 +118,10 @@ computeBranching cfg vars hasUpd preds = go
           lg cfg ["branch", "queryTrue", SMTLib.toString queryTrue]
           lg cfg ["branch", "queryFalse", SMTLib.toString queryFalse]
           ifM (SMT.unsat cfg queryTrue) (go constr stFalse)
-            $ ifM (SMT.unsat cfg queryFalse) (go constr stTrue)
-            $ do
-                recP <- go queryTrue stTrue
-                recN <- go queryFalse stFalse
-                pure $ trIf p recP recN
+            $ ifM (SMT.unsat cfg queryFalse) (go constr stTrue) $ do
+            recP <- go queryTrue stTrue
+            recN <- go queryFalse stFalse
+            pure $ trIf p recP recN
         Nothing
           | hasUpd -> TrSucc <$> computeUpdates cfg preds constr st
           | otherwise -> do

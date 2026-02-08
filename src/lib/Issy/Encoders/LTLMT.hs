@@ -1,17 +1,22 @@
 ---------------------------------------------------------------------------------------------------
 -- |
 -- Module      : Issy.Encoders.LTLMT
--- Description : TODO DOCUMENT
+-- Description : Encodes to LTLMT
 -- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
 --
+-- This module implements the encoding and printing of mixed specifications
+-- to Syntheos (https://github.com/imdea-software/syntheos)
+-- LTL modulo theories (LTLMT) format.
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
+---------------------------------------------------------------------------------------------------
 module Issy.Encoders.LTLMT
   ( specToLTLMT
   ) where
 
+---------------------------------------------------------------------------------------------------
 import Issy.Prelude
 
 import Issy.Encoders.ToFormula (toFormula)
@@ -25,6 +30,8 @@ import qualified Issy.Logic.Temporal as TL
 import Issy.Specification (Specification)
 import Issy.Utils.Extra (enclose, paraInbetween)
 
+---------------------------------------------------------------------------------------------------
+-- | Encode a specification to LTLMT and print it as Syntheos format (subset of YAML).
 specToLTLMT :: Specification -> String
 specToLTLMT = uncurry formulaToLTLMT . second RPLTL.pushBoolF . toFormula
 

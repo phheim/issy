@@ -1,17 +1,21 @@
 ---------------------------------------------------------------------------------------------------
 -- |
 -- Module      : Issy.Encoders.TSLT
--- Description : TODO DOCUMENT
+-- Description : Encode to Raboniel's TSLT
 -- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
 --
+-- This module implements an encoding of
+-- a reactive program game to TSLMT and print it as Raboniels TSLT format variant.
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
+---------------------------------------------------------------------------------------------------
 module Issy.Encoders.TSLT
   ( rpgToTSLT
   ) where
 
+---------------------------------------------------------------------------------------------------
 import Data.Fixed (Nano, showFixed)
 import qualified Data.Map.Strict as Map
 import Data.Set (Set)
@@ -25,6 +29,7 @@ import qualified Issy.Games.ReactiveProgramArena as RPG
 import qualified Issy.Games.Variables as Vars
 import Issy.Logic.FOL (Constant(..), Function(..), Sort(..), Symbol, Term(..))
 
+---------------------------------------------------------------------------------------------------
 sortOf :: RPArena -> Symbol -> Sort
 sortOf = Vars.sortOf . RPG.variables
 
@@ -154,6 +159,7 @@ encCond g op loc =
   let locs = Set.toList loc
    in "guarantee { " ++ op ++ "(" ++ concatMap (\l -> encLoc g l ++ " || ") locs ++ "false);}"
 
+-- | Encode an reactive program game to TSLMT and print it in Raboniel's format variant.
 rpgToTSLT :: RPArena -> Objective -> String
 rpgToTSLT g obj =
   unlines

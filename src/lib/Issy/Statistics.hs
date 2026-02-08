@@ -74,8 +74,8 @@ printStats config (Stats stats) =
   let statLines =
         unlines
           $ ("Statistics:" :)
-          $ flip map (Map.toList stats)
-          $ \(key, val) -> " - " ++ pad key ++ ": " ++ statTypeToString val
+          $ flip map (Map.toList stats) $ \(key, val) ->
+          " - " ++ pad key ++ ": " ++ statTypeToString val
    in if statToStdout config
         then putStrLn statLines
         else lg (setName "Stats" config) [statLines]

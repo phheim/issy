@@ -393,8 +393,7 @@ varPlayerControlled conf player arena var = do
   let cvar = FOL.var cVarName (sortOf arena var)
   let st = SymSt.symSt (locations arena) $ const $ cvar `FOL.equal` Vars.mk (vars arena) var
   SMT.unsat conf
-    $ FOL.orfL (locationL arena)
-    $ \l -> FOL.andf [pre arena st l, FOL.neg (cpre player arena st l)]
+    $ FOL.orfL (locationL arena) $ \l -> FOL.andf [pre arena st l, FOL.neg (cpre player arena st l)]
 
 varProgress :: Config -> Arena -> Symbol -> IO Bool
 varProgress conf arena var
@@ -412,6 +411,6 @@ varProgress conf arena var
     SMT.sat conf
       $ FOL.forAll [bVarName]
       $ Vars.existsX (vars arena)
-      $ FOL.orfL (Set.toList (locations arena))
-      $ \l -> FOL.andf [dom arena l, FOL.removePref prefix (pre arena st l)]
+      $ FOL.orfL (Set.toList (locations arena)) $ \l ->
+      FOL.andf [dom arena l, FOL.removePref prefix (pre arena st l)]
 ---------------------------------------------------------------------------------------------------
