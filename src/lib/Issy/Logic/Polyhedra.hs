@@ -1,10 +1,13 @@
 ---------------------------------------------------------------------------------------------------
 -- |
 -- Module      : Issy.Logic.Polyhedra
--- Description : Operations and represenations for polyhedra-like representations
--- Copyright   : (c) Philippe Heim, 2025
+-- Description : Polyhedra-like representations
+-- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
 --
+-- This module implements methods to represent terms as polyhedra and with polyhedra. Those
+-- polyhedra are normalized and can therefore be used for normalization operations, as well
+-- as matching on inequalities. We aim to implement this module somewhat efficiently.
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase, MultiWayIf #-}
 
@@ -12,13 +15,16 @@
 module Issy.Logic.Polyhedra
   ( Polyhedron
   , Ineq
+    -- Representation
   , ineqToTerm
   , sumTerm
   , toIneqs
+  , toTerms
+  , withPolyhedra
+  , nontrivialPolyhedra
+    -- Normalizations
   , normalize
   , normalizeFast
-  , toTerms
-  , nontrivialPolyhedra
   ) where
 
 ---------------------------------------------------------------------------------------------------
@@ -54,7 +60,8 @@ data ListTree k a
   -- - for every (x, tree) in subs, this node maps x:xr to e if tree maps xr to e
   deriving (Eq, Show)
 
--- | TODO document
+-- | Filter the list tree by removing all elements that do not fulfil the
+-- predicate.
 filterT :: Ord k => (a -> Bool) -> ListTree k a -> ListTree k a
 filterT p = go
   where
@@ -77,7 +84,7 @@ filterT p = go
     rmLeafs ((_, LTLeaf):mr) = rmLeafs mr
     rmLeafs (st:mr) = st : rmLeafs mr
 
--- | TODO document
+-- | Turn the list tree into a list, similar to 'Map.toList'.
 toListT :: ListTree k a -> [([k], a)]
 toListT = go []
   where
@@ -88,7 +95,9 @@ toListT = go []
             Nothing -> rec
             Just val -> (reverse acc, val) : rec
 
--- | TODO document
+-- | Insert an element into the list tree with a given key list. If the element
+-- is already present use the given merge function. If the elements are not merge-able
+-- then this method returns 'Nothing'.
 insertWithT :: Ord k => (a -> a -> Maybe a) -> [k] -> a -> ListTree k a -> Maybe (ListTree k a)
 insertWithT comb ks val tree = go tree ks
   where
@@ -101,7 +110,11 @@ insertWithT comb ks val tree = go tree ks
         Nothing -> LTNode label . flip (Map.insert k) succs <$> go LTLeaf kr
         Just tree -> LTNode label . flip (Map.insert k) succs <$> go tree kr
 
--- | TODO
+-- | Given an inclusion check for the elements, check if the second list tree is a
+-- subset of the first one, i.e. all keys in the second one are also mapped in
+-- the first one, with an element such that the element of the second on is included
+-- in the first one. This is later useful to compare polyhedra, where the first one is
+-- the suspected larger polyhedra, with less constraints.
 includedLT :: Ord k => (a -> a -> Bool) -> ListTree k a -> ListTree k a -> Bool
 includedLT includedElems = go
   where
@@ -122,16 +135,23 @@ includedLT includedElems = go
               $ Map.toList succ2
        in labelInc && succInc
 
+-- Helper data type for merging.
 data MergeRes a
   = MergeFail
+  -- ^ Merging failed.
   | MergeId
+  -- ^ Merged to identical elements.
   | Merged a
+  -- ^ Merged with given result.
 
 instance Functor MergeRes where
   fmap _ MergeFail = MergeFail
   fmap _ MergeId = MergeId
   fmap m (Merged a) = Merged (m a)
 
+-- | Try to merge to list tree, by merging zero or one element with the same key by
+-- the given merging function. All other keys and elements must be identical, otherwise
+-- merging is not possible.
 mergeOnceT ::
      (Ord k, Eq a) => (a -> a -> Maybe a) -> ListTree k a -> ListTree k a -> Maybe (ListTree k a)
 mergeOnceT merge t1 t2 =
@@ -169,30 +189,40 @@ mergeOnceT merge t1 t2 =
 ---------------------------------------------------------------------------------------------------
 -- Polyhedra
 ---------------------------------------------------------------------------------------------------
--- | TODO document
+-- | Somewhat efficient representation of a polyhedron. A polyhedron ranges over sorted variables
+-- (integer or real-valued) with a fixed order. Operations on multiple polyhedra can only be
+-- done if they have the same variable order.
 data Polyhedron = Polyhedron
   { varOrder :: [(Symbol, Sort)]
-    -- | TODO use map instead, this is more usable
+    -- ^ sorted variables present in the polyhedron in that order. The sorts must
+    -- be integers and reals
   , linearConstraints :: ListTree Integer Interval
-    -- | TODO: this FOR SURE needs a semantic definition
+    -- ^ Map a list of coefficients for the variables as in order to an interval. The semantic is
+    -- that resulting linear term with the coefficients is inside the interval. Zeros must
+    -- be cut from the end of the coefficient list. Furthermore, the coefficient list
+    -- must be normalized/scaled, in the sense that the first non-zero coefficient is the
+    -- smallest positive one such that all coefficients can be integers.
+    -- So for example if the variables are "[x, y, z, w]" and the coefficient list is [3, -2, 1]
+    -- with the interval "(-infinity, 10]" this represent the constraint
+    -- "-infinity <= 3*x - 2*y + 1*z + 0*w <= 10".
   } deriving (Show)
 
--- | 'fullP' generate the polyhedron that includes the entire space 
 fullP :: [(Symbol, Sort)] -> Polyhedron
 fullP vorder = Polyhedron {varOrder = vorder, linearConstraints = LTLeaf}
 
--- | TODO document
+-- | Check if the polyhedron is full.
 isFullP :: Polyhedron -> Bool
 isFullP poly =
   case linearConstraints poly of
     LTLeaf -> True
     _ -> False
 
--- | TODO assumption same varOrder!
+-- | Check if the first polyhedron is a subset of the second one.
 includedP :: Polyhedron -> Polyhedron -> Bool
 includedP p1 p2 = includedLT included (linearConstraints p1) (linearConstraints p2)
 
--- | TODO document
+-- | Scale a list of rational coefficients such that they fulfill the normalisation property
+-- in a polyhedron and return the scale factor.
 rescale :: [Rational] -> ([Integer], Rational)
 rescale [] = ([], 1)
 rescale (0:xr) = first (0 :) $ rescale xr
@@ -211,7 +241,8 @@ rescale (x:xr) =
     lcms (1:xr) = lcms xr
     lcms (x:xr) = lcm x $ lcms xr
 
--- | TODO document
+-- | Add/conjunct a constraint given by coefficients and an interval to a polyhedron.
+-- Return 'Nothing' if that renders the polyhedron empty.
 addLinearConstr :: [Rational] -> Interval -> Polyhedron -> Maybe Polyhedron
 addLinearConstr coefs intv poly =
   let (scaledCoefs, factor) = rescale $ removeTrailing 0 coefs
@@ -229,7 +260,8 @@ intersectAndCheck i1 i2
   | isEmpty (i1 `intersect` i2) = Nothing
   | otherwise = Just $ i1 `intersect` i2
 
--- | TODO assumption same varOrder!
+-- | Intersect two polyhedra over the same order of variables (this is assumed) while
+-- normalizing the constraints. Return 'Nothing' if the conjunct is empty.
 intersectP :: Polyhedron -> Polyhedron -> Maybe Polyhedron
 intersectP p1 p2
   | isFullP p1 = Just p2
@@ -244,7 +276,8 @@ intersectP p1 p2
         Just constr -> go (poly {linearConstraints = constr}) clr
         Nothing -> Nothing
 
--- | TODO assumption same varOrder!
+-- | Try to disjunct two polyhedra over the same order of variables (this is assumed) while
+-- normalizing the constraints. Return 'Nothing' if they are not aligned for disjunction.
 tryDisjunctP :: Polyhedron -> Polyhedron -> Maybe Polyhedron
 tryDisjunctP p1 p2 =
   case mergeOnceT subDisj (linearConstraints p1) (linearConstraints p2) of
@@ -262,42 +295,57 @@ isInteger = all (all ((== FOL.SInt) . snd . fst) . fst) . toIneqs
 ---------------------------------------------------------------------------------------------------
 -- (In)equalities
 ---------------------------------------------------------------------------------------------------
--- TODO make this to additional interface between terms and polyhedra!
+-- | Representation of a set of inequalities over a polymorphic numeric type for the coefficients.
+-- The list represent a linear combination of the variables and their respective coefficients.
+-- This sum must be within the interval. For example, "([((x, ..) 3), ((y, ..) -3)], (-4, 10])"
+-- represent the inequality "-4 < 3x - 3y <= 10".
 type Ineq a = ([((Symbol, Sort), a)], Interval)
 
+-- | Turn an integer inequality into its respective boolean term.
 ineqToTerm :: Ineq Integer -> Term
 ineqToTerm (linComb, intv) = isInside (sumTerm linComb) intv
 
+-- | Turn the linear combination part of an inequality into a numeric term.
+sumTerm :: [((Symbol, Sort), Integer)] -> Term
+sumTerm = FOL.addT . map (\((v, s), c) -> FOL.multT [FOL.numberT c, FOL.var v s])
+
+-- | Turn a polyhedron into inequalities.
 toIneqs :: Polyhedron -> [Ineq Integer]
 toIneqs poly = map toIneq $ toListT $ linearConstraints poly
   where
     toIneq = first (filter ((/= 0) . snd) . zip (varOrder poly))
 
-addIneq :: Ineq Rational -> Polyhedron -> Maybe Polyhedron
-addIneq (linComb, intv) poly =
-  let linCombM = Map.fromList linComb
-      coefList = (\v -> Map.findWithDefault 0 v linCombM) <$> varOrder poly
-   in addLinearConstr coefList intv poly
-
-sumTerm :: [((Symbol, Sort), Integer)] -> Term
-sumTerm = FOL.addT . map (\((v, s), c) -> FOL.multT [FOL.numberT c, FOL.var v s])
-
+-- | Turn a polyhedron into inequality terms. Interpreted conjunctively they
+-- represent the polyhedron.
 toTerms :: Polyhedron -> [Term]
 toTerms = map ineqToTerm . toIneqs
 
+-- | Enum to incrementally build up a polyhedron by adding constraints.
 data IncPoly
   = NewPoly Polyhedron
+  -- ^ The new polyhedron.
   | NotLinear
+  -- ^ The constraint is not linear.
   | Infeasible
+  -- ^ The polyhedron is empty.
 
+-- | Try to make boolean term as a polyhedron. This mainly includes syntactic
+-- matching to see if the term can be coerced into the form of a linear constraints.
+tryPoly :: [(Symbol, Sort)] -> Term -> IncPoly
+tryPoly varOrder = addConstr (fullP varOrder)
+
+-- | Try to add a boolean term to a polyhedron.
 addConstr :: Polyhedron -> Term -> IncPoly
 addConstr poly term =
   case termToIneq term of
     Nothing -> NotLinear
     Just ineq -> maybe Infeasible NewPoly (addIneq ineq poly)
 
-tryPoly :: [(Symbol, Sort)] -> Term -> IncPoly
-tryPoly varOrder = addConstr (fullP varOrder)
+addIneq :: Ineq Rational -> Polyhedron -> Maybe Polyhedron
+addIneq (linComb, intv) poly =
+  let linCombM = Map.fromList linComb
+      coefList = (\v -> Map.findWithDefault 0 v linCombM) <$> varOrder poly
+   in addLinearConstr coefList intv poly
 
 termToIneq :: Term -> Maybe (Ineq Rational)
 termToIneq =
@@ -333,13 +381,14 @@ sumToLinComb =
 ---------------------------------------------------------------------------------------------------
 -- Linear Combinations
 ---------------------------------------------------------------------------------------------------
--- | TODO Condition all have same variable order!; disjunctions
+-- | Representation of a disjunction of polyhedra, each conjunct with some additional
+-- non-linear terms. This is a normalized representation of a term.
 newtype PTerm =
   PTerm [(Polyhedron, Set Term)]
   deriving (Show)
 
--- | 'unions' computes the onion of polyhedra-base terms.
--- Note for this to be correct the variable order has to be same used by ALL polyhedra
+-- | Compute the union of polyhedra-based terms. For this to be correct the variable order
+-- has to be same used by all polyhedra.
 unions :: [PTerm] -> PTerm
 unions = go []
   where
@@ -357,8 +406,8 @@ unions = go []
           Nothing -> (oldP, oldO) : insertDisjunct (newP, newO) acc
       | otherwise = (oldP, oldO) : insertDisjunct (newP, newO) acc
 
--- | 'intersections' computes the insersection of polyhedra-base terms.
--- Note for this to be correct the variable order has to be same used by ALL polyhedra
+-- | Compute the intersection of polyhedra-base terms. For this to be correct the
+-- variable order has to be same used by all polyhedra.
 intersections :: [(Symbol, Sort)] -> [PTerm] -> PTerm
 intersections varOrder =
   \case
@@ -376,7 +425,8 @@ intersections varOrder =
           | any (\l -> FOL.neg l `elem` o1) o2 -> Nothing
           | otherwise -> Just (p, Set.union o1 o2)
 
--- | TODO
+-- | Turn a term into a polyhedra-base one. This includes a lot of normalization
+-- operations in the subroutines.
 fromFOL :: Term -> PTerm
 fromFOL term = go $ toNNF term
   where
@@ -393,15 +443,33 @@ fromFOL term = go $ toNNF term
         NNFAnd fs -> intersections varOrder $ map go fs
         NNFOr fs -> unions $ map go fs
 
--- | TODO
+-- | Turn a polyhedra-based term into a normal one.
 toFOL :: PTerm -> Term
 toFOL (PTerm disjuncts) =
   FOL.orf $ flip map disjuncts $ \(poly, others) -> FOL.andf $ toTerms poly ++ Set.toList others
 
--- | TODO
+-- | Turn a term into an equivalent list of pairs of a polyhedron and a set term.
+-- The polyhedron and the set of terms in a single pair is interpreted conjunctively.
+-- The overall list is interpreted disjunctively. This operation is heavily normalizing.
+withPolyhedra :: Term -> [(Polyhedron, Set Term)]
+withPolyhedra term =
+  let PTerm constr = fromFOL term
+   in constr
+
+-- | Similar to 'withPolyhedra' but filters out all pairs with polyhedra that represent
+-- the full space, i.e. disjunction that are not linear (e.g. a boolean variable).
+-- The result will usually not be equivalent to the input term.
+nontrivialPolyhedra :: Term -> [(Polyhedron, Set Term)]
+nontrivialPolyhedra = filter (not . isFullP . fst) . withPolyhedra
+
+-- | Normalize a term by turning the linear constraints into polyhedra (similar to 'withPolyhedra').
+-- This allows to get rid of subsumed terms, detect inconsistencies, and normalize the representation.
+-- However, this operation can be very costly.
 normalize :: Term -> Term
 normalize = toFOL . fromFOL
 
+-- | Faster version of normalization where 'normalize' is only applied to the lower
+-- levels of the boolean term tree.
 normalizeFast :: Term -> Term
 normalizeFast = go . toNNF
   where
@@ -437,16 +505,10 @@ normalizeFast = go . toNNF
         NNFLit _ _ -> True
         _ -> False
 
--- | TODO get non-trivial polyhedra constraints, TODO. rename!
-nontrivialPolyhedra :: Term -> [(Polyhedron, Set Term)]
-nontrivialPolyhedra term =
-  let PTerm constr = fromFOL term
-   in filter (not . isFullP . fst) constr
-
 --------------------------------------------------------------------------------------------------
 -- Helper functions
 --------------------------------------------------------------------------------------------------
--- | 'removeTrailing' x xs removes all occurrences of x at the end of xs
+-- | Removes all occurrences of a given element at the end of the list.
 removeTrailing :: Eq a => a -> [a] -> [a]
 removeTrailing neutral = go
   where
