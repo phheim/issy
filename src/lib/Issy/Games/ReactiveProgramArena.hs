@@ -1,10 +1,13 @@
 ---------------------------------------------------------------------------------------------------
 -- |
 -- Module      : Issy.Games.ReactiveProgramArena
--- Description : Data structure and methods for reactive program games
--- Copyright   : (c) Philippe Heim, 2025
+-- Description : Data structure for reactive program arenas
+-- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
 --
+-- This module implements the data structure for reactive program arenas of reactive program
+-- games. This includes more complex modification and operations used in the game solving.
+-- We plan to out phase this kind of game. Try to use symbolic games instead.
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
@@ -24,26 +27,26 @@ module Issy.Games.ReactiveProgramArena
   , locName
   , inv
   , trans
+  , succs
   , preds
   , predSet
-  , succs
   , usedSymbols
   , -- Construction
     empty
   , addLocation
-  , addTransition
-  , addSink
   , createLocsFor
-  , addConstants
+  , addTransition
   , -- Analysis
     cyclicIn
   , isSelfUpdate
-  , -- Simplification
-    simplifyRPG
-  , -- Predecessors
-    removeAttrSys
+  , -- Modifications
+    addConstants
+  , addSink
   , removeAttrEnv
-  , pre
+  , removeAttrSys
+  , simplifyRPG
+  , -- Predecessors
+    pre
   , cpreEnv
   , cpreSys
   , -- Loop- and Subarena
@@ -87,7 +90,7 @@ succT =
     TIf _ tt te -> succT tt `Set.union` succT te
     TSys choices -> Set.fromList (snd <$> choices)
 
--- | Moddify all terms in a transitions, both predicate terms as
+-- | Modify all terms in a transitions, both predicate terms as
 -- well as update terms.
 mapTerms :: (Term -> Term) -> Transition -> Transition
 mapTerms m =
@@ -95,7 +98,7 @@ mapTerms m =
     TIf p tt te -> TIf (m p) (mapTerms m tt) (mapTerms m te)
     TSys upds -> TSys $ map (first (fmap m)) upds
 
--- | Moddify all updates of a transition.
+-- | Modify all updates of a transition.
 mapUpdates :: (Map Symbol Term -> Map Symbol Term) -> Transition -> Transition
 mapUpdates m = go
   where
@@ -109,38 +112,53 @@ selfLoop l = TSys [(Map.empty, l)]
 ---------------------------------------------------------------------------------------------------
 -- Arena
 ---------------------------------------------------------------------------------------------------
+-- | Opaque representation of a reactive program arena.
 data RPArena = RPArena
   { locationSet :: Locs.Store
+    -- ^ The location context of an arena.
   , variables :: Variables
+    -- ^ The variable context of an arena.
   , transRel :: Map Loc Transition
   , predecessors :: Map Loc (Set Loc)
   , invariant :: Map Loc Term
   } deriving (Eq, Ord, Show)
 
 ---------------------------------------------------------------------------------------------------
--- Accessors
+-- Access
 ---------------------------------------------------------------------------------------------------
+-- | The locations of an arena.
 locations :: RPArena -> Set Loc
 locations = Locs.toSet . locationSet
 
-inv :: RPArena -> Loc -> Term
-inv g l = fromMaybe FOL.true $ invariant g !? l
-
+-- | The name of a location.
 locName :: RPArena -> Loc -> String
 locName = Locs.name . locationSet
 
+-- | The invariant of a location (in other/newer context also domain).
+-- The invariant restricts (symbolically) what state variable
+-- values are allowed in a location.
+inv :: RPArena -> Loc -> Term
+inv g l = fromMaybe FOL.true $ invariant g !? l
+
+-- | The outgoing transition tree from a location.
 trans :: RPArena -> Loc -> Transition
 trans g l = fromMaybe (selfLoop l) $ transRel g !? l
 
-preds :: RPArena -> Loc -> Set Loc
-preds g l = Map.findWithDefault Set.empty l (predecessors g)
-
+-- | Compute all the successors of a location.
 succs :: RPArena -> Loc -> Set Loc
 succs g l = maybe Set.empty succT (transRel g !? l)
 
+-- | Compute all the predecessors of a location.
+preds :: RPArena -> Loc -> Set Loc
+preds g l = Map.findWithDefault Set.empty l (predecessors g)
+
+-- | Compute all the predecessors of a set of locations.
 predSet :: RPArena -> Set Loc -> Set Loc
 predSet g ls = Set.unions (Set.map (preds g) ls)
 
+-- | All symbols, including variables, function names, and location names, that are used
+-- in the arena. This can be used to generate fresh symbols, e.g. for auxiliary variables,
+-- such that they are really fresh.
 usedSymbols :: RPArena -> Set Symbol
 usedSymbols g =
   Set.union (Vars.allSymbols (variables g))
@@ -153,8 +171,9 @@ usedSymbols g =
         TSys choices -> Set.unions (concatMap (map (FOL.symbols . snd) . Map.toList . fst) choices)
 
 ---------------------------------------------------------------------------------------------------
--- Construction and basic modification
+-- Construction
 ---------------------------------------------------------------------------------------------------
+-- | The arena without any location with a given variable context.
 empty :: Variables -> RPArena
 empty vars =
   RPArena
@@ -165,22 +184,14 @@ empty vars =
     , invariant = Map.empty
     }
 
-setInv :: RPArena -> Loc -> Term -> RPArena
-setInv g l i = g {invariant = Map.insert l i (invariant g)}
-
+-- | Add a location with a given name to the arena.
 addLocation :: RPArena -> String -> (RPArena, Loc)
 addLocation g name =
   let (newLoc, locSet) = Locs.add (locationSet g) name
    in (g {locationSet = locSet}, newLoc)
 
-addTransition :: RPArena -> Loc -> Transition -> Maybe RPArena
-addTransition g l t
-  | l `Map.member` transRel g = Nothing
-  | otherwise = Just $ foldl (addPred l) (g {transRel = Map.insert l t (transRel g)}) (succT t)
-  where
-    addPred pre g suc =
-      g {predecessors = Map.insertWith Set.union suc (Set.singleton pre) (predecessors g)}
-
+-- | Add locations for a some collection abstract elements to an arena. This
+-- method can be used e.g. to compute some kind of products.
 createLocsFor ::
      (Foldable t, Ord a) => RPArena -> (a -> String) -> (a -> Term) -> t a -> (RPArena, a -> Loc)
 createLocsFor arena name inv =
@@ -191,27 +202,24 @@ createLocsFor arena name inv =
             in (setInv g' l (inv e), Map.insert e l mp))
         (arena, Map.empty)
 
-addSink :: RPArena -> String -> (RPArena, Loc)
-addSink g name =
-  let (g', sink) = addLocation g name
-   in ( g'
-          { transRel = Map.insert sink (selfLoop sink) (transRel g')
-          , predecessors = Map.insert sink (Set.singleton sink) (predecessors g')
-          }
-      , sink)
+setInv :: RPArena -> Loc -> Term -> RPArena
+setInv g l i = g {invariant = Map.insert l i (invariant g)}
 
-addConstants :: [(Symbol, Sort)] -> RPArena -> RPArena
-addConstants cvars arena =
-  arena
-    { variables = foldl (uncurry . Vars.addStateVar) (variables arena) cvars
-    , transRel = Map.map (mapUpdates addEqUpd) $ transRel arena
-    }
+-- | Add a transition for a location to the arena. Return nothing if the transition
+-- already exists.
+addTransition :: RPArena -> Loc -> Transition -> Maybe RPArena
+addTransition g l t
+  | l `Map.member` transRel g = Nothing
+  | otherwise = Just $ foldl (addPred l) (g {transRel = Map.insert l t (transRel g)}) (succT t)
   where
-    addEqUpd upd = foldr (\(v, s) -> Map.insert v (FOL.var v s)) upd cvars
+    addPred pre g suc =
+      g {predecessors = Map.insertWith Set.union suc (Set.singleton pre) (predecessors g)}
 
 ---------------------------------------------------------------------------------------------------
--- Anaysis
+-- Analysis
 ---------------------------------------------------------------------------------------------------
+-- | Check if the arena is cyclic in a location, i.e. the location might
+-- be reachable from itself.
 cyclicIn :: RPArena -> Loc -> Bool
 cyclicIn g start = any (elem start . reachables g) (succs g start)
 
@@ -227,6 +235,7 @@ reachables g l = bfs Set.empty (l `OL.pushOne` OL.empty)
             let seen' = o `Set.insert` seen
              in bfs seen' ((succs g o `Set.difference` seen) `OL.push` ol')
 
+-- | Check if an update is a self loop.
 isSelfUpdate :: (Symbol, Term) -> Bool
 isSelfUpdate =
   \case
@@ -234,8 +243,57 @@ isSelfUpdate =
     _ -> False
 
 ---------------------------------------------------------------------------------------------------
--- Simplification
+-- Modifications
 ---------------------------------------------------------------------------------------------------
+-- | Add state variables that are guaranteed not to change
+-- to the arena. This is undefined if a variable already exists.
+addConstants :: [(Symbol, Sort)] -> RPArena -> RPArena
+addConstants cvars arena =
+  arena
+    { variables = foldl (uncurry . Vars.addStateVar) (variables arena) cvars
+    , transRel = Map.map (mapUpdates addEqUpd) $ transRel arena
+    }
+  where
+    addEqUpd upd = foldr (\(v, s) -> Map.insert v (FOL.var v s)) upd cvars
+
+-- | Add a sink location, i.e. a location that loops on itself with no other outgoing transition.
+-- The self-loop will keep the variables constant.
+addSink :: RPArena -> String -> (RPArena, Loc)
+addSink g name =
+  let (g', sink) = addLocation g name
+   in ( g'
+          { transRel = Map.insert sink (selfLoop sink) (transRel g')
+          , predecessors = Map.insert sink (Set.singleton sink) (predecessors g')
+          }
+      , sink)
+
+-- | Remove the result of an system attractor computation, i.e. the fixpoint
+-- of applying the system enforceable predecessors, from states of the arena
+-- by modifying the domain. This is usually used for parity game solving.
+-- Note that this method might try to simplify the arena with an SMT-solver.
+removeAttrEnv :: Config -> SymSt -> RPArena -> IO RPArena
+removeAttrEnv conf st arena = do
+  foldM
+    (\arena l ->
+       setInv arena l <$> SMT.simplify conf (FOL.andf [inv arena l, FOL.neg (SymSt.get st l)]))
+    arena
+    (locations arena)
+
+-- | As 'removeAttrSys' but for the system player.
+removeAttrSys :: Config -> SymSt -> RPArena -> IO RPArena
+removeAttrSys conf st arena = do
+  interSt <-
+    SymSt.simplify conf $ SymSt.symSt (locations arena) (\l -> sysPre arena l (SymSt.get st))
+  arena <- removeAttrEnv conf st arena
+  foldM
+    (\arena l -> do
+       newTrans <- simplifyTransition conf (TIf (interSt `SymSt.get` l) (TSys []) (trans arena l))
+       pure (arena {transRel = Map.insert l newTrans (transRel arena)}))
+    arena
+    (locations arena)
+
+-- | Apply simplifications to an reactive program game. Note that during this
+-- process the location context might change, i.e. the old objective cannot be used anymore.
 simplifyRPG :: Config -> (RPArena, Objective) -> IO (RPArena, Objective)
 simplifyRPG cfg (arena, wc) = do
   newTrans <- mapM (simplifyTransition cfg) (transRel arena)
@@ -278,18 +336,17 @@ pruneUnreachables init g = foldl disableLoc g $ locations g `Set.difference` rea
         }
 
 ---------------------------------------------------------------------------------------------------
--- (Enforcable) Predecessors
+-- (Enforceable) Predecessors
 ---------------------------------------------------------------------------------------------------
+-- | The possible predecessor of a symbolic state in a location.
 pre :: RPArena -> SymSt -> Loc -> Term
 pre g st l =
   FOL.andf
     [g `inv` l, Vars.existsI (variables g) (FOL.andf [validInput g l, sysPre g l (SymSt.get st)])]
 
-cpreSys :: RPArena -> SymSt -> Loc -> Term
-cpreSys g st l =
-  FOL.andf
-    [g `inv` l, Vars.forallI (variables g) (validInput g l `FOL.impl` sysPre g l (SymSt.get st))]
-
+-- | Compute the environment enforceable predecessors, i.e. the possible states in a
+-- single location from which the environment player can always enforce to reach
+-- the given symbolic state.
 cpreEnv :: RPArena -> SymSt -> Loc -> Term
 cpreEnv g st l =
   FOL.andf [g `inv` l, Vars.existsI (variables g) (FOL.andf [validInput g l, cpreET (trans g l)])]
@@ -299,6 +356,12 @@ cpreEnv g st l =
         TIf p tt te -> FOL.ite p (cpreET tt) (cpreET te)
         TSys upds ->
           FOL.andf [FOL.mapTermM u ((g `inv` l) `FOL.impl` (st `SymSt.get` l)) | (u, l) <- upds]
+
+-- | Like 'cpreEnv' but for the system player.
+cpreSys :: RPArena -> SymSt -> Loc -> Term
+cpreSys g st l =
+  FOL.andf
+    [g `inv` l, Vars.forallI (variables g) (validInput g l `FOL.impl` sysPre g l (SymSt.get st))]
 
 sysPre :: RPArena -> Loc -> (Loc -> Term) -> Term
 sysPre arena l d = go (trans arena l)
@@ -316,29 +379,11 @@ validInput g l = go (trans g l)
         TIf p tt te -> FOL.ite p (go tt) (go te)
         TSys upds -> FOL.orf [FOL.mapTermM u (g `inv` l) | (u, l) <- upds]
 
-removeAttrSys :: Config -> SymSt -> RPArena -> IO RPArena
-removeAttrSys conf st arena = do
-  interSt <-
-    SymSt.simplify conf $ SymSt.symSt (locations arena) (\l -> sysPre arena l (SymSt.get st))
-  arena <- removeAttrEnv conf st arena
-  foldM
-    (\arena l -> do
-       newTrans <- simplifyTransition conf (TIf (interSt `SymSt.get` l) (TSys []) (trans arena l))
-       pure (arena {transRel = Map.insert l newTrans (transRel arena)}))
-    arena
-    (locations arena)
-
-removeAttrEnv :: Config -> SymSt -> RPArena -> IO RPArena
-removeAttrEnv conf st arena = do
-  foldM
-    (\arena l ->
-       setInv arena l <$> SMT.simplify conf (FOL.andf [inv arena l, FOL.neg (SymSt.get st l)]))
-    arena
-    (locations arena)
-
 ---------------------------------------------------------------------------------------------------
 -- Loop- and Subarena
 ---------------------------------------------------------------------------------------------------
+-- | Compute the loop arena (see POPL'24 and TACAS'26 papers for more details) in
+-- a given location. The returned location is the copy location of the aforementioned one.
 loopArena :: RPArena -> Loc -> (RPArena, Loc)
 loopArena arena l =
   let (arena0, l') = addLocation arena $ locName arena l ++ "'"
@@ -374,6 +419,11 @@ replaceByE src trg = h
                   else (upd, l))
                <$> choices)
 
+-- | Compute the so induced sub-arena which results from restricting the arena to
+-- a given set of location (without border locations).
+-- Return a mapping from the original locations to the new ones, as well as
+-- the set of old locations (!) with the border locations that the arena
+-- has been restricted too.
 inducedSubArena :: RPArena -> Set Loc -> (RPArena, (Loc -> Loc, Set Loc))
 inducedSubArena arena locs
   | not (locs `Set.isSubsetOf` locations arena) =
@@ -417,6 +467,8 @@ inducedSubArena arena locs
           | otherwise = error "assert: cannot map location"
      in (arena1, (mOldToNew, locsC))
 
+-- | Compute the independent program variables, i.e. the program variables that
+-- remain constant or do not matter otherwise.
 independentProgVars :: Config -> RPArena -> IO (Set Symbol)
 independentProgVars _ arena = do
   pure
@@ -435,6 +487,10 @@ independentProgVars _ arena = do
 ---------------------------------------------------------------------------------------------------
 -- Synthesis
 ---------------------------------------------------------------------------------------------------
+-- | Synthesize assignments to the variables that mirror the step of an enforceable
+-- predecessors. Since the locations are modeled as an integer program counter,
+-- this method gets the name of the location variable as well as the constants for the
+-- locations.
 syntCPre ::
      Config -> RPArena -> Symbol -> (Loc -> Integer) -> Loc -> Term -> SymSt -> IO [(Symbol, Term)]
 syntCPre conf arena locVar toLoc loc cond target = do

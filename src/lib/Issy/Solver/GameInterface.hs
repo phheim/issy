@@ -41,7 +41,7 @@ module Issy.Solver.GameInterface
   , -- Players
     Player(..)
   , opponent
-  , -- Enfocement
+  , -- Enforcement
     cpre
   , cpreEnv
   , cpreSys
@@ -102,7 +102,7 @@ liftV f = f . liftG RPG.variables Sym.variables
 ---------------------------------------------------------------------------------------------------
 -- Accessors
 ---------------------------------------------------------------------------------------------------
--- | The variables of an arena.
+-- | The variable context of an arena.
 vars :: Arena -> Vars.Variables
 vars = liftV id
 
@@ -152,7 +152,7 @@ predSet :: Arena -> Set Loc -> Set Loc
 predSet = liftG RPG.predSet Sym.predSet
 
 -- | All symbols, including variables, function names, and location names, that are used
--- in the arena. This can be used to generate fresh symbols, e.g. for axillary variables,
+-- in the arena. This can be used to generate fresh symbols, e.g. for auxiliary variables,
 -- such that they are really fresh.
 usedSymbols :: Arena -> Set Symbol
 usedSymbols = liftG RPG.usedSymbols Sym.usedSymbols
