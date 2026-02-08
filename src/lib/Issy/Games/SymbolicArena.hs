@@ -393,7 +393,7 @@ addConstants cvars arena =
 -- Synthesis
 ---------------------------------------------------------------------------------------------------
 syntCPre ::
-     Config -> Arena -> Symbol -> (Loc -> Term) -> Loc -> Term -> SymSt -> IO [(Symbol, Term)]
+     Config -> Arena -> Symbol -> (Loc -> Integer) -> Loc -> Term -> SymSt -> IO [(Symbol, Term)]
 syntCPre conf arena locVar toLoc loc cond targ = do
   lgd conf ["Synthesize in", locName arena loc, "on", SymSt.toString (locName arena) targ]
   let vs = variables arena
@@ -401,7 +401,7 @@ syntCPre conf arena locVar toLoc loc cond targ = do
   let postCond =
         FOL.orfL (succL arena loc) $ \loc' ->
           FOL.andf
-            [ FOL.equal (FOL.ivarT locVar) (toLoc loc')
+            [ FOL.equal (FOL.ivarT locVar) (FOL.intConst (toLoc loc'))
             , trans arena loc loc'
             , Vars.primeT vs (domain arena loc')
             , Vars.primeT vs (SymSt.get targ loc')

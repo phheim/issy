@@ -261,7 +261,7 @@ extractTT conf locVar arena mapLoc (loc, cond, pt) = do
           sub <- extractPG conf locVar sub
           pure $ condStmt $ Sequence [sub, Continue]
         Enforce target -> do
-          assigns <- syntCPre conf arena locVar toLoc loc cond target
+          assigns <- syntCPre conf arena locVar Locs.toNumber loc cond target
           assigns <- pure $ map (uncurry Assign) $ filter (uncurry isProperAssign) assigns
           pure $ condStmt $ Sequence $ [Read] ++ assigns ++ [Continue]
 

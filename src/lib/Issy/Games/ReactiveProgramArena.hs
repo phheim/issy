@@ -436,7 +436,7 @@ independentProgVars _ arena = do
 -- Synthesis
 ---------------------------------------------------------------------------------------------------
 syntCPre ::
-     Config -> RPArena -> Symbol -> (Loc -> Term) -> Loc -> Term -> SymSt -> IO [(Symbol, Term)]
+     Config -> RPArena -> Symbol -> (Loc -> Integer) -> Loc -> Term -> SymSt -> IO [(Symbol, Term)]
 syntCPre conf arena locVar toLoc loc cond target = do
   preCond <- SMT.simplify conf $ FOL.andf [cond, inv arena loc, validInput arena loc]
   Map.toList <$> syntTrans preCond (trans arena loc)
@@ -475,7 +475,7 @@ syntCPre conf arena locVar toLoc loc cond target = do
             else selectUpds preCond ur
     --
     updateAssign upd loc =
-      Map.insert locVar (toLoc loc)
+      Map.insert locVar (FOL.intConst (toLoc loc))
         $ Map.fromSet (\var -> Map.findWithDefault (Vars.mk (variables arena) var) var upd)
         $ Vars.stateVars (variables arena)
 ---------------------------------------------------------------------------------------------------
