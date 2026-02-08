@@ -15,15 +15,15 @@
 module Issy.Logic.Polyhedra
   ( Polyhedron
   , Ineq
-    -- Representation
-  , ineqToTerm
+  , -- Representation
+    ineqToTerm
   , sumTerm
   , toIneqs
   , toTerms
   , withPolyhedra
   , nontrivialPolyhedra
-    -- Normalizations
-  , normalize
+  , -- Normalizations
+    normalize
   , normalizeFast
   ) where
 

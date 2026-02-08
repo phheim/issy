@@ -1,10 +1,12 @@
 ---------------------------------------------------------------------------------------------------
 -- |
 -- Module      : Issy.Solver.ObjectiveSolver
--- Description : Implementation of solving techniques for various of winning conditions
--- Copyright   : (c) Philippe Heim, 2025
+-- Description : Solving of games with objectives
+-- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
 --
+-- This module implements solving game with different winning conditions,like reachability,
+-- Büchi, or parity conditions.
 ---------------------------------------------------------------------------------------------------
 module Issy.Solver.ObjectiveSolver
   ( solve
@@ -32,6 +34,9 @@ import qualified Issy.Statistics as Stats
 ---------------------------------------------------------------------------------------------------
 -- Overall Solving
 ---------------------------------------------------------------------------------------------------
+-- | Solve a game while collecting statistics. The boolean return value indicates if the
+-- system wins, i.e. the game specification is realizable. In this case, if configured to do so
+-- this methods will also extract and return a program strategy for the system player.
 solve :: Config -> Stats -> (Arena, Objective) -> IO (Bool, Stats, Maybe (IO String))
 solve conf stat (arena, obj) = do
   conf <- pure $ setName "Solve" conf

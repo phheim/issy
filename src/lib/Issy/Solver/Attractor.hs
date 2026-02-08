@@ -1,21 +1,25 @@
 ---------------------------------------------------------------------------------------------------
 -- |
 -- Module      : Issy.Solver.Attractor
--- Description : Implementation of top-level attractor computation
--- Copyright   : (c) Philippe Heim, 2025
+-- Description : Attractor computation
+-- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
 --
+-- This module implements the main symbolic attractor computation. This attractor
+-- computation is used on the "top-level", i.e. not within acceleration procedure.
+-- However, it might call those accleration procedures.
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe #-}
 
 ---------------------------------------------------------------------------------------------------
 module Issy.Solver.Attractor
-  ( SolSt(stats)
-  , StopCheck
+  ( SolSt
+  , stats
   , emptySolSt
+  , StopCheck
+  , noCheck
   , attractor
   , attractorEx
-  , noCheck
   ) where
 
 ---------------------------------------------------------------------------------------------------
@@ -43,29 +47,38 @@ import qualified Issy.Utils.OpenList as OL
 ---------------------------------------------------------------------------------------------------
 -- The top level interface
 ---------------------------------------------------------------------------------------------------
--- | Solver state
+-- | An abstract solver state to keep statistics a maybe enforcement summaires over multiple
+-- attractor computations.
 data SolSt = SolSt
   { stats :: Stats
+   -- ^ Extract the collected statistics from a solver state.
   , enfst :: EnfSt
+   -- ^ State to collect enforement summaries.
   }
 
+-- | Create an intial/empty solver state from a given set of already present statitics.
 emptySolSt :: Stats -> SolSt
 emptySolSt stats = SolSt {stats = stats, enfst = EnfSum.empty}
 
+-- | Optional check to let an attactor computation terminate early. This is used
+-- to check if, for example, the inital state is already covered by some attractor set.
+-- The computation shold stop is after updating a location the given function evaluates
+-- to 'True' given the attraction set.
 type StopCheck = Maybe (Loc -> SymSt -> IO Bool)
 
+-- | A named shortcut for 'Nothing' indicating that early stopping is not checked.
 noCheck :: StopCheck
 noCheck = Nothing
 
--- | 'attractor' compute the attractor for a given player, game, and symbolic state
+-- | Compute the attractor for a given player, arena, and symbolic state.
 attractor :: Config -> SolSt -> Player -> Arena -> StopCheck -> SymSt -> IO (SymSt, SolSt)
 attractor cfg solst player arena stopCheck target = do
   cfg <- pure $ setName "Attr" $ cfg {generateProgram = False}
   (res, solst, _) <- attractorFull cfg solst player arena stopCheck target
   pure (res, solst)
 
--- | 'attractorEx' compute the attractor for a given player, game, and symbolic state and does
--- program extraction if indicated in the 'Config'.
+-- | Compute the attractor for a given player, arena, and symbolic state and do
+-- program extraction if indicated in the configuration.
 attractorEx :: Config -> SolSt -> Player -> Arena -> StopCheck -> SymSt -> IO (SymSt, SolSt, SyBo)
 attractorEx cfg solst player arena stopCheck target = do
   cfg <-
@@ -75,9 +88,6 @@ attractorEx cfg solst player arena stopCheck target = do
           else setName "Attr" cfg
   attractorFull cfg solst player arena stopCheck target
 
----------------------------------------------------------------------------------------------------
--- | 'attractorFull' does the complete attractor computation and is later used for the different
--- type of attractor computations (with/without extraction)
 attractorFull :: Config -> SolSt -> Player -> Arena -> StopCheck -> SymSt -> IO (SymSt, SolSt, SyBo)
 attractorFull cfg solst player arena stopCheck =
   attrState cfg solst stopCheck Nothing player arena >=> fullAttr cfg >=> attrResult cfg
@@ -286,13 +296,6 @@ instance AccAttrSt AttrState where
   reachAccel _ = reach
   reachAccelNum loc ast = Map.findWithDefault 0 loc (accelsIn ast)
 
---    case history ast !? loc of
---      Nothing -> error "assert: only accelerate after marking an enforcement change"
---      Just history ->
---        let k = reachAccelNum loc ast
---         in if k >= length history
---              then error "assert: acceleration should not happend that oftern"
---              else history !! k
 instance AccSumAttrSt AttrState where
   getEnfst = stEnfst
   setEnfst enfst ast = ast {stEnfst = enfst}
@@ -330,8 +333,6 @@ attrResult conf ast = do
 ---------------------------------------------------------------------------------------------------
 -- Heuristics
 ---------------------------------------------------------------------------------------------------
---accelNow :: Loc -> Term -> VisitCounter -> Bool
---accelNow l f vcnt = (f /= FOL.false) && visits2accel (visits l vcnt)
 accelerationDist :: Int
 accelerationDist = 4
 
