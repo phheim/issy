@@ -1,6 +1,6 @@
 ---------------------------------------------------------------------------------------------------
 -- |
--- Module      : Issy.Solver.Acceleration.MDAcceleration
+-- Module      : Issy.Solver.Acceleration.GeometricAccel
 -- Description : Geometric acceleration
 -- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
@@ -13,7 +13,7 @@
 {-# LANGUAGE LambdaCase #-}
 
 ---------------------------------------------------------------------------------------------------
-module Issy.Solver.Acceleration.MDAcceleration
+module Issy.Solver.Acceleration.GeometricAccel
   ( accelReach
   ) where
 

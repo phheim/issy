@@ -21,9 +21,9 @@ import Issy.Prelude
 import Issy.Config (genGeomAccel, ufAcceleration)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Solver.Acceleration.Heuristics as H
-import qualified Issy.Solver.Acceleration.MDAcceleration as MDAcc (accelReach)
-import qualified Issy.Solver.Acceleration.PolyhedraGeometricAccel as PoGeoA (accelReach)
-import qualified Issy.Solver.Acceleration.UFLAcceleration as UFLAcc (accelReach)
+import qualified Issy.Solver.Acceleration.GeometricAccel as GeoAcc (accelReach)
+import qualified Issy.Solver.Acceleration.CompPolyhedraAccel as CPoAcc (accelReach)
+import qualified Issy.Solver.Acceleration.UintFuncAccel as UiFAcc (accelReach)
 import Issy.Solver.GameInterface
 import Issy.Solver.Synthesis (SyBo)
 
@@ -32,9 +32,9 @@ import Issy.Solver.Synthesis (SyBo)
 accelReach :: Config -> Int -> Player -> Arena -> Loc -> SymSt -> IO (Term, SyBo)
 accelReach conf visits player arena =
   let heur = H.forVisits conf arena visits
-   in if | ufAcceleration conf -> UFLAcc.accelReach conf heur player arena
-         | genGeomAccel conf -> PoGeoA.accelReach conf heur player arena
-         | otherwise -> MDAcc.accelReach conf heur player arena
+   in if | ufAcceleration conf -> UiFAcc.accelReach conf heur player arena
+         | genGeomAccel conf -> CPoAcc.accelReach conf heur player arena
+         | otherwise -> GeoAcc.accelReach conf heur player arena
 
 -- | Check if in a given location attractor acceleration even makes sense
 canAccel :: Arena -> Loc -> Bool

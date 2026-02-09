@@ -1,6 +1,6 @@
 ---------------------------------------------------------------------------------------------------
 -- |
--- Module      : Issy.Solver.Acceleration.UFLAcceleration
+-- Module      : Issy.Solver.Acceleration.UintFuncAccel
 -- Description : Uninterpreted function based acceleration
 -- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
@@ -10,7 +10,7 @@
 {-# LANGUAGE LambdaCase #-}
 
 ---------------------------------------------------------------------------------------------------
-module Issy.Solver.Acceleration.UFLAcceleration
+module Issy.Solver.Acceleration.UintFuncAccel
   ( accelReach
   ) where
 

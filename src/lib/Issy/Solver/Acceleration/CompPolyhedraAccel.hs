@@ -1,6 +1,6 @@
 ---------------------------------------------------------------------------------------------------
 -- |
--- Module      : Issy.Solver.Acceleration.PolyhedraGeometricAccel
+-- Module      : Issy.Solver.Acceleration.CompPolyhedraAccel
 -- Description : Compositional acceleration with polyhedra
 -- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
@@ -10,7 +10,7 @@
 {-# LANGUAGE Safe, MultiWayIf #-}
 
 ---------------------------------------------------------------------------------------------------
-module Issy.Solver.Acceleration.PolyhedraGeometricAccel
+module Issy.Solver.Acceleration.CompPolyhedraAccel
   ( accelReach
   ) where
 
