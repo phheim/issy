@@ -90,7 +90,6 @@ library
     , Issy.Solver.Acceleration.MDAcceleration
     , Issy.Solver.Acceleration.OuterFixPoint
     , Issy.Solver.Acceleration.PolyhedraGeometricAccel 
-    , Issy.Solver.Acceleration.Strengthening
     , Issy.Solver.Acceleration.UFLAcceleration
     , Issy.Solver.Attractor
     , Issy.Solver.EnforcementSummaries

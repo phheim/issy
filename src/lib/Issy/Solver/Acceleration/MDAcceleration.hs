@@ -24,13 +24,14 @@ import Issy.Prelude
 
 import qualified Issy.Games.SymbolicState as SymSt
 import qualified Issy.Games.Variables as Vars
+
+import Issy.Logic.FOL (Term(Func))
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.SMT as SMT
 import qualified Issy.Printers.SMTLib as SMTLib (toString)
 import Issy.Solver.Acceleration.Heuristics (Heur)
 import qualified Issy.Solver.Acceleration.Heuristics as H
 import Issy.Solver.Acceleration.LoopScenario (loopScenario)
-import Issy.Solver.Acceleration.Strengthening (strengthenBool)
 import Issy.Solver.GameInterface
 import Issy.Solver.Synthesis (SyBo)
 import qualified Issy.Solver.Synthesis as Synt
@@ -186,6 +187,33 @@ iterA heur player arena attr shadow = go (noVisits arena) (OL.fromSet (preds are
                   (SymSt.disj attr l new)
                   (Synt.enforceTo l new attr prog)
           | otherwise -> go vcnt open attr prog
+
+---------------------------------------------------------------------------------------------------
+-- Strengthening 
+---------------------------------------------------------------------------------------------------
+-- | Strengthen the given 'Term' in different easy syntactic ways.
+strengthenBool :: Config -> Symbol -> Term -> IO Term
+strengthenBool conf prefix =
+  (SMT.simplify conf . fst . label (0 :: Int)) <=< (SMT.simplify conf . expand)
+  where
+    expand t =
+      case t of
+        Func FOL.FNot [Func FOL.FEq [a1, a2]] -> FOL.orf [FOL.ltT a1 a2, FOL.gtT a1 a2]
+        Func f args -> Func f $ map expand args
+        t -> t
+    label cnt t =
+      case t of
+        Func FOL.FOr args ->
+          first (FOL.orf . reverse)
+            $ foldl
+                (\(args, cnt) -> first ((: args) . addSelector cnt) . label (cnt + 1))
+                ([], cnt)
+                args
+        Func f args ->
+          first (Func f . reverse)
+            $ foldl (\(args, cnt) -> first (: args) . label cnt) ([], cnt) args
+        t -> (t, cnt)
+    addSelector cnt t = FOL.andf [t, FOL.bvarT (prefix ++ show cnt)]
 
 ---------------------------------------------------------------------------------------------------
 -- Manhatten distance lemma generation
