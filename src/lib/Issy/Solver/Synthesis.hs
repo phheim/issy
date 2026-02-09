@@ -125,11 +125,11 @@ loopSyBo conf arena loc loc' prime newToOld
           {loopLoc = loc, loopLoc' = loc', loopTrans = [], loopPrime = prime, loopToMain = newToOld}
   | otherwise = SyBoNone
 
--- | Create the bookkeeping for enforcement summaries. This method needs the meta variables, 
+-- | Create the bookkeeping for enforcement summaries. This method needs the meta variables,
 -- skolemization information to instantiate those, and the book kept information from the
--- summaries computation. The first part of the term pair is a condition on the state 
+-- summaries computation. The first part of the term pair is a condition on the state
 -- variables where the summary can be called on and where we need to compute the Skolem
--- function. The second part is the condition for the Skolem functions for the meta variables 
+-- function. The second part is the condition for the Skolem functions for the meta variables
 -- that has to hold for all states which satisfy the precondition.
 summarySyBo :: [(Symbol, Sort)] -> (Term, Term) -> SyBo -> SyBo
 summarySyBo _ _ SyBoNone = SyBoNone

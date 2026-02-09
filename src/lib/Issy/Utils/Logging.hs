@@ -8,7 +8,7 @@
 -- This module provides Issy's logging functionality as well as pretty printing functions
 -- to ease logging. The pretty printing functions are supposed to be used recursively.
 -- As of now, Issy has four log levels quiet (0), normal (1), detailed (2), and  verbose (3)
--- (increasing level of detail). The log level as well as the logging prefix is determined 
+-- (increasing level of detail). The log level as well as the logging prefix is determined
 -- by 'Config'.
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe #-}

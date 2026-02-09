@@ -27,7 +27,7 @@ import Issy.Printers.SMTLib (funcToString)
 
 ---------------------------------------------------------------------------------------------------
 -- | Prints a fixpoint system into MuVals/Coars MuCLP fixpoint format (.hes files). Since of
--- now this format does not support all kinds of functions Issy does, this method my be 
+-- now this format does not support all kinds of functions Issy does, this method my be
 -- undefined in some cases, that might change pretty quickly. Furthermore, as the MuCLP format
 -- does not have booleans, those are currenlty encoded with integers. Overall, this methods
 -- should not be considered to be very stable.

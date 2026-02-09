@@ -98,7 +98,7 @@ normSt :: State -> State
 normSt = genericNormSt $ MF.normAnd . map MF.toplevelCNF
 
 -- | Apply simple normalization operations to a state. This is computational less
--- costly than 'normSt' but also less through. 'normSt' should be applied to a state once 
+-- costly than 'normSt' but also less through. 'normSt' should be applied to a state once
 -- in a while.
 simpleNormSt :: State -> State
 simpleNormSt = genericNormSt MF.normAndLight
@@ -289,7 +289,7 @@ consolidate =
     MF.FWeak f g -> MF.notTemporal f && MF.notTemporal g
     f -> MF.notTemporal f
 
--- | Reduce a part of the state to false. For the assumption, this means that the states 
+-- | Reduce a part of the state to false. For the assumption, this means that the states
 -- semantic formula becomes true. For the guarantees that means that now the assumptions
 -- mus be violated.
 invalidate :: Domain -> State -> State

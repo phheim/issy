@@ -32,7 +32,7 @@ import Issy.Specification (Specification)
 import qualified Issy.Specification as Spec
 
 ---------------------------------------------------------------------------------------------------
--- | Print a general specification in the llissy format. This may include several 
+-- | Print a general specification in the llissy format. This may include several
 -- formual and games.
 printLLIssyFormat :: Specification -> String
 printLLIssyFormat spec =

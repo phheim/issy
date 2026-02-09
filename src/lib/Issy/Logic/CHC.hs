@@ -4,7 +4,7 @@
 -- Description : Operations for constrained horn clauses
 -- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
--- 
+--
 -- This module implements some query mechanism for constrains horn clauses (CHC). This includes
 -- normal CHC and MaxCHC.
 ---------------------------------------------------------------------------------------------------
@@ -38,7 +38,7 @@ import Issy.Utils.Logging
 ---------------------------------------------------------------------------------------------------
 -- CHC solving
 ---------------------------------------------------------------------------------------------------
--- | Given a named predicate, its argument sorts, and CHC style implications, use Z3 to 
+-- | Given a named predicate, its argument sorts, and CHC style implications, use Z3 to
 -- check whether the resulting CHC statement holds.
 check :: Config -> Symbol -> [Sort] -> [([Term], Term)] -> IO (Maybe Bool)
 check conf invPred sorts constraints = do

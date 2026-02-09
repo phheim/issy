@@ -126,8 +126,8 @@ tryEqElim conf vars pre term var = do
                 else pure $ Just eq
             else go pre eqr
 
--- | Heuristically extract all terms that are set to equal in a given terms to 
--- a given variable. For, example in the term "(x = (y + 1)) && (x > z) (3 = x)", 
+-- | Heuristically extract all terms that are set to equal in a given terms to
+-- a given variable. For, example in the term "(x = (y + 1)) && (x > z) (3 = x)",
 -- for "x" this are the terms "3" and "y + 1". This method works syntactically, and
 -- hence things likes "2x = x + 1" can be missed.
 equalitiesFor :: Symbol -> Term -> Set Term

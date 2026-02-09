@@ -35,10 +35,10 @@ import qualified Issy.Games.SymbolicArena as SG
 import qualified Issy.Logic.Temporal as TL
 
 ---------------------------------------------------------------------------------------------------
--- | Represents a mixed-specification that can be composed of multiple RPLTL formulas and 
+-- | Represents a mixed-specification that can be composed of multiple RPLTL formulas and
 -- symbolic games. These sub-specifications are interpreted conjunctively. Note that all
 -- sub-specifications need to range over the same set of variables (in the data structure, not
--- all variables need to necessarily appear in those). Also, at most one formula or game 
+-- all variables need to necessarily appear in those). Also, at most one formula or game
 -- can be not safety.
 data Specification = Specification
   { variables :: Variables
@@ -49,7 +49,7 @@ data Specification = Specification
     -- ^ The game sub-specifications of a specification
   , hadNonSafety :: Bool
     -- ^ Indicates whether already one of the sub-specifications is
-    -- not a safety one. If this flag is set, only safety sub-specifications 
+    -- not a safety one. If this flag is set, only safety sub-specifications
     -- maybe be added to the whole specifications.
   } deriving (Eq, Ord, Show)
 

@@ -1,11 +1,11 @@
 ---------------------------------------------------------------------------------------------------
 -- |
 -- Module      : Issy.Prelude
--- Description : Issy version of prelude including command library and Issy functions 
+-- Description : Issy version of prelude including command library and Issy functions
 -- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
--- 
--- This module re-exports basic library and Issy functions used throughout project to clean up 
+--
+-- This module re-exports basic library and Issy functions used throughout project to clean up
 -- the import in the more advanced modules.
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe #-}

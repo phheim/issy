@@ -40,7 +40,7 @@ toString f = t2Term (FOL.unusedPrefix "qv" f ++ "x", 0) f
 -- | Print a term as an SMTlib query. In constrast to 'toString' this includes declaring
 -- the variables and asserting the term expression of the statements. Hence, the term should
 -- be of boolean sort. However, non tactics or satisfiability checking command are printed.
--- For example, the term "x + 1 < 0" is printed as 
+-- For example, the term "x + 1 < 0" is printed as
 -- "(declare-const x Int)(assert (< (x + 1) 0))".
 toQuery :: Term -> String
 toQuery f =
