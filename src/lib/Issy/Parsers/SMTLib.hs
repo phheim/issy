@@ -13,7 +13,8 @@
 
 ---------------------------------------------------------------------------------------------------
 module Issy.Parsers.SMTLib
-  ( -- Parser
+  ( PRes
+  , -- Parser
     extractModel
   , parseGoals
   , -- Components
@@ -38,6 +39,7 @@ import Issy.Logic.FOL (Function(CustomF), Model, Sort(..), Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
 
 ---------------------------------------------------------------------------------------------------
+-- | Shorthand for a parser result.
 type PRes a = Either String a
 
 perr :: String -> String -> PRes a
