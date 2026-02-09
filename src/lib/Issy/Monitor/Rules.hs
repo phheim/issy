@@ -1,10 +1,13 @@
 ---------------------------------------------------------------------------------------------------
 -- |
 -- Module      : Issy.Monitor.Rules
--- Description : TODO DOCUMENT
+-- Description : Monitor pruning rules
 -- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
 --
+-- This module implements the rules and the rule exploration for deriving information
+-- in the monitor. This includes the proof rules in the paper with additional exploration and
+-- caching.
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
@@ -14,7 +17,6 @@ module Issy.Monitor.Rules
   , GlobalS
   , globalState
   , globalStateTSL
-  , deducedInvariant
   , derivedEventually
   ) where
 
@@ -42,6 +44,9 @@ import Issy.Utils.Extra (ifQuery, intmapSet)
 ---------------------------------------------------------------------------------------------------
 -- Overall
 ---------------------------------------------------------------------------------------------------
+-- | Apply the rules to simplify and normalize a monitor state as described in the paper.
+-- The configuration determines which rules are applied. This is the main machinery of
+-- the monitor computation.
 applyRules :: Config -> GlobalS -> State -> IO (State, GlobalS)
 applyRules cfg gls st
   | isFalse st || isTrue st = pure (st, gls)
@@ -69,6 +74,9 @@ applyRules cfg gls st
 ---------------------------------------------------------------------------------------------------
 -- Global State
 ---------------------------------------------------------------------------------------------------
+-- | Opaque structure for the "global" state of the rule application in the monitor.
+-- Applying rules in the monitor heavily relies on caching and reusing already derived results.
+-- The state is global as that for one monitor exploration only one state should be used.
 data GlobalS = GlobalS
   { vars :: Variables
   , fixpointPred :: Symbol
@@ -88,6 +96,8 @@ data GlobalS = GlobalS
   , chcMaxCache :: Map ([Formula], [Formula]) (Maybe Formula)
   } deriving (Show)
 
+-- | Initialize a global rule-exploration state. This method should
+-- be used when generating a monitor from a RPLTL formula.
 globalState :: Variables -> GlobalS
 globalState vars =
   let fpn = FOL.uniquePrefix "fixpointpred" $ Vars.allSymbols vars
@@ -110,6 +120,8 @@ globalState vars =
         , chcMaxCache = Map.empty
         }
 
+-- | Initialize a global rule-exploration state with additionally information on the TSLMT
+-- updates. This method should be used when generating a monitor from a TSLMT formula.
 globalStateTSL :: Variables -> Set (Symbol, Term) -> GlobalS
 globalStateTSL vars updates =
   let complUpd = Set.union updates $ Set.map (\v -> (v, Vars.mk vars v)) $ Vars.stateVars vars
@@ -129,7 +141,7 @@ globalStateTSL vars updates =
         }
 
 ---------------------------------------------------------------------------------------------------
--- Rule Apllication Framework
+-- Rule Application Framework
 ---------------------------------------------------------------------------------------------------
 type Rule = Config -> GlobalS -> Set (Domain, Formula, Formula) -> State -> IO (State, GlobalS)
 
@@ -185,12 +197,10 @@ ruleG g
   | otherwise = \_ _ gls _ st -> pure (st, gls)
 
 ---------------------------------------------------------------------------------------------------
--- State Acessors / Helper Methods
+-- State Accessors / Helper Methods
 ---------------------------------------------------------------------------------------------------
-deducedInvariant :: Config -> GlobalS -> Domain -> State -> IO Term
-deducedInvariant cfg gls dom st =
-  SMT.simplify cfg $ encode gls $ fand $ filter (staticFormula (vars gls)) $ dedInv dom st
-
+-- | Compute the eventualities that can be derived from a state.
+-- This is used for the post processing.
 derivedEventually :: Config -> GlobalS -> Domain -> State -> IO ([Formula], GlobalS)
 derivedEventually cfg gls dom st = first nub <$> foldM go ([], gls) (impD dom st)
   where
@@ -583,7 +593,7 @@ genInvPrec cfg gls dom st
       else do
         let init =
               Vars.forallX (vars gls) $ FOL.func FOL.FImply [FOL.andf [base, fpPred gls], FOL.false]
-            -- Transtion condition in CHC
+            -- Transition condition in CHC
         let tr = FOL.andf $ exactlyOneUpd gls : updateEffect gls : (encode gls <$> dedInv dom st)
         let trans =
               Vars.forallX (vars gls)
