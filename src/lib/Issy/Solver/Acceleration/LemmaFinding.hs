@@ -1,10 +1,13 @@
 ---------------------------------------------------------------------------------------------------
 -- |
 -- Module      : Issy.Solver.Acceleration.LemmaFinding
--- Description : TODO DOCUMENT
+-- Description : Uninterpreted function lemma finding
 -- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
 --
+-- This module implements the finding of lemmas for uninterpreted function based acceleration.
+-- This includes instantiating the respective constraints with templates using quantifier
+-- elimination and skolemization to instantiate those.
 ---------------------------------------------------------------------------------------------------
 module Issy.Solver.Acceleration.LemmaFinding
   ( Constraint
@@ -13,6 +16,7 @@ module Issy.Solver.Acceleration.LemmaFinding
   , resolve
   ) where
 
+---------------------------------------------------------------------------------------------------
 import qualified Data.Set as Set
 import Issy.Prelude
 
@@ -25,12 +29,17 @@ import Issy.Solver.Acceleration.Base (primeT)
 import Issy.Solver.Acceleration.Heuristics (Heur)
 import qualified Issy.Solver.Acceleration.Heuristics as H
 
--------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
+-- | A shorthand for constraints. This is done to match the description in the POPL'24 paper.
+-- A constraint should only contain close-terms, i.e. terms without free variables (but
+-- maybe with uninterpreted function symbols).
 type Constraint = [Term]
 
--- Add primed stuff to lemma
+-- | Type for lemma symbols
 data LemSyms =
   LemSyms Symbol Symbol Symbol Symbol
+  -- ^ The lemma symbols are the base symbol, step relation symbol, conclusion symbol and
+  -- priming symbol for the state variable copy.
   deriving (Eq, Ord, Show)
 
 primeOf :: LemSyms -> Symbol
@@ -39,8 +48,10 @@ primeOf (LemSyms _ _ _ prime) = prime
 symbolsOf :: LemSyms -> Set Symbol
 symbolsOf (LemSyms bs ss cs prime) = Set.fromList [bs, ss, cs, prime]
 
+-- | Type for an uninterpreted function lemma
 data Lemma =
   Lemma Term Term Term
+  -- ^ The parts of a simple lemma, with base, step relation and conclusion.
 
 mapL :: (Term -> Term) -> Lemma -> Lemma
 mapL m (Lemma b s c) = Lemma (m b) (m s) (m c)
@@ -48,9 +59,9 @@ mapL m (Lemma b s c) = Lemma (m b) (m s) (m c)
 data LemInst =
   LemInst Constraint Lemma
 
--------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
 -- Instantiation
--------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
 extInt :: Symbol -> Integer -> Symbol
 extInt prefix i = prefix ++ "_" ++ show i ++ "_"
 
@@ -59,9 +70,9 @@ replaceLemma vars (Lemma b s c) (LemSyms bs ss cs prime) =
   let vs = Vars.stateVarL vars
    in FOL.replaceUF ss (vs ++ map (prime ++) vs) s . FOL.replaceUF cs vs c . FOL.replaceUF bs vs b
 
--------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
 -- Lemma generation
--------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
 imap :: (Integer -> a -> b) -> [a] -> [b]
 imap m = zipWith m [1 ..]
 
@@ -186,9 +197,9 @@ instantiate heur vars cons f ls =
         (cons, f, [])
         (zip ls [1 ..])
 
--------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
 -- Search
--------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
 resolveQE ::
      Config -> Heur -> Variables -> Constraint -> Term -> [LemSyms] -> IO (Term, [(LemSyms, Lemma)])
 resolveQE cfg heur vars cons f ls =
@@ -240,10 +251,12 @@ resolveBoth cfg heur vars cons f ls =
             lg cfg ["Qelim failed and try later"]
             return (FOL.false, [])
 
+-- | Try to instantiate uninterpreted lemmas under a constraint and with a term that should
+-- where these lemmas will be instantiated. The later is usually the conclusion that will
+-- be added in the attractor.
 resolve ::
      Config -> Heur -> Variables -> Constraint -> Term -> [LemSyms] -> IO (Term, [(LemSyms, Lemma)])
 resolve cfg
   | generateProgram cfg = resolveBoth cfg
   | otherwise = resolveQE cfg
--------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------

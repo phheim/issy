@@ -1,10 +1,11 @@
 ---------------------------------------------------------------------------------------------------
 -- |
 -- Module      : Issy.Solver.Acceleration.PolyhedraGeometricAccel
--- Description : Implementaion of the general version of geometric acceleration based on polyhedra
--- Copyright   : (c) Philippe Heim, 2025
+-- Description : Compositional acceleration with polyhedra
+-- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
 --
+-- This module implement the compositional version of acceleration based on polyhedra.
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, MultiWayIf #-}
 
@@ -39,14 +40,14 @@ import qualified Issy.Utils.PrioQueue as PQ
 ---------------------------------------------------------------------------------------------------
 -- Top-level acceleration
 ---------------------------------------------------------------------------------------------------
--- | 'accelReach' does reachability acceleration with a polyhedra-based method
+-- | Perform reachability acceleration with the compositional polyhedra-based acceleration method
+-- from the TACAS'26 paper.
 accelReach :: Config -> Heur -> Player -> Arena -> Loc -> SymSt -> IO (Term, SyBo)
 accelReach conf heur player arena loc reach = do
   conf <- pure $ setName "GGeoA" conf
   accelGAL conf heur player arena loc reach
 
--- | 'accelGAL' is the top-level function which does the main search of the
--- polyhedra-based acceleration
+-- | The top-level function which does the main search of the polyhedra-based acceleration
 accelGAL :: Config -> Heur -> Player -> Arena -> Loc -> SymSt -> IO (Term, SyBo)
 accelGAL conf heur player arena loc reach = do
   lg conf ["Accelerate in", locName arena loc, "on", strSt arena reach]
@@ -135,17 +136,17 @@ skNest sk = sk {nestingCnt = nestingCnt sk + 1}
 ---------------------------------------------------------------------------------------------------
 -- Attractor through loop arena
 ---------------------------------------------------------------------------------------------------
--- | small three-valued data structure to indicate the resulf of checking the
--- conditions for an acceleration lemma
+-- | Small three-valued data structure to indicate the result of checking the
+-- conditions for an acceleration lemma.
 data LemmaStatus
   = Applicable SyBo
  -- ^ all conditions hold with resulting program
   | Refine Term
- -- ^ the step condtion failed but maybe a better invariant could do it
+ -- ^ the step condition failed but maybe a better invariant could do it
   | NotApplicable
  -- ^ the loop game result is false, or the base condition not applicable
 
--- | 'lemmaCond' check if the condition of a lemma holds on a specific loop game result
+-- | Check if the condition of a lemma holds on a specific loop game result
 lemmaCond :: Config -> Arena -> Loc -> SymSt -> AccelLemma -> Term -> SyBo -> IO LemmaStatus
 lemmaCond conf arena loc target lemma loopGameResult prog = do
   let stepCond = FOL.andf [dom arena loc, conc lemma] `FOL.impl` loopGameResult
@@ -165,9 +166,9 @@ lemmaCond conf arena loc target lemma loopGameResult prog = do
             else lgd conf ["Lemma conditions hold"] $> Applicable prog
 
 -- | 'preCompGen' is responsible for computing a pass of an acceleration lemma through a loop
--- game. In order to avoid dublicate computation of the loop game and independent variables.
--- preCompGen is a generator function, i.e. it return a function that compute the pass of a
--- lemma through a loop game and the check of conditions (in addition to the independen variables).
+-- game. In order to avoid duplicate computation of the loop game and independent variables.
+-- 'preCompGen' is a generator function, i.e. it return a function that compute the pass of a
+-- lemma through a loop game and the check of conditions (in addition to the independent variables).
 preCompGen ::
      Config
   -> Heur
@@ -195,7 +196,7 @@ preCompGen conf heur player arena loc target prime = do
         res <- SMT.simplify conf res
         lemmaCond conf arena loc target lemma res prog)
 
--- | 'iterA' underappoximating computation of an attractor
+-- | Underappoximating computation of an attractor
 iterA :: Config -> Heur -> Player -> Arena -> SymSt -> Loc -> SyBo -> IO (SymSt, SyBo)
 iterA conf heur player arena attr shadow =
   go (noVisits arena) (OL.fromSet (preds arena shadow)) attr
@@ -206,7 +207,7 @@ iterA conf heur player arena attr shadow =
         Just (l, open)
           | visits l vcnt < H.iterAMaxCPres heur -> do
             let new = cpre player arena attr l
-            -- Remark: here we could still only add the predcessors locations if
+            -- Remark: here we could still only add the predecessors locations if
             -- things changed however, it will often not be relevant in most cases
             go
               (visit l vcnt)
@@ -304,7 +305,7 @@ permutationsUpTo :: Int -> [a] -> [[a]]
 permutationsUpTo maxL =
   List.sortOn length . concatMap List.permutations . filter ((<= maxL) . length) . List.subsequences
 
--- 'paritionsUpTo' computes all partitions of the given list with a bound on the lenght of the first
+-- Compute all partitions of the given list with a bound on the length of the first
 -- partitioning
 partitionsUpTo :: Int -> [a] -> [([a], [a])]
 partitionsUpTo maxL = map (\(_, as, bs) -> (as, bs)) . go
@@ -316,7 +317,7 @@ partitionsUpTo maxL = map (\(_, as, bs) -> (as, bs)) . go
           then [(n, as, x : bs)]
           else [(n, as, x : bs), (n + 1, x : as, bs)]
 
--- 'listProduct' computes the n-ary cartesian product over a list
+-- Compute the n-ary cartesian product over a list.
 listProduct :: [[a]] -> [[a]]
 listProduct [] = []
 listProduct [xs] = map (: []) xs

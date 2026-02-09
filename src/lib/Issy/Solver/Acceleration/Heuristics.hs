@@ -50,9 +50,12 @@ data Heur = Heur
   , locCnt :: Int
   }
 
+-- | Create a simple heurisitic setting. This is somewhat limited.
 simple :: Config -> Arena -> Heur
 simple conf arena = forVisits conf arena 1
 
+-- | Create a heuristic setting for a number of location visists in the top-level
+-- attractor computation. This should ususally be used.
 forVisits :: Config -> Arena -> Int -> Heur
 forVisits conf arena visits =
   Heur {visitCnt = visits, config = conf, locCnt = Set.size (locations arena)}

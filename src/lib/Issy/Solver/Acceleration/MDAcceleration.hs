@@ -1,21 +1,23 @@
 ---------------------------------------------------------------------------------------------------
 -- |
 -- Module      : Issy.Solver.Acceleration.MDAcceleration
--- Description : TODO DOCUMENT
+-- Description : Geometric acceleration
 -- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
 --
+-- This module implements so-called geometric acceleration which exploits the geometric structure
+-- of the target set and then uses templates to compute the acceleration method from that. It
+-- is not formally described anywhere. Intuitively, it lies in-between the uninterpreted function
+-- base acceleration and the compositional polyhedra-based one.
 ---------------------------------------------------------------------------------------------------
--------------------------------------------------------------------------------
 {-# LANGUAGE LambdaCase #-}
 
--------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
 module Issy.Solver.Acceleration.MDAcceleration
   ( accelReach
-  , iterA
   ) where
 
--------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Issy.Prelude
@@ -35,14 +37,15 @@ import qualified Issy.Solver.Synthesis as Synt
 import Issy.Utils.Extra
 import qualified Issy.Utils.OpenList as OL (fromSet, pop, push)
 
--------------------------------------------------------------------------------
--- It assume that the arena is cycic in the location it accelerates.
+---------------------------------------------------------------------------------------------------
+-- | Perform reachability acceleration with the geometric acceleration method. It assumes that
+-- the arena is cyclic in the given location.
 accelReach :: Config -> Heur -> Player -> Arena -> Loc -> SymSt -> IO (Term, SyBo)
 accelReach conf heur player arena loc reach = do
   conf <- pure $ setName "GeoAc" conf
   lg conf ["Accelerate in", locName arena loc, "on", strSt arena reach]
   let prime = FOL.uniquePrefix "init_" $ usedSymbols arena
-  -- 0. Compute loop sceneario
+  -- 0. Compute loop scenario
   (arena, loc, loc', reach, fixInv, prog) <- loopScenario conf heur arena loc reach prime
   -- 1. Guess lemma
   lemma <- lemmaGuess conf heur prime player arena (reach `get` loc)
@@ -77,9 +80,9 @@ accelReach conf heur player arena loc reach = do
           lg conf ["Invariant  search resulted in", SMTLib.toString conc] $> (conc, prog)
         Nothing -> lg conf ["Invariant search failed"] $> (FOL.false, Synt.empty)
 
--------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
 -- Invariant Iteration
--------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
 tryFindInv ::
      Config
   -> Heur
@@ -145,7 +148,7 @@ checkInv conf heur prime player arena (base, step, conc) (loc, loc') fixInv reac
     let accelValue = FOL.andf [dom arena loc, conc, invar, fixInv]
     let progress = Vars.existsX (vars arena) $ FOL.andf [accelValue, FOL.neg (get reach loc)]
     if null (FOL.frees query)
-       -- Not Boolean Paramters
+       -- Not Boolean Parameters
       then do
         holds <- SMT.valid conf query
         if holds
@@ -166,6 +169,8 @@ checkInv conf heur prime player arena (base, step, conc) (loc, loc') fixInv reac
             pure $ Right (accelValue, prog)
           _ -> pure $ Left res
 
+-- | Compute the iterA function, that finitely unfolds some enforceable predecessors steps.
+-- This is an under approximation of the attractor.
 iterA :: Heur -> Player -> Arena -> SymSt -> Loc -> SyBo -> (SymSt, SyBo)
 iterA heur player arena attr shadow = go (noVisits arena) (OL.fromSet (preds arena shadow)) attr
   where
@@ -182,9 +187,9 @@ iterA heur player arena attr shadow = go (noVisits arena) (OL.fromSet (preds are
                   (Synt.enforceTo l new attr prog)
           | otherwise -> go vcnt open attr prog
 
--------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
 -- Manhatten distance lemma generation
--------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
 lemmaGuess ::
      Config -> Heur -> Symbol -> Player -> Arena -> Term -> IO (Maybe (Term, Term, Term, Term))
 lemmaGuess conf heur prime player arena reach = do

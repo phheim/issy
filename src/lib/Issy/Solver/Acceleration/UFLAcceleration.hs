@@ -1,17 +1,20 @@
 ---------------------------------------------------------------------------------------------------
 -- |
 -- Module      : Issy.Solver.Acceleration.UFLAcceleration
--- Description : TODO DOCUMENT
+-- Description : Uninterpreted function based acceleration
 -- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
 --
+-- This module implements reachability acceleration with uninterpreted functions.
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE LambdaCase #-}
 
+---------------------------------------------------------------------------------------------------
 module Issy.Solver.Acceleration.UFLAcceleration
   ( accelReach
   ) where
 
+---------------------------------------------------------------------------------------------------
 import qualified Data.Set as Set
 import Issy.Prelude
 
@@ -30,7 +33,9 @@ import Issy.Solver.Synthesis (SyBo)
 import qualified Issy.Solver.Synthesis as Synt
 import qualified Issy.Utils.OpenList as OL (fromSet, pop, push)
 
--------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
+-- | Perform reachability acceleration with the uninterpreted function based acceleration method
+-- from the POPL'24 paper. It assumes that the arena is cyclic in the given location.
 accelReach :: Config -> Heur -> Player -> Arena -> Loc -> SymSt -> IO (Term, SyBo)
 accelReach conf heur player arena loc reach = do
   conf <- pure $ setName "UinAc" conf
@@ -47,9 +52,9 @@ accelReach conf heur player arena loc reach = do
   lg conf ["Acceleration resulted in", SMTLib.toString res]
   return (res, prog)
 
--------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
 -- IterA and accReach
--------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
 data AccState = AccState
   { player :: Player
   , depth :: Int
@@ -99,7 +104,7 @@ accReach acst g loc st = do
   (base, step, conc, stepSym, prime, acst) <- pure $ lemmaSymbols (vars g) acst
   -- Compute loop scenario
   (gl, loc, loc', st, fixedInv, prog) <- loopScenario (config acst) (heur acst) g loc st prime
-  -- Finialize loop game target with step relation and compute loop attractor
+  -- Finalize loop game target with step relation and compute loop attractor
   let st' = set st loc' $ FOL.orf [st `get` loc, step]
   (cons, stAcc, prog, acst) <- iterA acst gl st' loc' prog
   -- Derive constraints
@@ -139,9 +144,9 @@ iterA acst g attr shadow = go (doIterA acst g) (OL.fromSet (preds g shadow)) [] 
           -- Do nothing
           | otherwise -> go acst open cons attr prog
 
--------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
 -- Symbol Management
--------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
 lemmaSymbols :: Variables -> AccState -> (Term, Term, Term, Function, Symbol, AccState)
 lemmaSymbols vars acst =
   let base = FOL.uniquePrefix "b" $ usedSyms acst
@@ -181,5 +186,4 @@ expandStep vars func = go
           | f == func -> Func f $ [Var v (Vars.sortOf vars v) | v <- Vars.stateVarL vars] ++ args
           | otherwise -> Func f $ map go args
         atom -> atom
--------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------
