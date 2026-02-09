@@ -50,7 +50,7 @@ solve conf stat (arena, obj) = do
       CoBuechi ls -> solveCoBuechi conf solst arena ls init
       Parity rank -> solveParity conf solst arena rank init
   let progStr
-        | res && generateProgram conf = Just $ Synt.extractProg conf init prog
+        | res && generateProgram conf = Just $ Synt.generateProg conf init prog
         | otherwise = Nothing
   pure (res, stats solst, progStr)
 

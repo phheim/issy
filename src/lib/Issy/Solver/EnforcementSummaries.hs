@@ -2,9 +2,11 @@
 -- |
 -- Module      : Issy.Solver.EnforcementSummaries
 -- Description : Implementation of Enforcement Summaries
--- Copyright   : (c) Philippe Heim, 2025
+-- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
 --
+-- This module implements computing and using enforcement summaries as described in the
+-- TACAS'26 paper.
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe #-}
 
@@ -35,14 +37,14 @@ import Issy.Utils.Extra (allM)
 ---------------------------------------------------------------------------------------------------
 -- Definitions
 ---------------------------------------------------------------------------------------------------
--- | Global state of the enforcement summary computation. It contains successful
+-- | The global state of the enforcement summary computation. It contains successful
 -- and failed attempts for computing enforcement summaries.
 data EnfSt = EnfSt
   { summaries :: [(SummaryKey, SummaryContent)]
   , failed :: [SummaryKey]
   }
 
--- | 'empty' is the initial enforcement-summary state
+-- | The initial/empty enforcement-summary state.
 empty :: EnfSt
 empty = EnfSt {summaries = [], failed = []}
 
@@ -53,7 +55,7 @@ data SummaryKey = SummaryKey
   , sumLoc :: Loc
   }
 
--- | This is the actual summary. To be sound it need a matching SummaryKey
+-- | The actual summary. To be sound it need a matching SummaryKey
 data SummaryContent = SummaryContent
   { metaVars :: [(Symbol, Sort)]
   , enforcable :: Term
@@ -63,14 +65,19 @@ data SummaryContent = SummaryContent
     -- ^ 'sybo' is the book-kept strategy with meta variables
   }
 
--- This is needed to get Haskell to accept the cylic dependencies
--- and makes it also easier to control the attractor computation
--- within the attractor module.
+-- | The type of an attractor computation. This is needed as the enforcement
+-- summary computation needs to call the attractor and vice-versa. Since
+-- Haskell does not allow cyclic module dependencies, the attractor is
+-- given to the enforcement summary as an argument.
 type Attr = Config -> Player -> Arena -> SymSt -> IO (SymSt, SyBo)
 
 ---------------------------------------------------------------------------------------------------
 -- High Level Procedure
 ---------------------------------------------------------------------------------------------------
+-- | Try to apply an summary. If no summary or no failed summary attempt are present, this
+-- method will first try to compute a summary. After the summary is computed or if it was already
+-- present, this methods checks if the summary is applicable and add returns something
+-- to be added to the states to reach.
 trySummary ::
      Config -> Attr -> Player -> Arena -> Loc -> EnfSt -> SymSt -> IO (EnfSt, Maybe (Term, SyBo))
 trySummary conf attr player arena loc enfst reach = do
@@ -108,7 +115,8 @@ matchKey player arena loc key =
 ---------------------------------------------------------------------------------------------------
 -- Application
 ---------------------------------------------------------------------------------------------------
--- make applicability a DOCUMENTED precondition!!!
+-- | Applies a summary to a given symbolic state. In order to be sound, the summary key
+-- (i.e. the location, arena, and player) must have already been checked to be matching.
 applyIn :: Config -> Variables -> SummaryContent -> SymSt -> IO (Term, SyBo)
 applyIn conf vars summary reach = do
   let condImpl =

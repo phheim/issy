@@ -1,10 +1,11 @@
 ---------------------------------------------------------------------------------------------------
 -- |
 -- Module      : Issy.Solver.Acceleration
--- Description : Top-level module for attractor acceleration
--- Copyright   : (c) Philippe Heim, 2025
+-- Description : Top-level attractor acceleration
+-- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
 --
+-- This module provides an interface to the different attractor acceleraion techniques.
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, MultiWayIf #-}
 
@@ -27,7 +28,7 @@ import Issy.Solver.GameInterface
 import Issy.Solver.Synthesis (SyBo)
 
 ---------------------------------------------------------------------------------------------------
--- | 'accelReach' applies a pre-configured version of attractor acceleration
+-- | Apply a pre-configured version of attractor acceleration
 accelReach :: Config -> Int -> Player -> Arena -> Loc -> SymSt -> IO (Term, SyBo)
 accelReach conf visits player arena =
   let heur = H.forVisits conf arena visits
@@ -35,8 +36,7 @@ accelReach conf visits player arena =
          | genGeomAccel conf -> PoGeoA.accelReach conf heur player arena
          | otherwise -> MDAcc.accelReach conf heur player arena
 
----------------------------------------------------------------------------------------------------
--- | 'canAccel' check if in a given location attractor acceleration even makes sense
+-- | Check if in a given location attractor acceleration even makes sense
 canAccel :: Arena -> Loc -> Bool
 canAccel arena l =
   any (\v -> FOL.isNumber (sortOf arena v) && not (boundedVar arena v)) (stateVars arena)

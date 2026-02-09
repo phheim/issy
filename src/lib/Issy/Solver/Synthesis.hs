@@ -1,31 +1,39 @@
 ---------------------------------------------------------------------------------------------------
 -- |
 -- Module      : Issy.Solver.Synthesis
--- Description : Methods and data-stucture for synthesis bookkeeping and extraction
--- Copyright   : (c) Philippe Heim, 2025
+-- Description : Synthesis and bookkeeping
+-- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
 --
+-- This module implements the methods to do synthesis. This includes bookkeeping the
+-- necessary steps in the computation, as well as extracting a program from this stored
+-- information.
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
 ---------------------------------------------------------------------------------------------------
 module Issy.Solver.Synthesis
   ( SyBo
-  , -- Book keeping
+  , -- Creation
     empty
   , normSyBo
   , loopSyBo
   , summarySyBo
-  , returnOn
-  , enforceTo
+  , fromStayIn
+  , -- Add steps
+    enforceTo
   , enforceFromTo
   , callOn
   , callOnSt
+  , returnOn
+  , -- Modify
+    mapTerms
   , replaceUF
-  , mapTerms
-  , fromStayIn
-  , -- Extraction
-    extractProg
+  , -- Program
+    Prog(..)
+  , extractProg
+  , printProg
+  , generateProg
   ) where
 
 ---------------------------------------------------------------------------------------------------
@@ -46,46 +54,69 @@ import Issy.Solver.GameInterface
 ---------------------------------------------------------------------------------------------------
 -- Bookkeeping
 ---------------------------------------------------------------------------------------------------
+-- | Opaque bookkeeping data structure data stores information of the steps in the game solving.
 data SyBo
   = SyBoNone
+  -- ^ Indicates that no bookkeeping is done.
   | SyBoNorm Arena [(Loc, Term, BookType)]
+  -- ^ Conditionals in an arena. They are evaluate from the start
+  -- of the list and for given locations and guards
   | SyBoLoop Arena LoopSyBo
+  -- ^ Loop arena book-keeping
   | SyBoSummary SummarySyBo
+  -- ^ Enforcement summary book-keeping
 
 data SummarySyBo = SummarySyBo
   { metaVars :: [(Symbol, Sort)]
   , preCond :: Term
-        -- ^ condition on the state variables
-        -- which this summary can be called and for which
-        -- we need to compute the skolem functions
+  -- ^ condition on the state variables
+  -- which this summary can be called and for which
+  -- we need to compute the Skolem functions
   , metaCond :: Term
-        -- ^ condition on the skolem function for the meta variables that has to
-        -- hold for all states which satisfy 'preCond'
+  -- ^ condition on the Skolem function for the meta variables that has to
+  -- hold for all states which satisfy 'preCond'
   , subProg :: SyBo
-        -- ^ program that archive the sub condition. Note that this should only
-        -- contain the constrains that the meta variables do not change
+  -- ^ program that archive the sub condition. Note that this should only
+  -- contain the constrains that the meta variables do not change
   }
 
 data LoopSyBo = LoopSyBo
   { loopLoc :: Loc
+  -- ^ location of the loop game
   , loopLoc' :: Loc
+  -- ^ copied location of the loop game
   , loopTrans :: [(Loc, Term, BookType)]
-        -- ^ in loop game locations
   , loopToMain :: Map Loc Loc
-        -- ^ maps loop locations EXCEPT loopLoc' to old locations
+  -- ^ maps loop locations EXCEPT loopLoc' to old locations
   , loopPrime :: Symbol
+  -- ^ priming of the variables that are kept constant
   }
 
+-- | Actions that can be recorded
 data BookType
   = Enforce SymSt
-  | Return
+  -- ^ enforce the given symbolic state
   | SubProg SyBo
+  -- ^ execute a sub-program/arena, like a loop arena part
+  | Return
+  -- ^ return to a higher level, i.e. the part that called a sub program
 
+---------------------------------------------------------------------------------------------------
+-- | Create the bookkeeping data structure that is always empty (and remain so).
+-- This should only be used if no bookkeeping should be done.
+empty :: SyBo
+empty = SyBoNone
+
+-- | Create the bookkeeping data structure for a normal arena.
 normSyBo :: Config -> Arena -> SyBo
 normSyBo conf arena
   | generateProgram conf = SyBoNorm arena []
   | otherwise = SyBoNone
 
+-- | Create the bookkeeping for a loop arena. This methods needs
+-- the loop arena, the location, the shadow location, the symbol used for priming the
+-- constant variables for the step relation, as well as a mapping from location back to
+-- locations from the original arena from which the loop-arena has been derived from.
 loopSyBo :: Config -> Arena -> Loc -> Loc -> Symbol -> Map Loc Loc -> SyBo
 loopSyBo conf arena loc loc' prime newToOld
   | generateProgram conf =
@@ -94,6 +125,42 @@ loopSyBo conf arena loc loc' prime newToOld
           {loopLoc = loc, loopLoc' = loc', loopTrans = [], loopPrime = prime, loopToMain = newToOld}
   | otherwise = SyBoNone
 
+-- | Create the bookkeeping for enforcement summaries. This method needs the meta variables, 
+-- skolemization information to instantiate those, and the book kept information from the
+-- summaries computation. The first part of the term pair is a condition on the state 
+-- variables where the summary can be called on and where we need to compute the Skolem
+-- function. The second part is the condition for the Skolem functions for the meta variables 
+-- that has to hold for all states which satisfy the precondition.
+summarySyBo :: [(Symbol, Sort)] -> (Term, Term) -> SyBo -> SyBo
+summarySyBo _ _ SyBoNone = SyBoNone
+summarySyBo metaVars (preCond, metaCond) subProg =
+  SyBoSummary
+    $ SummarySyBo {metaVars = metaVars, preCond = preCond, metaCond = metaCond, subProg = subProg}
+
+---------------------------------------------------------------------------------------------------
+-- | Append an enforcement step from a given location and term into a symbolic to the actions
+-- inside a book kept data structure.
+enforceTo :: Loc -> Term -> SymSt -> SyBo -> SyBo
+enforceTo loc cond = addTrans loc cond . Enforce
+
+-- | Like 'enforceTo' but where the starting condition is an entire symbolic state.
+enforceFromTo :: SymSt -> SymSt -> SyBo -> SyBo
+enforceFromTo src trg = chainOn (\loc cond -> enforceTo loc cond trg) src
+
+-- | Append calling a sub-part given a location and term as a guard.
+callOn :: Loc -> Term -> SyBo -> SyBo -> SyBo
+callOn loc cond = addTrans loc cond . SubProg
+
+-- | Like 'callOn' but where the guard is an entire symbolic state.
+callOnSt :: SymSt -> SyBo -> SyBo -> SyBo
+callOnSt src sub = chainOn (\loc cond -> callOn loc cond sub) src
+
+-- | When in a symbolic state, return to the caller.
+returnOn :: SymSt -> SyBo -> SyBo
+returnOn = chainOn (\loc cond -> addTrans loc cond Return)
+
+-- | Create a new book keeping data structure that from a source symbolic state enforces to stay
+-- in a target symbolic state.
 fromStayIn :: Config -> Arena -> SymSt -> SymSt -> SyBo
 fromStayIn conf arena src trg = enforceFromTo src trg $ normSyBo conf arena
 
@@ -113,24 +180,8 @@ chainOn f st =
       let retList = filter ((/= FOL.false) . snd) $ SymSt.toList st
        in foldl (\a (loc, cond) -> f loc cond a) init retList
 
-returnOn :: SymSt -> SyBo -> SyBo
-returnOn = chainOn (\loc cond -> addTrans loc cond Return)
-
-enforceTo :: Loc -> Term -> SymSt -> SyBo -> SyBo
-enforceTo loc cond = addTrans loc cond . Enforce
-
-enforceFromTo :: SymSt -> SymSt -> SyBo -> SyBo
-enforceFromTo src trg = chainOn (\loc cond -> enforceTo loc cond trg) src
-
-callOn :: Loc -> Term -> SyBo -> SyBo -> SyBo
-callOn loc cond = addTrans loc cond . SubProg
-
-callOnSt :: SymSt -> SyBo -> SyBo -> SyBo
-callOnSt src sub = chainOn (\loc cond -> callOn loc cond sub) src
-
-replaceUF :: Symbol -> [Symbol] -> Term -> SyBo -> SyBo
-replaceUF name argVars body = mapTerms $ FOL.replaceUF name argVars body
-
+---------------------------------------------------------------------------------------------------
+-- | Map all terms that appear in a book keeping data structure.
 mapTerms :: (Term -> Term) -> SyBo -> SyBo
 mapTerms f =
   \case
@@ -145,8 +196,12 @@ mapTerms f =
         Return -> (loc, f cond, Return)
         SubProg sub -> (loc, f cond, SubProg (mapTerms f sub))
 
-empty :: SyBo
-empty = SyBoNone
+-- | Instantiate an uninterpreted function in a book keeping data structure
+-- with a concrete body. This is usually used to instantiate the step relation
+-- after acceleration. For further details how this instantiation works see
+-- 'FOL.replaceUF'.
+replaceUF :: Symbol -> [Symbol] -> Term -> SyBo -> SyBo
+replaceUF name argVars body = mapTerms $ FOL.replaceUF name argVars body
 
 symbols :: SyBo -> Set Symbol
 symbols =
@@ -184,38 +239,54 @@ getVars =
     SyBoLoop _ _ -> error "assert: as this is meant to be called, this is proably bad"
     SyBoSummary _ -> error "assert: as this is meant to be called, this is proably bad"
 
--- | DOCUMENT relationship between skolem functions and constraints!
-summarySyBo :: [(Symbol, Sort)] -> (Term, Term) -> SyBo -> SyBo
-summarySyBo _ _ SyBoNone = SyBoNone
-summarySyBo metaVars (preCond, metaCond) subProg =
-  SyBoSummary
-    $ SummarySyBo {metaVars = metaVars, preCond = preCond, metaCond = metaCond, subProg = subProg}
-
 ---------------------------------------------------------------------------------------------------
--- Extraction
+-- Programs
 ---------------------------------------------------------------------------------------------------
+-- | Representation of an abstract program that represents a system player strategy.
+-- Note that the evaluation what a step is in e.g. an arena depends on the occurrence of
+-- a read. The current state is considered at a read, then the input variables are updated,
+-- and then some computation done (that changes the state). The update state (i.e. the primed
+-- state variables) are those just before the next read. To be sound, a read must always occur.
 data Prog
-  = InfLoop Prog
-  | Declare Symbol Sort
-  | Cond Term Prog
-  | Sequence [Prog]
-  | Assign Symbol Term
-  | Break
-  | Continue
-  | Abort
+  = Abort
+  -- ^ A placeholder that should never be reached.
+  -- If this is reached that means that either there is a bug in the synthesis tool
+  -- or the assumptions of the specification have been violated.
   | Read
+  -- ^ Read and set the input variables and evaluate the state.
+  | InfLoop Prog
+  -- ^ An infinite loop for a program part.
+  | Break
+  -- ^ Break out of a loop.
+  | Continue
+  -- ^ Restart a loop at the start of the loop body.
+  | Declare Symbol Sort
+  -- ^ A declaration of a variable.
+  | Cond Term Prog
+  -- ^ A condition for a program part.
+  | Sequence [Prog]
+  -- ^ Sequence of program parts.
+  | Assign Symbol Term
+  -- ^ Assignment to a variable.
 
-extractProg :: Config -> Loc -> SyBo -> IO String
+-- | Tie together 'extractProg' and 'printProg' to compute a program and print
+-- it as a C program.
+generateProg :: Config -> Loc -> SyBo -> IO String
+generateProg conf init sybo = uncurry printProg <$> extractProg conf init sybo
+
+---------------------------------------------------------------------------------------------------
+-- Translation to program
+---------------------------------------------------------------------------------------------------
+-- | Compute an abstract program out of a bookkeeping data structure. This is very
+-- computation heavy and might include Skolem function computation.
+extractProg :: Config -> Loc -> SyBo -> IO (Variables, Prog)
 extractProg conf init sybo = do
   conf <- pure $ setName "Synth" conf
   let locVar = FOL.uniquePrefix "prog_counter" $ symbols sybo
   prog <- extractPG conf locVar sybo
   prog <- pure $ Sequence [Declare locVar FOL.SInt, Assign locVar (toLoc init), prog]
-  pure $ printProg (getVars sybo) prog
+  pure (getVars sybo, prog)
 
----------------------------------------------------------------------------------------------------
--- Translation to program
----------------------------------------------------------------------------------------------------
 extractPG :: Config -> Symbol -> SyBo -> IO Prog
 extractPG conf locVar =
   \case
@@ -280,6 +351,7 @@ isProperAssign name =
 ---------------------------------------------------------------------------------------------------
 -- Printing
 ---------------------------------------------------------------------------------------------------
+-- | Print an abstract program as a C program.
 printProg :: Variables -> Prog -> String
 printProg vars prog =
   unlines $ makeHead vars ++ ["void main() {"] ++ indent (printStmt prog) ++ ["}"]
