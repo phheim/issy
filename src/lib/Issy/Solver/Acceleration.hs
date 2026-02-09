@@ -20,9 +20,9 @@ import Issy.Prelude
 
 import Issy.Config (genGeomAccel, ufAcceleration)
 import qualified Issy.Logic.FOL as FOL
-import qualified Issy.Solver.Acceleration.Heuristics as H
-import qualified Issy.Solver.Acceleration.GeometricAccel as GeoAcc (accelReach)
 import qualified Issy.Solver.Acceleration.CompPolyhedraAccel as CPoAcc (accelReach)
+import qualified Issy.Solver.Acceleration.GeometricAccel as GeoAcc (accelReach)
+import qualified Issy.Solver.Acceleration.Heuristics as H
 import qualified Issy.Solver.Acceleration.UintFuncAccel as UiFAcc (accelReach)
 import Issy.Solver.GameInterface
 import Issy.Solver.Synthesis (SyBo)

@@ -2,30 +2,34 @@
 -- |
 -- Module      : Monitor.Issy
 -- Description : Monitors for monitor-pruning
--- Copyright   : (c) Philippe Heim, 2065
+-- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
 --
 -- This module exposes all functionalities of monitors for pruning RPLTL and TSL formulas
--- upon their translation to games.
+-- upon their translation to games. They are described in the POPL'25 paper.
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe #-}
 
 ---------------------------------------------------------------------------------------------------
 module Issy.Monitor
-  ( State
+  ( -- State
+    State
   , stateName
-  , Monitor
+  , -- Transition
+    Trans(..)
+  , leafs
+  , -- Monitor
+    Monitor
   , Verdict(..)
-  , Issy.Monitor.Monitor.inputs
   , variables
-  , initializeRPLTL
-  , initializeTSL
+  , Issy.Monitor.Monitor.inputs
   , verdict
   , initial
+  , -- Computation
+    initializeRPLTL
+  , initializeTSL
   , generateSuccessor
   , finish
-  , Trans(..)
-  , leafs
   ) where
 
 ---------------------------------------------------------------------------------------------------
@@ -57,7 +61,7 @@ import Issy.Monitor.Successors (generateSuccessor)
 import qualified Issy.Printers.SMTLib as SMTLib
 
 ---------------------------------------------------------------------------------------------------
--- | 'initializeRPLTL' creates as monitor for RPLTL formula specifications. In order to used the
+-- | Create a monitor for an RPLTL formula specifications. In order to used the
 -- monitor its transitions and verdict have to be computed.
 initializeRPLTL :: Config -> TL.Spec RPLTL.Atom -> IO Monitor
 initializeRPLTL cfg spec = do
@@ -72,8 +76,7 @@ initializeRPLTL cfg spec = do
     (MF.fromRPLTL <$> TL.guarantees spec)
     preds
 
----------------------------------------------------------------------------------------------------
--- | 'initializeTSL' creates as monitor for TSLMT formula specifications. In order to used the
+-- | Create a monitor for a TSLMT formula specifications. In order to used the
 -- monitor its transitions and verdict have to be computed.
 initializeTSL :: Config -> TL.Spec TSL.Atom -> IO Monitor
 initializeTSL cfg spec = do
@@ -88,8 +91,7 @@ initializeTSL cfg spec = do
     (MF.fromTSL <$> TL.guarantees spec)
     preds
 
----------------------------------------------------------------------------------------------------
--- | 'initialize' is a generic initilaisation for both RPLTL and TSLMT. The main difference in the
+-- | A generic initialisation for both RPLTL and TSLMT. The main difference in the
 -- monitor is that RPLTL has now updates and therefore everything related to them should be
 -- disabled or have no effect.
 initialize ::

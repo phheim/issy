@@ -8,6 +8,7 @@
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
+---------------------------------------------------------------------------------------------------
 module Issy.Monitor.Monitor
   ( State(..)
   , Verdict(..)
@@ -22,8 +23,10 @@ module Issy.Monitor.Monitor
   , initial
   , verdict
   , inputs
+  , states
   ) where
 
+---------------------------------------------------------------------------------------------------
 import qualified Data.Map.Strict as Map
 import Issy.Prelude
 
@@ -33,6 +36,7 @@ import Issy.Monitor.Rules (GlobalS)
 import Issy.Monitor.State (ExpansionState)
 import qualified Issy.Monitor.State as M (State)
 
+---------------------------------------------------------------------------------------------------
 newtype State =
   State Int
   deriving (Eq, Ord, Show)
@@ -120,5 +124,7 @@ verdict mon st
 
 inputs :: Monitor -> Set Symbol
 inputs = Vars.inputs . variables
--------------------------------------------------------------------------------
+
+states :: Monitor -> Set State
+states = Map.keysSet . stateLabel
 ---------------------------------------------------------------------------------------------------

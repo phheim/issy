@@ -1,17 +1,21 @@
 ---------------------------------------------------------------------------------------------------
 -- |
 -- Module      : Issy.Monitor.Postprocess
--- Description : TODO DOCUMENT
+-- Description : Monitor postprocessing
 -- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
 --
+-- This module implements the monitor postprocessing which is neede to recognize safely
+-- verdicted parts and compute the verdict in general.
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
+---------------------------------------------------------------------------------------------------
 module Issy.Monitor.Postprocess
   ( finish
   ) where
 
+---------------------------------------------------------------------------------------------------
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Issy.Prelude
@@ -24,10 +28,9 @@ import Issy.Monitor.State (Domain(..), fset, isSafeSt, mapFs, normSt, stateToStr
 import qualified Issy.Monitor.State as M (State)
 import Issy.Utils.Extra (predecessorRelation, reachables)
 
--------------------------------------------------------------------------------
--- for all GF pred, search reachables
--- parts with (F pred derived) not derived remove
--- them, for all other remove GF pred"
+---------------------------------------------------------------------------------------------------
+-- | Discharge eventualities and compute the verdict. This method should be called on a monitor
+-- that is full explored for its purpose.
 finish :: Config -> Monitor -> IO Monitor
 finish cfg mon = do
   mon <- pure $ mon {revLabel = Map.empty}
@@ -56,9 +59,9 @@ stateSucc mon =
     $ Map.toList
     $ stateTrans mon
 
-states :: Monitor -> Set State
-states = Map.keysSet . stateLabel
-
+-- for all GF pred, search reachables
+-- parts with (F pred derived) not derived remove
+-- them, for all other remove GF pred"
 dischargeGFs :: Config -> Monitor -> IO Monitor
 dischargeGFs cfg mon = do
   eventMap <-

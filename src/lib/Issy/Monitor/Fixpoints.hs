@@ -1,17 +1,21 @@
 ---------------------------------------------------------------------------------------------------
 -- |
 -- Module      : Issy.Monitor.Fixpoints
--- Description : TODO DOCUMENT
+-- Description : Checking fixpoint contraints
 -- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
 --
+-- This module implements checking some kind of fixpoint constraint used in monitor computation.
+-- It uses the tool MuVal of the Coar toolsuite (https://github.com/hiroshi-unno/coar).
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
+---------------------------------------------------------------------------------------------------
 module Issy.Monitor.Fixpoints
   ( checkFPInclusion
   ) where
 
+---------------------------------------------------------------------------------------------------
 import Data.Fixed (Nano, showFixed)
 import qualified Data.Set as Set
 import Issy.Prelude
@@ -24,6 +28,7 @@ import qualified Issy.Logic.FOL as FOL
 import Issy.Printers.SMTLib (funcToString)
 import Issy.Utils.Extra (firstLine)
 
+---------------------------------------------------------------------------------------------------
 encSort :: Sort -> String
 encSort =
   \case
@@ -134,6 +139,9 @@ encFPInclusion vars query fpPred fp =
             ++ ";"
         ]
 
+-- | Check if a given wether a query term with a fixpoint predicate holds,
+-- given a a fixpoint constraint for this fixpoint predicate. Note that this
+-- methods needs to call MuVal.
 checkFPInclusion :: Config -> Variables -> Term -> Symbol -> Term -> IO Bool
 checkFPInclusion cfg vars query fpPred fp = do
   let muvalQuery = encFPInclusion vars query fpPred fp

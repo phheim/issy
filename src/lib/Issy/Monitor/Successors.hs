@@ -1,17 +1,20 @@
 ---------------------------------------------------------------------------------------------------
 -- |
 -- Module      : Issy.Monitor.Successors
--- Description : TODO DOCUMENT
+-- Description : Monitor successors generation
 -- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
 --
+-- This module implements the computation of a successor in a monitor.
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
+---------------------------------------------------------------------------------------------------
 module Issy.Monitor.Successors
   ( generateSuccessor
   ) where
 
+---------------------------------------------------------------------------------------------------
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Issy.Prelude
@@ -40,6 +43,11 @@ import qualified Issy.Monitor.State as M (State)
 import qualified Issy.Printers.SMTLib as SMTLib (toString)
 import Issy.Utils.Extra
 
+---------------------------------------------------------------------------------------------------
+-- | Generate a successor for a monitor for a given set of state an predefined assignments.
+-- The interface allows to use this to compute a product with the monitor on-the-fly.
+-- The method itself can be very computation heavy, but uses chasing wherever possible.
+-- A user of this method should probably not do caching themself.
 generateSuccessor ::
      Config
   -> Monitor

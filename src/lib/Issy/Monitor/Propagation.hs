@@ -1,20 +1,26 @@
 ---------------------------------------------------------------------------------------------------
 -- |
 -- Module      : Issy.Monitor.Propagation
--- Description : TODO DOCUMENT
+-- Description : Predicate propagation for monitors
 -- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
 --
+-- This module implements predicate propagation used in monitor computation. In some way,
+-- this represent some predicate domain from abstract interpretation.
+-- Since this predicate propagation depends heavily on the logic used, the propagation is
+-- implement twice, once for RPLTL and once for TSLMT.
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe #-}
 
+---------------------------------------------------------------------------------------------------
 module Issy.Monitor.Propagation
-  ( generatePredicatesTSL
-  , generatePredicatesRPLTL
-  , propagatedPredicatesTSL
+  ( generatePredicatesRPLTL
+  , generatePredicatesTSL
   , propagatedPredicatesRPLTL
+  , propagatedPredicatesTSL
   ) where
 
+---------------------------------------------------------------------------------------------------
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Issy.Prelude
@@ -24,6 +30,9 @@ import qualified Issy.Games.Variables as Vars
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.SMT as SMT
 
+---------------------------------------------------------------------------------------------------
+-- | Generate the set of predicates for TSLMT from the predicate and updates present in the
+-- formula. The predicates generate depend on the configuration.
 generatePredicatesTSL :: Config -> Variables -> Set Term -> Set (Symbol, Term) -> IO (Set Term)
 generatePredicatesTSL cfg vars preds updates = do
   preds <- pure $ Set.filter (all (Vars.isStateVar vars) . FOL.frees) preds
@@ -62,6 +71,8 @@ generatePredicatesTSL cfg vars preds updates = do
         Set.singleton (Vars.mk vars var `FOL.equal` upd)
       | otherwise = Set.empty
 
+-- | Generate the set of predicates for RPLTL from the atomic terms present in a
+-- formula. The predicates generate depend on the configuration.
 generatePredicatesRPLTL :: Config -> Variables -> Set Term -> IO (Set Term)
 generatePredicatesRPLTL cfg vars preds = do
   preds <- pure $ Set.filter (all (Vars.isStateVar vars) . FOL.frees) preds
@@ -85,10 +96,14 @@ generatePredicatesRPLTL cfg vars preds = do
           | otherwise -> Set.empty
         _ -> Set.empty
 
+-- | Given a current-state-next-state constraint (e.g. something like "x' > x")
+-- compute the predicates that propagate from the current to the next state.
 propagatedPredicatesRPLTL :: Config -> Variables -> Term -> Set Term -> IO [Term]
 propagatedPredicatesRPLTL cfg vars constr =
   filterM (SMT.valid cfg . FOL.impl constr . Vars.primeT vars) . Set.toList
 
+-- | Given an update constraint set (e.g. something like "[x <- x + 1]")
+-- compute the predicates that propagate from the current to the next state.
 propagatedPredicatesTSL :: Config -> Term -> [(Symbol, Term)] -> Set Term -> IO [Term]
 propagatedPredicatesTSL cfg constr upds = filterM propagate . Set.toList
   where
