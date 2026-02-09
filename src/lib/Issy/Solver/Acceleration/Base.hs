@@ -1,10 +1,12 @@
 ---------------------------------------------------------------------------------------------------
 -- |
 -- Module      : Issy.Solver.Acceleration.Base
--- Description : Shared data structures and algorithm for lemma based acceleration
--- Copyright   : (c) Philippe Heim, 2025
+-- Description : Simple acceleration lemma interface
+-- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
 --
+-- This module implements the shared data structures and algorithm for lemma based acceleration.
+-- This includes generalized acceleration lemmas, as well as combinations thereof.
 ---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
@@ -14,18 +16,20 @@ module Issy.Solver.Acceleration.Base
   , unprime
   , primeT
   , isMeaningfull
-  , addInvar
-  , chain
-  , lexiUnions
+  , -- Combinations
+    addInvar
   , intersections
-  , Combinator
+  , lexiUnions
+  , chain
+  , -- Combinator interface
+    Combinator
   , toLemma
   , combToStr
   , combBase
   , combInv
-  , combChain
-  , combLexiUnion
   , combIntersect
+  , combLexiUnion
+  , combChain
   ) where
 
 ---------------------------------------------------------------------------------------------------
@@ -37,33 +41,32 @@ import qualified Issy.Logic.SMT as SMT
 import qualified Issy.Printers.SMTLib as SMTLib (toString)
 
 ---------------------------------------------------------------------------------------------------
--- | Representation of a (simple or general) acceleration lemma
+-- | Representation of a (simple or general) acceleration lemma.
 data AccelLemma = AccelLemma
   { base :: Term
-  -- ^ 'base' is the base starting set
+  -- ^ The base starting set
   , step :: Term
-  -- ^ 'step' is the step condition. Since most algorithms we use do backward
-  -- compuations and application of lemmas the target valuation is with "normal"
+  -- ^ The step condition. Since most algorithms we use do backward
+  -- computations and application of lemmas the target valuation is with "normal"
   -- variables while the source valuation is "primed" (in contrast to the
   -- formal definition).
   , stay :: Term
-  -- ^ 'stay' is the stay condition. This mainly applies for the non-simple
+  -- ^ The stay condition. This mainly applies for the non-simple
   -- version of acceleration lemmas. If stay is not needed, it can be set equal
-  -- to step. The priming works similiar to the step condition.
+  -- to step. The priming works similar to the step condition.
   , conc :: Term
-  -- ^ 'conc' is the conclusion term
+  -- ^  The conclusion term
   , prime :: Symbol
-  -- ^ 'prime' is the priming prefix for "prime variables" in the step relation
+  -- ^ The priming prefix for "prime variables" in the step relation
   } deriving (Eq, Ord, Show)
 
--- | 'unprime' replaces the primed (i.e. previous step states) in a term by the
+-- | Replace the primed (i.e. previous step states) in a term by the
 -- state variable version. This is usually done at the end of a loop game
 -- attractor computation.
 unprime :: AccelLemma -> Term -> Term
 unprime = FOL.removePref . prime
 
--- | 'primeT' replaces all state variable symbols in a term by a
--- prefix-primed one
+-- | Replace all state variable symbols in a term by a prefix-primed one
 primeT :: Variables -> Symbol -> Term -> Term
 primeT vars prim =
   FOL.mapSymbol
@@ -72,10 +75,15 @@ primeT vars prim =
          then prim ++ s
          else s)
 
+-- | Check if a lemma is somewhat meaningful, i.e. it actually represents 
+-- something to be added.
 isMeaningfull :: Config -> AccelLemma -> IO Bool
 isMeaningfull conf lemma = SMT.sat conf $ FOL.andf [conc lemma, FOL.neg (base lemma)]
 
--- | 'addInvar' adds an invariant to an acceleration lemmas. In order for this
+---------------------------------------------------------------------------------------------------
+-- Combinations
+---------------------------------------------------------------------------------------------------
+-- | Add an invariant to an acceleration lemmas (Lemma 4 in TACAS'26). In order for this
 -- to be correct the free variables in the invariant have to be state variables
 -- in the given variable set.
 addInvar :: Variables -> Term -> AccelLemma -> AccelLemma
@@ -87,43 +95,8 @@ addInvar _ inv lemma =
     , step = FOL.andf [step lemma, inv]
     }
 
-chain :: Variables -> AccelLemma -> AccelLemma -> AccelLemma
-chain vars main sub
-  | prime main /= prime sub = error "assert: prime needs to be the same"
-  | otherwise =
-    AccelLemma
-      { base = base main
-      , conc = conc main
-      , stay = FOL.andf [stay main, stay sub]
-      , step =
-          FOL.orf
-            [step main, FOL.andf [stay main, prm (conc sub), prm (FOL.neg (base sub)), step sub]]
-      , prime = prime main
-      }
-  where
-    prm = primeT vars (prime main)
-
-lexiUnion :: Variables -> AccelLemma -> AccelLemma -> AccelLemma
-lexiUnion vars lemmaA lemmaB
-  | prime lemmaA /= prime lemmaB = error "assert: prime needs to be the same"
-  | otherwise =
-    AccelLemma
-      { base = FOL.orf [base lemmaA, base lemmaB]
-      , conc = FOL.orf [conc lemmaA, conc lemmaB]
-      , stay = FOL.andf [stay lemmaA, stay lemmaB]
-      , step =
-          FOL.orf
-            [ FOL.andf [prm (conc lemmaA), step lemmaA]
-            , FOL.andf [stay lemmaA, step lemmaB, prm (conc lemmaB)]
-            ]
-      , prime = prime lemmaA
-      }
-  where
-    prm = primeT vars (prime lemmaA)
-
-lexiUnions :: Variables -> [AccelLemma] -> AccelLemma
-lexiUnions = foldr1 . lexiUnion
-
+-- | Compute the intersection of several acceleration lemmas (Lemma 1 in TACAS'26).
+-- If the priming symbol of the lemmas do not match, this methods is undefined.
 intersections :: Variables -> [AccelLemma] -> AccelLemma
 intersections vars =
   \case
@@ -151,9 +124,54 @@ intersections vars =
             [] -> []
             x:xr -> (x, acc ++ xr) : go (acc ++ [x]) xr
 
+-- | Compute the lexicographic union of several acceleration lemmas (Lemma 2 in TACAS'26).
+-- If the priming symbol of the lemmas do not match, this methods is undefined.
+lexiUnions :: Variables -> [AccelLemma] -> AccelLemma
+lexiUnions = foldr1 . lexiUnion
+
+lexiUnion :: Variables -> AccelLemma -> AccelLemma -> AccelLemma
+lexiUnion vars lemmaA lemmaB
+  | prime lemmaA /= prime lemmaB = error "assert: prime needs to be the same"
+  | otherwise =
+    AccelLemma
+      { base = FOL.orf [base lemmaA, base lemmaB]
+      , conc = FOL.orf [conc lemmaA, conc lemmaB]
+      , stay = FOL.andf [stay lemmaA, stay lemmaB]
+      , step =
+          FOL.orf
+            [ FOL.andf [prm (conc lemmaA), step lemmaA]
+            , FOL.andf [stay lemmaA, step lemmaB, prm (conc lemmaB)]
+            ]
+      , prime = prime lemmaA
+      }
+  where
+    prm = primeT vars (prime lemmaA)
+
+-- | Compute the chaining of a main lemma with a sub-lemma (Lemma 3 in TACAS'26).
+-- If the priming symbol of the lemmas do not match, this methods is undefined.
+chain :: Variables -> AccelLemma -> AccelLemma -> AccelLemma
+chain vars main sub
+  | prime main /= prime sub = error "assert: prime needs to be the same"
+  | otherwise =
+    AccelLemma
+      { base = base main
+      , conc = conc main
+      , stay = FOL.andf [stay main, stay sub]
+      , step =
+          FOL.orf
+            [step main, FOL.andf [stay main, prm (conc sub), prm (FOL.neg (base sub)), step sub]]
+      , prime = prime main
+      }
+  where
+    prm = primeT vars (prime main)
+
 ---------------------------------------------------------------------------------------------------
 -- Combinators
 ---------------------------------------------------------------------------------------------------
+-- | Abstract data-structure to represent the above combination of lemmas. This data-structure
+-- is meant to first build abstract/algebraic representation of the combinations and use those
+-- to then compute the actual combination. Furthermore, this allows to first build combinations
+-- of other objects (e.g. target terms) that are only later instantiated to lemmas.
 data Combinator a
   = CBase a
   | CInv Term (Combinator a)
@@ -162,6 +180,7 @@ data Combinator a
   | CIntersection [Combinator a]
   deriving (Eq, Ord, Show)
 
+-- | Turn an abstract combination of lemmas into a concrete lemma.
 toLemma :: Variables -> (a -> AccelLemma) -> Combinator a -> AccelLemma
 toLemma vars mkGAL = go
   where
@@ -173,34 +192,7 @@ toLemma vars mkGAL = go
         CLexiUnion gs -> lexiUnions vars (map go gs)
         CIntersection gs -> intersections vars (map go gs)
 
-combBase :: a -> Combinator a
-combBase = CBase
-
-combChain :: Combinator a -> Combinator a -> Combinator a
-combChain = CChain
-
-combInv :: Term -> Combinator a -> Combinator a
-combInv inv
-  | inv == FOL.true = id
-  | otherwise =
-    \case
-      CInv oinv comb -> CInv (FOL.andf [inv, oinv]) comb
-      comb -> CInv inv comb
-
-combLexiUnion :: [Combinator a] -> Combinator a
-combLexiUnion =
-  \case
-    [] -> error "assert: not allowed"
-    [c] -> c
-    cs -> CLexiUnion cs
-
-combIntersect :: [Combinator a] -> Combinator a
-combIntersect =
-  \case
-    [] -> error "assert: not allowed"
-    [c] -> c
-    cs -> CIntersection cs
-
+-- | Pretty print a combination.
 combToStr :: (a -> String) -> Combinator a -> String
 combToStr toStr = go
   where
@@ -211,4 +203,37 @@ combToStr toStr = go
         CChain a b -> "[Chain " ++ go a ++ " with " ++ go b ++ "]"
         CLexiUnion xs -> "[LexUnion" ++ concatMap ((' ' :) . go) xs ++ "]"
         CIntersection xs -> "[Intersect" ++ concatMap ((' ' :) . go) xs ++ "]"
+
+-- | Construct a singleton combination.
+combBase :: a -> Combinator a
+combBase = CBase
+
+-- | Construct a combination that corresponds to 'addInvar'.
+combInv :: Term -> Combinator a -> Combinator a
+combInv inv
+  | inv == FOL.true = id
+  | otherwise =
+    \case
+      CInv oinv comb -> CInv (FOL.andf [inv, oinv]) comb
+      comb -> CInv inv comb
+
+-- | Construct a combination that corresponds to 'intersections'.
+combIntersect :: [Combinator a] -> Combinator a
+combIntersect =
+  \case
+    [] -> error "assert: not allowed"
+    [c] -> c
+    cs -> CIntersection cs
+
+-- | Construct a combination that corresponds to 'lexiUnions'.
+combLexiUnion :: [Combinator a] -> Combinator a
+combLexiUnion =
+  \case
+    [] -> error "assert: not allowed"
+    [c] -> c
+    cs -> CLexiUnion cs
+
+-- | Construct a combination that corresponds to 'chain'.
+combChain :: Combinator a -> Combinator a -> Combinator a
+combChain = CChain
 ---------------------------------------------------------------------------------------------------

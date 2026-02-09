@@ -1,20 +1,21 @@
 ---------------------------------------------------------------------------------------------------
 -- |
 -- Module      : Issy.Solver.Acceleration.LoopScenario
--- Description : TODO DOCUMENT
+-- Description : Loop arena realted algorithms
 -- Copyright   : (c) Philippe Heim, 2026
 -- License     : The Unlicense
 --
+-- This module implements the loop arena realted techniques for acceleration.
 ---------------------------------------------------------------------------------------------------
 module Issy.Solver.Acceleration.LoopScenario
-  ( loopScenario
-  , reducedLoopArena
+  ( reducedLoopArena
+  , loopScenario
   ) where
 
+---------------------------------------------------------------------------------------------------
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 
--------------------------------------------------------------------------------
 import Issy.Prelude
 
 import qualified Issy.Games.SymbolicState as SymSt
@@ -29,7 +30,9 @@ import Issy.Solver.Synthesis (SyBo)
 import qualified Issy.Solver.Synthesis as Synt
 import Issy.Utils.Extra
 
--------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
+-- | Use 'reducedLoopArena' to compute a loop arena scenario, where the target value in loc'
+-- is already set and the target reduced, using independent state variables.
 loopScenario ::
      Config -> Heur -> Arena -> Loc -> SymSt -> Symbol -> IO (Arena, Loc, Loc, SymSt, Term, SyBo)
 loopScenario conf heur arena loc target prime = do
@@ -42,10 +45,9 @@ loopScenario conf heur arena loc target prime = do
   let prog = Synt.returnOn loopTarget loopProg
   pure (loopAr, loc, loc', loopTarget, fixedInv, prog)
 
--- | 'reducedLoopArena' compute a heuristically reduced sub-arena to be limited on a
--- potentially smaller part of the game. Note that you still need to
---  - set the start value in loc'
---  - return upon reaching the loop target
+-- | Compute a heuristically reduced sub-arena to be limited on a potentially
+-- smaller part of the game. Note that you still need to set the start value in loc',
+-- and return upon reaching the loop target.
 reducedLoopArena ::
      Config -> Heur -> Arena -> Loc -> SymSt -> Symbol -> (Arena, Loc, Loc, Set Loc, SymSt, SyBo)
 reducedLoopArena conf heur arena loc target prime =
@@ -116,5 +118,4 @@ distances bound next init = go 0 (Set.singleton init) $ Map.singleton init 0
       | otherwise =
         let new = Set.unions (Set.map next last) `Set.difference` Map.keysSet acc
          in go (depth + 1) new $ foldr (\l -> Map.insert l (depth + 1)) acc new
--------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------
