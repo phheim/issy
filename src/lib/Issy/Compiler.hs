@@ -21,8 +21,8 @@ import Issy.Compiler.Parser (parse)
 import Issy.Compiler.Writer (write)
 
 ---------------------------------------------------------------------------------------------------
--- | 'compile' takes an issy-formated string and outputs an lissy-formated string. It fail if the
--- the input format does not conform to the lissy format.
+-- | Take an Issy-formatted string and outputs an LLissy-formatted string. It fails, if the
+-- the input format does not conform to the Issy format.
 compile :: String -> Either String String
 compile input = do
   tokens <- tokenize input

@@ -1,9 +1,20 @@
+---------------------------------------------------------------------------------------------------
+-- |
+-- Module      : Main
+-- Description : Main module of the Issy binary.
+-- Copyright   : (c) Philippe Heim, 2026
+-- License     : The Unlicense
+--
+-- This module implements Issy's command line interface.
+---------------------------------------------------------------------------------------------------
 {-# LANGUAGE Safe, LambdaCase #-}
 
+---------------------------------------------------------------------------------------------------
 module Main
   ( main
   ) where
 
+---------------------------------------------------------------------------------------------------
 import Control.Monad (when)
 import Data.Bifunctor (second)
 import System.Environment (getArgs)
@@ -11,6 +22,116 @@ import System.Exit (die, exitSuccess)
 
 import Issy
 
+---------------------------------------------------------------------------------------------------
+-- Help text
+---------------------------------------------------------------------------------------------------
+help :: [String]
+help =
+  [ "Usage: issy OPTION* [INPUTFILE | '-']"
+  , ""
+  , " The output is always writen to STDOUT. Errors and logging informations are"
+  , " written to STDERR. If INPUTFILE is '-' the input is read from STDIN."
+  , ""
+  , " Input format:"
+  , "   --issy   : input is a issy spec (default)"
+  , "   --llissy : input is a llissy spec"
+  , "   --rpg    : input is a RPG spec"
+  , "   --tslmt  : input is a TSLMT spec a used by 'tsl2rpg'"
+  , ""
+  , " Modes:"
+  , "   --solve   : solve the input spec (default)"
+  , "   --compile : compiles a issy spec into the llissy format"
+  , "   --to-game : translate the input specification to a game without temporal logic"
+  , "   --print   : pretty print a llissy or RPG spec"
+  , ""
+  , "   --encode-muclp       : encode any spec to a MuCLP system used by 'muval'"
+  , "   --encode-ltlmt       : encode any spec as LTLMT formula used by 'Syntheos'"
+  , "   --encode-sweap       : encode any spec as specification used by 'Sweap'"
+  , "   --encode-llissy      : encode an RPG or TSLMT spec as llissy specifciation"
+  , "   --encode-tslmt       : encode an RPG spec as TSLMT formula (Raboniel's format version)"
+  , ""
+  , "   --version : returns the version of Issy"
+  , ""
+  , " Logging:"
+  , "   --quiet    : no logging at all"
+  , "   --info     : enable standard log messages (default)"
+  , "   --detailed : enable detailed log messages including sub-steps"
+  , "   --verbose  : log almost everything, including SMT queries"
+  , ""
+  , "  --stats-to-stdout : write statistics to STDOUT (default: as log message)"
+  , ""
+  , ""
+  , " Formula translation:"
+  , "   --pruning LEVEL"
+  , "         0 : monitor based pruning disabled (default)"
+  , "         1 : monitor based pruning without deduction rules and low propagation"
+  , "         2 : monitor based pruning with deduction rules and normal propagation"
+  , "         3 : monitor based pruning with precise deduction and high propagation"
+  , ""
+  , " Game solving:"
+  , "   --accel TYPE"
+  , "       no   : acceleration disabled"
+  , "       attr : enable only attractor acceleration (default)"
+  , "       full : enable additionally Büchi and parity acceleration"
+  , ""
+  , "   --accel-attr TYPE"
+  , "       polycomp     : compositional-polyhedra-based acceleration (default)"
+  , "       polycomp-ext : compositional-polyhedra-based acceleration and with nesting"
+  , "       geom         : geometric acceleration with invariant iteration"
+  , "       unint        : acceleration with uninterpreted lemmas"
+  , "       unint-ext    : acceleration with uninterpreted lemmas and nesting"
+  , ""
+  , "   --accel-difficulty TYPE"
+  , "       easy   : stick to very local acceleration with simple arguments"
+  , "       medium : go to elaborated accleration argument over time but stay reasonable (default)"
+  , "       hard   : use everything that is possible, this will create signifcant overhead"
+  , ""
+  , "   --enable-summaries : enable computation of enforcement summaries"
+  , ""
+  , "   --remove-rpgs : translate RPGs to symbolic games befor solving (experimental)"
+  , ""
+  , " Synthesis:"
+  , "   --synt         : generate program if spec is realizable (default: disabled)"
+  , ""
+  , " External tools:"
+  , "   When some of these tools are needed depends on the other options. Note that"
+  , "   they are NEVER needed for COMPILATION ONLY with --compile"
+  , ""
+  , "   --caller-z3 CMD    : path or command for z3"
+  , "                          needed : always"
+  , "                          default: 'z3'"
+  , "   --caller-aut CMD   : path or command for Spot's ltl2tgba"
+  , "                          needed : if temporal formula appear in the specification"
+  , "                          default: 'ltl2tgba'"
+  , "   --caller-muval CMD : path or command that calls coars MuVal with a timeout"
+  , "                        as argument and the input on STDIN"
+  , "                          needed : for --pruning 2 and --pruning 3"
+  , "                          default: 'call-muval.sh'"
+  , "   --caller-chcmx CMD : path or command that calls a moddified version of coars"
+  , "                        CHCMax with a timeout as argument and the input on STDIN"
+  , "                          needed : for --pruning 3 and --accel geom-chc"
+  , "                          default: 'call-maxsat.sh'"
+  ]
+
+shortHelp :: [String]
+shortHelp =
+  [ "no argument or filename found"
+  , ""
+  , " usage: issy OPTION* FILENAME"
+  , ""
+  , "  e.g.:"
+  , "     issy input.issy"
+  , "     issy --solve --acceleration none -"
+  , "     issy --compile input.issy"
+  , "     issy --llissy --to-game input.llissy"
+  , "     issy --rpg --encode-muclp input.rpg"
+  , ""
+  , " to get a list of all possible options run 'issy --help'"
+  ]
+
+---------------------------------------------------------------------------------------------------
+-- Modes and Inputs formats
+---------------------------------------------------------------------------------------------------
 data Mode
   = Compile
   | Print
@@ -28,20 +149,9 @@ data InputFormat
   | RPG
   | TSLMT
 
-getSpec :: Config -> String -> InputFormat -> IO Specification
-getSpec cfg input =
-  \case
-    LowLevel -> do
-      spec <- liftErr $ parseLLIssyFormat input
-      checkSpecification cfg spec >>= liftErr
-      pure spec
-    HighLevel -> do
-      input <- liftErr $ compile input
-      spec <- liftErr $ parseLLIssyFormat input
-      checkSpecification cfg spec >>= liftErr
-      pure spec
-    _ -> error "assert: this function should only be called for Issy/Lissy stuff"
-
+---------------------------------------------------------------------------------------------------
+-- Main
+---------------------------------------------------------------------------------------------------
 main :: IO ()
 main = do
   (mode, inputFormat, cfg, input) <- argParser
@@ -95,24 +205,9 @@ main = do
         pure $ specToSweap spec
   putStrLn res
 
-printRes :: Config -> (Bool, Stats, Maybe (IO String)) -> IO String
-printRes conf (res, stats, printProg) = do
-  printStats conf stats
-  let resStr
-        | res = "Realizable"
-        | otherwise = "Unrealizable"
-  progStr <- maybe (pure "") (fmap ('\n' :)) printProg
-  pure $ resStr ++ progStr
-
-liftErr :: Either String b -> IO b
-liftErr res =
-  case res of
-    Left err -> die err
-    Right res -> return res
-
----
--- Argument Parser
----
+---------------------------------------------------------------------------------------------------
+-- Argument parser
+---------------------------------------------------------------------------------------------------
 argParser :: IO (Mode, InputFormat, Config, String)
 argParser = do
   args <- getArgs
@@ -172,9 +267,9 @@ retriveArg get val =
         Nothing -> second (x :) $ retriveArg get val xr
         Just val -> retriveArg get val xr
 
----
--- Config Parser
----
+---------------------------------------------------------------------------------------------------
+-- Configuration parser
+---------------------------------------------------------------------------------------------------
 configParser :: [String] -> Either String Config
 configParser = go defaultConfig
   where
@@ -257,109 +352,35 @@ configParser = go defaultConfig
         "--remove-rpgs":ar -> go (cfg {removeRPGs = True}) ar
         s:_ -> Left $ "found invalid argument: " ++ s
 
----
--- Help descriptions
----
-shortHelp :: [String]
-shortHelp =
-  [ "no argument or filename found"
-  , ""
-  , " usage: issy OPTION* FILENAME"
-  , ""
-  , "  e.g.:"
-  , "     issy input.issy"
-  , "     issy --solve --acceleration none -"
-  , "     issy --compile input.issy"
-  , "     issy --llissy --to-game input.llissy"
-  , "     issy --rpg --encode-muclp input.rpg"
-  , ""
-  , " to get a list of all possible options run 'issy --help'"
-  ]
+---------------------------------------------------------------------------------------------------
+-- Helpers
+---------------------------------------------------------------------------------------------------
+getSpec :: Config -> String -> InputFormat -> IO Specification
+getSpec cfg input =
+  \case
+    LowLevel -> do
+      spec <- liftErr $ parseLLIssyFormat input
+      checkSpecification cfg spec >>= liftErr
+      pure spec
+    HighLevel -> do
+      input <- liftErr $ compile input
+      spec <- liftErr $ parseLLIssyFormat input
+      checkSpecification cfg spec >>= liftErr
+      pure spec
+    _ -> error "assert: this function should only be called for Issy/Lissy stuff"
 
-help :: [String]
-help =
-  [ "Usage: issy OPTION* [INPUTFILE | '-']"
-  , ""
-  , " The output is always writen to STDOUT. Errors and logging informations are"
-  , " written to STDERR. If INPUTFILE is '-' the input is read from STDIN."
-  , ""
-  , " Input format:"
-  , "   --issy   : input is a issy spec (default)"
-  , "   --llissy : input is a llissy spec"
-  , "   --rpg    : input is a RPG spec"
-  , "   --tslmt  : input is a TSLMT spec a used by 'tsl2rpg'"
-  , ""
-  , " Modes:"
-  , "   --solve   : solve the input spec (default)"
-  , "   --compile : compiles a issy spec into the llissy format"
-  , "   --to-game : translate the input specification to a game without temporal logic"
-  , "   --print   : pretty print a llissy or RPG spec"
-  , ""
-  , "   --encode-muclp       : encode any spec to a MuCLP system used by 'muval'"
-  , "   --encode-ltlmt       : encode any spec as LTLMT formula used by 'Syntheos'"
-  , "   --encode-sweap       : encode any spec as specification used by 'Sweap'"
-  , "   --encode-llissy      : encode an RPG or TSLMT spec as llissy specifciation"
-  , "   --encode-tslmt       : encode an RPG spec as TSLMT formula"
-  , ""
-  , "   --version : returns the version of Issy"
-  , ""
-  , " Logging:"
-  , "   --quiet    : no logging at all"
-  , "   --info     : enable standard log messages (default)"
-  , "   --detailed : enable detailed log messages including sub-steps"
-  , "   --verbose  : log almost everything, including SMT queries"
-  , ""
-  , "  --stats-to-stdout : write statistics to STDOUT (default: as log message)"
-  , ""
-  , ""
-  , " Formula translation:"
-  , "   --pruning LEVEL"
-  , "         0 : monitor based pruning disabled (default)"
-  , "         1 : monitor based pruning without deduction rules and low propagation"
-  , "         2 : monitor based pruning with deduction rules and normal propagation"
-  , "         3 : monitor based pruning with precise deduction and high propagation"
-  , ""
-  , " Game solving:"
-  , "   --accel TYPE"
-  , "       no   : acceleration disabled"
-  , "       attr : enable only attractor acceleration (default)"
-  , "       full : enable additionally Büchi and parity acceleration"
-  , ""
-  , "   --accel-attr TYPE"
-  , "       polycomp     : compositional-polyhedra-based acceleration (default)"
-  , "       polycomp-ext : compositional-polyhedra-based acceleration and with nesting"
-  , "       geom         : geometric acceleration with invariant iteration"
-  , "       unint        : acceleration with uninterpreted lemmas"
-  , "       unint-ext    : acceleration with uninterpreted lemmas and nesting"
-  , ""
-  , "   --accel-difficulty TYPE"
-  , "       easy   : stick to very local acceleration with simple arguments"
-  , "       medium : go to elaborated accleration argument over time but stay reasonable (default)"
-  , "       hard   : use everything that is possible, this will create signifcant overhead"
-  , ""
-  , "   --enable-summaries : enable computation of enforcement summaries"
-  , ""
-  , "   --remove-rpgs : translate RPGs to symbolic games befor solving (experimental)"
-  , ""
-  , " Synthesis:"
-  , "   --synt         : generate program if spec is realizable (default: disabled)"
-  , ""
-  , " External tools:"
-  , "   When some of these tools are needed depends on the other options. Note that"
-  , "   they are NEVER needed for COMPILATION ONLY with --compile"
-  , ""
-  , "   --caller-z3 CMD    : path or command for z3"
-  , "                          needed : always"
-  , "                          default: 'z3'"
-  , "   --caller-aut CMD   : path or command for Spot's ltl2tgba"
-  , "                          needed : if temporal formula appear in the specification"
-  , "                          default: 'ltl2tgba'"
-  , "   --caller-muval CMD : path or command that calls coars MuVal with a timeout"
-  , "                        as argument and the input on STDIN"
-  , "                          needed : for --pruning 2 and --pruning 3"
-  , "                          default: 'call-muval.sh'"
-  , "   --caller-chcmx CMD : path or command that calls a moddified version of coars"
-  , "                        CHCMax with a timeout as argument and the input on STDIN"
-  , "                          needed : for --pruning 3 and --accel geom-chc"
-  , "                          default: 'call-maxsat.sh'"
-  ]
+printRes :: Config -> (Bool, Stats, Maybe (IO String)) -> IO String
+printRes conf (res, stats, printProg) = do
+  printStats conf stats
+  let resStr
+        | res = "Realizable"
+        | otherwise = "Unrealizable"
+  progStr <- maybe (pure "") (fmap ('\n' :)) printProg
+  pure $ resStr ++ progStr
+
+liftErr :: Either String b -> IO b
+liftErr res =
+  case res of
+    Left err -> die err
+    Right res -> return res
+---------------------------------------------------------------------------------------------------
