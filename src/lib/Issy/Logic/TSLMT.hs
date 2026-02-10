@@ -36,12 +36,12 @@ import Issy.Logic.Temporal (Formula(..))
 -- | TSLMT is represented with temporal logic formulas 'Formula' where the atomic terms
 -- are predicates and updates.
 data Atom
-  = Predicate Term
-  -- ^ predicates in TSLMT are simple first-order logic predicates without quantifiers
-  | Update Symbol Term
+  = Update Symbol Term
   -- ^ updates of an variable by a term, i.e. the variable
   -- should be assigned (for the next time-step)
   -- the current value of the update term
+  | Predicate Term
+  -- ^ predicates in TSLMT are simple first-order logic predicates without quantifiers
   deriving (Eq, Ord, Show)
 
 -- | All predicates that are present in the formula.
