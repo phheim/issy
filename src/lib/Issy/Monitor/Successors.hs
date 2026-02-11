@@ -114,7 +114,6 @@ computeBranching ::
   -> IO (Trans [(Term, [(Bool, Symbol, Term)], ExpansionState)])
 computeBranching cfg vars hasUpd preds = go
   where
-    -- TODO: can constr be false?
     go constr st =
       case pickFreeSt st of
         Just p -> do

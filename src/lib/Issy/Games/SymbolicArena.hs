@@ -312,7 +312,7 @@ simplifyArena :: Config -> Arena -> IO Arena
 simplifyArena cfg arena = do
   let filt mp = Map.filter (/= FOL.false) <$> mapM (SMT.simplify cfg) mp
   newDom <- filt (aDomain arena)
-  let newTransRel = Map.map (Map.filter (/= FOL.false)) $ transRel arena -- TODO: Apply light simplification!
+  let newTransRel = Map.map (Map.filter (/= FOL.false)) $ transRel arena
   arena <- pure $ arena {aDomain = newDom, transRel = newTransRel}
   let newPredRel =
         Map.mapWithKey (\l' -> Set.filter (\l -> trans arena l l' /= FOL.false)) (predRel arena)

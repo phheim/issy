@@ -89,8 +89,9 @@ encodeSafety arena init safes =
                    [safePred loc, cpre Sys arena (SymSt.symSt (locations arena) safePred) loc]
             else FOL.false
     safePred loc = FOL.unintFunc (safePredName loc) FOL.SBool states
-    safePredName loc = prefix ++ "_" ++ locName arena loc -- TODO: guarnatee uniqueness??!
+    safePredName loc = prefix ++ "_" ++ show (locNum ! loc) ++ "_" ++ locName arena loc
     prefix = FOL.uniquePrefix "Pred" (usedSymbols arena)
+    locNum = Map.fromList $ zip (locationL arena) [(0 :: Integer) ..]
     states = map (\v -> (v, Vars.sortOf (vars arena) v)) $ Vars.stateVarL $ vars arena
 
 encodeReach :: Arena -> Loc -> Set Loc -> FPSystem
@@ -104,8 +105,9 @@ encodeReach arena init reachs =
             else FOL.orf
                    [reachPred loc, cpre Sys arena (SymSt.symSt (locations arena) reachPred) loc]
     reachPred loc = FOL.unintFunc (reachPredName loc) FOL.SBool states
-    reachPredName loc = prefix ++ "_" ++ locName arena loc -- TODO: guarnatee uniqueness??!
+    reachPredName loc = prefix ++ "_" ++ show (locNum ! loc) ++ "_" ++ locName arena loc
     prefix = FOL.uniquePrefix "Pred" (usedSymbols arena)
+    locNum = Map.fromList $ zip (locationL arena) [(0 :: Integer) ..]
     states = map (\v -> (v, Vars.sortOf (vars arena) v)) $ Vars.stateVarL $ vars arena
 
 encodeBuechi :: Arena -> Loc -> Set Loc -> FPSystem

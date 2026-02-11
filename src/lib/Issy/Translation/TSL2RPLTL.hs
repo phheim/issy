@@ -95,7 +95,6 @@ isPairwiseDisjoint :: Config -> [Term] -> IO Bool
 isPairwiseDisjoint conf updTerms =
   SMT.unsat conf $ FOL.orf $ map (uncurry FOL.equal) $ pairwise updTerms
 
---TODO: Move to utils.extra
 pairwise :: [a] -> [(a, a)]
 pairwise =
   \case

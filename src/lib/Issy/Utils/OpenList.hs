@@ -30,7 +30,7 @@ import qualified Data.Set as Set
 -- | An open-list over types that implements 'Ord'. The list is a FIFO queue for new elements.
 -- Elements that are already queue are ignored, i.e. each element appears at most once.
 newtype OpenList a =
-  OpenList ([a], Set a) -- TODO: Use the Queue instead of a list here for performance
+  OpenList ([a], Set a)
   deriving (Eq, Ord, Show)
 
 -- | The empty open-list
@@ -52,11 +52,11 @@ pushOne new ol = Set.singleton new `push` ol
 push :: Ord a => Set a -> OpenList a -> OpenList a
 push new (OpenList (list, set)) =
   let reallyNew = new `Set.difference` set
-   in OpenList (list ++ Set.toList reallyNew, set `Set.union` reallyNew) -- TODO make better order
+   in OpenList (list ++ Set.toList reallyNew, set `Set.union` reallyNew)
 
 -- | Add a list of elements to the open-list in some undefined order
 pushList :: Ord a => [a] -> OpenList a -> OpenList a
-pushList = push . Set.fromList -- TODO make better order
+pushList = push . Set.fromList
 
 -- | Creates an open-list from a set of elements
 fromSet :: Ord a => Set a -> OpenList a

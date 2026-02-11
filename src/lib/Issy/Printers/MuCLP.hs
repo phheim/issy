@@ -85,7 +85,7 @@ encTermF (qpref, qdepth, bvars) funarg =
           | otherwise ->
             case args of
               [c, t, e] -> rec $ FOL.orf [FOL.andf [c, t], FOL.andf [FOL.neg c, e]]
-              _ -> error "TODO do this better!"
+              _ -> error "assert: 'ite' should have exactly three arguments"
         f
           | f `elem` [FOL.FMul, FOL.FEq, FOL.FLt, FOL.FLte] -> binOp (funcToString f) args
           | otherwise -> error (funcToString f ++ " not supported yet")
@@ -120,7 +120,6 @@ encTermF (qpref, qdepth, bvars) funarg =
         [o1, o2] -> "(" ++ recT o1 ++ " " ++ op ++ " " ++ recT o2 ++ ")"
         _ -> error (op ++ "is a binary operator")
 
--- TODO: duplicate in Monitor.Fixpoints
 encOp :: (a -> String) -> String -> String -> [a] -> String
 encOp encA op neut =
   \case
@@ -128,7 +127,6 @@ encOp encA op neut =
     [x] -> "(" ++ encA x ++ ")"
     x:xr -> "(" ++ encA x ++ " " ++ op ++ " " ++ encOp encA op neut xr ++ ")"
 
--- TODO: duplicate in Monitor.Fixpoints
 encConst :: Bool -> Constant -> String
 encConst funarg =
   \case
@@ -148,7 +146,6 @@ encConst funarg =
         '.':sr -> '.' : sr
         c:sr -> c : addDot sr
 
--- TODO: duplicate in Monitor.Fixpoints
 encSort :: Sort -> String
 encSort =
   \case
