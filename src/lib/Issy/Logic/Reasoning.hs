@@ -18,6 +18,7 @@ module Issy.Logic.Reasoning
   ) where
 
 ---------------------------------------------------------------------------------------------------
+import qualified Data.List as List (nub)
 import qualified Data.Map as Map
 import Data.Map.Strict (Map)
 import Data.Set (Set)
@@ -39,8 +40,9 @@ import Issy.Utils.Logging
 --
 -- The usual scenario is that pre := exists V. t.
 -- Both 'Term's should be free of uninterpreted functions.
-skolemize :: Config -> [(Symbol, Sort)] -> Term -> Term -> IO (Map Symbol Term)
-skolemize conf vars pre term
+-- It is possible to provide hints for possible skolem functions for the variables.
+skolemize :: Config -> [(Symbol, Sort)] -> Map Symbol [Term] -> Term -> Term -> IO (Map Symbol Term)
+skolemize conf vars eqHints pre term
   | any isSkolem (FOL.frees pre) = error "assert: precondition should not have skolem variables"
   | not (any isSkolem (FOL.frees term)) = pure Map.empty
   | otherwise = do
@@ -50,7 +52,7 @@ skolemize conf vars pre term
     lgd conf ["Term", SMTLib.toString term]
     pre <- SMT.simplify conf pre
     term <- SMT.simplify conf term
-    (term, skolemEqs) <- eqElim conf vars pre term
+    (term, skolemEqs) <- eqElim conf vars eqHints pre term
     skolemDirs <- skolemDirect conf vars pre term
     pure $ Map.fromList $ skolemEqs ++ skolemDirs
   where
@@ -82,14 +84,15 @@ skolemDirect conf vars pre term
     otherVars = filter (not . isSkolem . fst) $ Map.toList $ FOL.bindings $ FOL.impl pre term
     skolem v s = FOL.unintFunc (prefix ++ v) s otherVars
 
-eqElim :: Config -> [(Symbol, Sort)] -> Term -> Term -> IO (Term, [(Symbol, Term)])
-eqElim conf vars pre term = go term [] vars
+eqElim ::
+     Config -> [(Symbol, Sort)] -> Map Symbol [Term] -> Term -> Term -> IO (Term, [(Symbol, Term)])
+eqElim conf vars eqHints pre term = go term [] vars
   where
     go term skolems [] = pure (term, skolems)
     go term skolems ((var, sort):vr)
       | var `notElem` FOL.frees term = go term ((var, FOL.var var sort) : skolems) vr
       | otherwise = do
-        sk <- tryEqElim conf vars pre term var
+        sk <- tryEqElim conf eqHints vars pre term var
         case sk of
           Nothing -> go term skolems vr
           Just sk -> do
@@ -98,9 +101,11 @@ eqElim conf vars pre term = go term [] vars
 
 -- | try to eliminate skolem  functions based on equalities found in the
 -- condition
-tryEqElim :: Config -> [(Symbol, Sort)] -> Term -> Term -> Symbol -> IO (Maybe Term)
-tryEqElim conf vars pre term var = do
-  let equals = filter (not . any isSkolem . FOL.frees) $ Set.toList $ equalitiesFor var term
+tryEqElim ::
+     Config -> Map Symbol [Term] -> [(Symbol, Sort)] -> Term -> Term -> Symbol -> IO (Maybe Term)
+tryEqElim conf eqHints vars pre term var = do
+  let eqDerived = filter (not . any isSkolem . FOL.frees) $ Set.toList $ equalitiesFor var term
+  let equals = List.nub $ eqDerived ++ Map.findWithDefault [] var eqHints
   lgd conf ["For", var, "use equalties", strL SMTLib.toString equals]
   res <- go pre equals
   case res of

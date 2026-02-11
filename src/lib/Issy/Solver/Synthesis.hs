@@ -310,7 +310,7 @@ extractPG conf locVar =
       pure $ Sequence $ copyVarDecs ++ [loop]
     SyBoSummary sum -> do
       lgd conf ["Skolemize", SMTLib.toString (metaCond sum)]
-      skolems <- skolemize conf (metaVars sum) (preCond sum) (metaCond sum)
+      skolems <- skolemize conf (metaVars sum) Map.empty (preCond sum) (metaCond sum)
       let metaDec = map (uncurry Declare) $ metaVars sum
       let metaCopy = map (\(v, _) -> Assign v (skolems ! v)) $ metaVars sum
       subProg <- extractPG conf locVar $ subProg sum

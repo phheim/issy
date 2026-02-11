@@ -458,6 +458,11 @@ syntCPre ::
 syntCPre conf arena locVar toLoc loc cond targ = do
   lgd conf ["Synthesize in", locName arena loc, "on", SymSt.toString (locName arena) targ]
   let vs = variables arena
+  let transTerms = map (trans arena loc) $ succL arena loc
+  let eqHints =
+        Map.fromSet
+          (\v -> Set.toList (Set.unions (map (FOLR.equalitiesFor v) transTerms)))
+          (Vars.stateVars' vs)
   let preCond = FOL.andf [validInput arena loc, cond, domain arena loc]
   let postCond =
         FOL.orfL (succL arena loc) $ \loc' ->
@@ -468,7 +473,7 @@ syntCPre conf arena locVar toLoc loc cond targ = do
             , Vars.primeT vs (SymSt.get targ loc')
             ]
   let skolemVars = (locVar, FOL.SInt) : map (\v -> (v, Vars.sortOf vs v)) (Vars.stateVarL' vs)
-  skolems <- FOLR.skolemize conf skolemVars preCond postCond
+  skolems <- FOLR.skolemize conf skolemVars eqHints preCond postCond
   pure
     $ map
         (\(var, _) ->
