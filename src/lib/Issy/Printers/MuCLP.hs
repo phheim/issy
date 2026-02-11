@@ -76,6 +76,7 @@ encTermF (qpref, qdepth, bvars) funarg =
         FOL.FAnd -> encOp rec "/\\" "true" args
         FOL.FNot -> "(not " ++ rec (head args) ++ ")"
         FOL.FAdd -> encOp rec "+" "0" args
+        FOL.FMul -> encOp rec "*" "1" args
         FOL.FDivReal ->
           case args of
             [Const (CInt c1), Const (CInt c2)] -> encConst funarg (CReal (c1 % c2))
@@ -87,7 +88,7 @@ encTermF (qpref, qdepth, bvars) funarg =
               [c, t, e] -> rec $ FOL.orf [FOL.andf [c, t], FOL.andf [FOL.neg c, e]]
               _ -> error "assert: 'ite' should have exactly three arguments"
         f
-          | f `elem` [FOL.FMul, FOL.FEq, FOL.FLt, FOL.FLte] -> binOp (funcToString f) args
+          | f `elem` [FOL.FEq, FOL.FLt, FOL.FLte] -> binOp (funcToString f) args
           | otherwise -> error (funcToString f ++ " not supported yet")
     Quant Exists sort term ->
       "(exists ( "
