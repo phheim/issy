@@ -118,7 +118,7 @@ import Issy.Specification (Specification, checkSpecification, specFromRPLTL, spe
 ---------------------------------------------------------------------------------------------------
 -- | Current version of issy.
 issyVersion :: Word
-issyVersion = 2
+issyVersion = 3
 
 ---------------------------------------------------------------------------------------------------
 -- Wrappers

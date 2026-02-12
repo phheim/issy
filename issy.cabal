@@ -1,6 +1,6 @@
 cabal-version:      3.0
 name:               issy
-version:            2.0.0.0
+version:            3.0.0.0
 license:            Unlicense
 license-file:       LICENSE
 author:             Philippe Heim
