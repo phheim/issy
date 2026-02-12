@@ -31,6 +31,7 @@ COPY build-files/src/ src/
 COPY build-files/stack.yaml stack.yaml
 COPY build-files/issy.cabal issy.cabal
 COPY build-files/Makefile Makefile
+COPY build-files/LICENSE LICENSE
 RUN source /home/user/.ghcup/env \
  && sed -i 's/^-----optl-static/    -optl-static/' issy.cabal \
  && make

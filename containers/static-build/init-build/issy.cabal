@@ -1,7 +1,7 @@
-name:                issy
-version:             1.0.0.0
-build-type:          Simple
-cabal-version:       >=1.10
+cabal-version:      3.0
+name:               issy
+version:            3.0.0.0
+build-type:         Simple
 
 library
 
@@ -13,7 +13,6 @@ library
     , containers
     , process
     , hanoi
-    , finite
     , tsl-parser
 
   exposed-modules:

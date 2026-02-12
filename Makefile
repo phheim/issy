@@ -37,6 +37,7 @@ static:
 	cp stack.yaml ${STATIC_DIR}/build-files/
 	cp issy.cabal ${STATIC_DIR}/build-files/
 	cp Makefile ${STATIC_DIR}/build-files/
+	cp LICENSE ${STATIC_DIR}/build-files/
 	podman build -t issy-static-builder ${STATIC_DIR}/
 	@rm -rf ${STATIC_DIR}/build-files/
 	${STATIC_DIR}/extract-binary.sh
