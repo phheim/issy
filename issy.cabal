@@ -1,8 +1,10 @@
-name:                issy
-version:             2.0.0.0
-license:             PublicDomain
-build-type:          Simple
-cabal-version:       >=1.10
+cabal-version:      3.0
+name:               issy
+version:            2.0.0.0
+license:            Unlicense
+license-file:       LICENSE
+author:             Philippe Heim
+build-type:         Simple
 
 library
 
