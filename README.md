@@ -11,11 +11,11 @@ For our container setups, you will need to build and run OCI containers. In our 
 
 ### Container Setup (*RECOMMENDED FOR BEGINNERS*)
 
-The first setup is for you if you just want to get Issy quickly. It includes pre-built binaries for Issy, Z3, and Spot but not MuVal. To build the container image, run
+The first setup is for you if you just want to get Issy quickly. It includes pre-built binaries for Issy and Z3. It will build Spot but not MuVal. To build the container image, run
 ```
-    podman build -t issy-runner containers/version-2/runner-simple
+    podman build -t issy-runner containers/version2/runner-simple
 ```
-This should take around **3 minutes**. 
+This should take around **30 minutes**.
 Note that if you want you can also use an older version of Issy by replacing `version-2` by `version-1`.
 
 If you want to use the container, either use our call script
@@ -32,7 +32,7 @@ The usage and arguments are practically the same as with the Issy binary. The on
 ```
     podman build -t issy-runner containers/version-2/runner-full
 ```
-Note that this will take **around 1 hour** and will use significantly more disk space.
+Note that this will take **around 1.5 hour** and will use significantly more disk space.
 Similarly to above, if you want you can also use an older version of Issy by replacing `version-2` by `version-1`.
 
 ### Build from Source
