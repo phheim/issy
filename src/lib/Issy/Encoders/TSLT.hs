@@ -36,8 +36,12 @@ sortOf = Vars.sortOf . RPG.variables
 encConst :: Bool -> Constant -> String
 encConst upd =
   \case
-    CInt n -> "i" ++ show n ++ "()"
-    CReal r -> "r" ++ showFixed True (fromRational r :: Nano) ++ "()"
+    CInt n
+      | n < 0 -> "(sub i0() " ++ encConst upd (CInt (-n)) ++ ")"
+      | otherwise -> "i" ++ show n ++ "()"
+    CReal r
+      | r < 0 -> "(sub r0.0() " ++ encConst upd (CReal (-r)) ++ ")"
+      | otherwise -> "r" ++ showFixed True (fromRational r :: Nano) ++ "()"
     CBool True
       | upd -> "i1()"
       | otherwise -> "true"
