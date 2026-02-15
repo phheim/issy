@@ -44,7 +44,8 @@ import Issy.Utils.Logging
 skolemize :: Config -> [(Symbol, Sort)] -> Map Symbol [Term] -> Term -> Term -> IO (Map Symbol Term)
 skolemize conf vars eqHints pre term
   | any isSkolem (FOL.frees pre) = error "assert: precondition should not have skolem variables"
-  | not (any isSkolem (FOL.frees term)) = pure Map.empty
+  | not (any isSkolem (FOL.frees term)) =
+    pure $ Map.fromList $ map (\(var, sort) -> (var, FOL.var var sort)) vars
   | otherwise = do
     conf <- pure $ setName "Skolemize" conf
     lgd conf ["Skolem vars", strL fst vars]
