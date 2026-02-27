@@ -18,7 +18,7 @@ module Issy.Logic.Reasoning
   ) where
 
 ---------------------------------------------------------------------------------------------------
-import qualified Data.List as List (nub)
+import qualified Data.List as List (isPrefixOf, nub)
 import qualified Data.Map as Map
 import Data.Map.Strict (Map)
 import Data.Set (Set)
@@ -55,9 +55,17 @@ skolemize conf vars eqHints pre term
     term <- SMT.simplify conf term
     (term, skolemEqs) <- eqElim conf vars eqHints pre term
     skolemDirs <- skolemDirect conf vars pre term
-    pure $ Map.fromList $ skolemEqs ++ skolemDirs
+    pure $ complete $ Map.fromList $ skolemEqs ++ skolemDirs
   where
     isSkolem v = any ((v ==) . fst) vars
+    complete mp =
+      foldl
+        (\mp (var, sort) ->
+           if var `Map.member` mp
+             then mp
+             else Map.insert var (FOL.var var sort) mp)
+        mp
+        vars
 
 skolemDirect :: Config -> [(Symbol, Sort)] -> Term -> Term -> IO [(Symbol, Term)]
 skolemDirect conf vars pre term
@@ -71,9 +79,9 @@ skolemDirect conf vars pre term
     case model of
       Nothing -> error "assert: precondition was not proper"
       Just model -> do
-        model <- pure $ FOL.modelToMap model
-        lgd conf ["Skolem model", strM id SMTLib.toString model]
-        pure $ Map.toList model
+        model <- pure $ map unskolem $ Map.toList $ FOL.modelToMap model
+        lgd conf ["Skolem model", strL (strP id SMTLib.toString) model]
+        pure model
   where
     prefix =
       FOL.uniquePrefix "skolem_func_"
@@ -84,14 +92,20 @@ skolemDirect conf vars pre term
         --
     otherVars = filter (not . isSkolem . fst) $ Map.toList $ FOL.bindings $ FOL.impl pre term
     skolem v s = FOL.unintFunc (prefix ++ v) s otherVars
+        --
+    unskolem (f, t)
+      | not (prefix `List.isPrefixOf` f) = error $ "assert: found unkown function " ++ f
+      | otherwise =
+        let v = drop (length prefix) f
+         in (v, FOL.instantiate t (map (uncurry FOL.var) otherVars))
 
 eqElim ::
      Config -> [(Symbol, Sort)] -> Map Symbol [Term] -> Term -> Term -> IO (Term, [(Symbol, Term)])
 eqElim conf vars eqHints pre term = go term [] vars
   where
     go term skolems [] = pure (term, skolems)
-    go term skolems ((var, sort):vr)
-      | var `notElem` FOL.frees term = go term ((var, FOL.var var sort) : skolems) vr
+    go term skolems ((var, _):vr)
+      | var `notElem` FOL.frees term = go term skolems vr
       | otherwise = do
         sk <- tryEqElim conf eqHints vars pre term var
         case sk of

@@ -101,6 +101,7 @@ module Issy.Logic.FOL
   , setSymbolTo
   , setTerm
   , replaceUF
+  , instantiate
   , pushdownQE
   , removeDangling
   , -- Model handling
@@ -802,7 +803,7 @@ mapTerm m =
         (CustomF v sargs starg, args) ->
           case m v (SFunc sargs starg) of
             Nothing -> Func f args
-            Just funInst -> foldl betaReduce funInst args
+            Just funInst -> instantiate funInst args
         (FAnd, fs) -> andf fs
         (FOr, fs) -> orf fs
         (FNot, [f]) -> neg f
@@ -824,6 +825,12 @@ mapTerm m =
     Lambda t f -> Lambda t (mapTerm m f)
     QVar n -> QVar n
     Const c -> Const c
+
+-- | Apply arguments to a function described by lambda terms. If the
+-- term is not a nested lambda term with at least as many lambdas
+-- as arguments this method is undefined.
+instantiate :: Term -> [Term] -> Term
+instantiate = foldl betaReduce
 
 betaReduce :: Term -> Term -> Term
 betaReduce func arg =
