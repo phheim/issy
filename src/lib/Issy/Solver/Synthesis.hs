@@ -231,13 +231,16 @@ symbolsBT =
     Return -> Set.empty
     SubProg prog -> symbols prog
 
-getVars :: SyBo -> Variables
-getVars =
+getArena :: SyBo -> Arena
+getArena =
   \case
     SyBoNone -> error "assert: unreachable code"
-    SyBoNorm arena _ -> vars arena
+    SyBoNorm arena _ -> arena
     SyBoLoop _ _ -> error "assert: as this is meant to be called, this is proably bad"
     SyBoSummary _ -> error "assert: as this is meant to be called, this is proably bad"
+
+getVars :: SyBo -> Variables
+getVars = vars . getArena
 
 ---------------------------------------------------------------------------------------------------
 -- Programs
@@ -287,9 +290,18 @@ extractProg :: Config -> Loc -> SyBo -> IO (Variables, Prog)
 extractProg conf init sybo = do
   conf <- pure $ setName "Synth" conf
   let locVar = FOL.uniquePrefix "prog_counter" $ symbols sybo
+  initAssign <- extractInit conf init sybo
   prog <- extractPG conf locVar sybo
-  prog <- pure $ Sequence [Declare locVar FOL.SInt, assign locVar FOL.SInt (toLoc init), prog]
+  prog <-
+    pure $ Sequence [Declare locVar FOL.SInt, assign locVar FOL.SInt (toLoc init), initAssign, prog]
   pure (getVars sybo, prog)
+
+extractInit :: Config -> Loc -> SyBo -> IO Prog
+extractInit conf init sybo = do
+  let arena = getArena sybo
+  model <- SMT.satModel conf $ dom arena init
+  model <- pure $ fromMaybe (error "assert: should not happen as game would be blocking") model
+  pure $ PAssign $ map (\(v, t) -> (v, sortOf arena v, t)) $ Map.toList $ FOL.modelToMap model
 
 extractPG :: Config -> Symbol -> SyBo -> IO Prog
 extractPG conf locVar =
@@ -383,10 +395,7 @@ makeHead vars =
 printStmt :: Prog -> [String]
 printStmt =
   \case
-    Declare var FOL.SInt -> [decl var FOL.SInt "0"]
-    Declare var FOL.SReal -> [decl var FOL.SReal "0.0"]
-    Declare var FOL.SBool -> [decl var FOL.SBool "false"]
-    Declare _ _ -> error "assert: this should really not be reached"
+    Declare var sort -> [toCType sort ++ " " ++ var ++ ";"]
     InfLoop prog -> "for(;;)" : indent (printStmt prog)
     Cond term prog -> ("if (" ++ printTerm term ++ ")") : indent (printStmt prog)
     Sequence prog -> ["{"] ++ indent (concatMap printStmt prog) ++ ["}"]
@@ -406,12 +415,16 @@ printStmt =
     Abort -> ["abort();"]
     Read -> ["read_inputs();"]
   where
-    declCA pref (v, s, t) = decl (pref ++ v) s (printTerm t)
-    decl v FOL.SInt t = "int " ++ asgn v t
-    decl v FOL.SReal t = "double " ++ asgn v t
-    decl v FOL.SBool t = "bool " ++ asgn v t
-    decl _ _ _ = error "assert: this should really not be reached"
+    declCA pref (v, s, t) = toCType s ++ " " ++ pref ++ v ++ " = " ++ printTerm t ++ ";"
     asgn v t = v ++ " = " ++ t ++ ";"
+
+toCType :: FOL.Sort -> String
+toCType =
+  \case
+    FOL.SInt -> "int"
+    FOL.SReal -> "double"
+    FOL.SBool -> "bool"
+    _ -> error "assert: this should really not be reached"
 
 indent :: [String] -> [String]
 indent = map ("  " ++)
