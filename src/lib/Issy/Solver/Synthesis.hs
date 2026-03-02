@@ -266,8 +266,12 @@ data Prog
   -- ^ A condition for a program part.
   | Sequence [Prog]
   -- ^ Sequence of program parts.
-  | Assign Symbol Term
-  -- ^ Assignment to a variable.
+  | PAssign [(Symbol, Sort, Term)]
+  -- ^ Parallel assignment to variables.
+
+-- | Create a simple sequential assign.
+assign :: Symbol -> Sort -> Term -> Prog
+assign var sort term = PAssign [(var, sort, term)]
 
 -- | Tie together 'extractProg' and 'printProg' to compute a program and print
 -- it as a C program.
@@ -284,7 +288,7 @@ extractProg conf init sybo = do
   conf <- pure $ setName "Synth" conf
   let locVar = FOL.uniquePrefix "prog_counter" $ symbols sybo
   prog <- extractPG conf locVar sybo
-  prog <- pure $ Sequence [Declare locVar FOL.SInt, Assign locVar (toLoc init), prog]
+  prog <- pure $ Sequence [Declare locVar FOL.SInt, assign locVar FOL.SInt (toLoc init), prog]
   pure (getVars sybo, prog)
 
 extractPG :: Config -> Symbol -> SyBo -> IO Prog
@@ -295,13 +299,14 @@ extractPG conf locVar =
       trans <- mapM (extractTT conf locVar arena Nothing) $ reverse trans
       pure $ InfLoop $ Sequence $ trans ++ [Abort]
     SyBoLoop arena prog -> do
-      let loopBack = Cond (isLoc locVar (loopLoc' prog)) $ Assign locVar (toLoc (loopLoc prog))
+      let loopBack =
+            Cond (isLoc locVar (loopLoc' prog)) $ assign locVar FOL.SInt (toLoc (loopLoc prog))
       let copyVarDecs =
             map (\v -> Declare (loopPrime prog ++ v) (sortOf arena v)) $ Vars.stateVarL $ vars arena
       let copyVars =
             Cond (isLoc locVar (loopLoc prog))
-              $ Sequence
-              $ map (\v -> Assign (loopPrime prog ++ v) (Vars.mk (vars arena) v))
+              $ PAssign
+              $ map (\v -> (loopPrime prog ++ v, sortOf arena v, Vars.mk (vars arena) v))
               $ Vars.stateVarL
               $ vars arena
       let mapLoc l = Map.findWithDefault (error "assert: unreachable code") l $ loopToMain prog
@@ -312,9 +317,9 @@ extractPG conf locVar =
       lgd conf ["Skolemize", SMTLib.toString (metaCond sum)]
       skolems <- skolemize conf (metaVars sum) Map.empty (preCond sum) (metaCond sum)
       let metaDec = map (uncurry Declare) $ metaVars sum
-      let metaCopy = map (\(v, _) -> Assign v (skolems ! v)) $ metaVars sum
+      let metaCopy = PAssign $ map (\(v, s) -> (v, s, skolems ! v)) $ metaVars sum
       subProg <- extractPG conf locVar $ subProg sum
-      pure $ Sequence $ metaDec ++ metaCopy ++ [subProg]
+      pure $ Sequence $ metaDec ++ [metaCopy, subProg]
 
 extractTT :: Config -> Symbol -> Arena -> Maybe (Loc -> Loc) -> (Loc, Term, BookType) -> IO Prog
 extractTT conf locVar arena mapLoc (loc, cond, pt) = do
@@ -327,14 +332,24 @@ extractTT conf locVar arena mapLoc (loc, cond, pt) = do
         Return ->
           case mapLoc of
             Nothing -> pure $ condStmt Break
-            Just mapLoc -> pure $ condStmt $ Sequence [Assign locVar (toLoc (mapLoc loc)), Break]
+            Just mapLoc ->
+              pure $ condStmt $ Sequence [assign locVar FOL.SInt (toLoc (mapLoc loc)), Break]
         SubProg sub -> do
           sub <- extractPG conf locVar sub
           pure $ condStmt $ Sequence [sub, Continue]
         Enforce target -> do
           assigns <- syntCPre conf arena locVar Locs.toNumber loc cond target
-          assigns <- pure $ map (uncurry Assign) $ filter (uncurry isProperAssign) assigns
-          pure $ condStmt $ Sequence $ [Read] ++ assigns ++ [Continue]
+          assigns <-
+            pure
+              $ PAssign
+              $ map (\(v, t) -> (v, varSort locVar arena v, t))
+              $ filter (uncurry isProperAssign) assigns
+          pure $ condStmt $ Sequence [Read, assigns, Continue]
+
+varSort :: Symbol -> Arena -> Symbol -> Sort
+varSort locVar arena var
+  | locVar == var = FOL.SInt
+  | otherwise = sortOf arena var
 
 isLoc :: Symbol -> Loc -> Term
 isLoc locVar l = FOL.var locVar FOL.SInt `FOL.equal` toLoc l
@@ -368,18 +383,35 @@ makeHead vars =
 printStmt :: Prog -> [String]
 printStmt =
   \case
-    Declare var FOL.SInt -> ["int " ++ var ++ " = 0;"]
-    Declare var FOL.SReal -> ["double " ++ var ++ " = 0.0;"]
-    Declare var FOL.SBool -> ["bool " ++ var ++ " = false;"]
+    Declare var FOL.SInt -> [decl var FOL.SInt "0"]
+    Declare var FOL.SReal -> [decl var FOL.SReal "0.0"]
+    Declare var FOL.SBool -> [decl var FOL.SBool "false"]
     Declare _ _ -> error "assert: this should really not be reached"
     InfLoop prog -> "for(;;)" : indent (printStmt prog)
     Cond term prog -> ("if (" ++ printTerm term ++ ")") : indent (printStmt prog)
     Sequence prog -> ["{"] ++ indent (concatMap printStmt prog) ++ ["}"]
-    Assign var term -> [var ++ " = " ++ printTerm term ++ ";"]
+    PAssign [] -> [";"]
+    PAssign [(var, _, term)] -> [asgn var (printTerm term)]
+    PAssign assigns ->
+      let copyPrefix =
+            FOL.uniquePrefix "temp_copy_"
+              $ Set.unions
+              $ map (\(v, _, t) -> v `Set.insert` FOL.symbols t) assigns
+       in ["{"]
+            ++ map (declCA copyPrefix) assigns
+            ++ map (\(v, _, _) -> asgn v (copyPrefix ++ v)) assigns
+            ++ ["}"]
     Break -> ["break;"]
     Continue -> ["continue;"]
     Abort -> ["abort();"]
     Read -> ["read_inputs();"]
+  where
+    declCA pref (v, s, t) = decl (pref ++ v) s (printTerm t)
+    decl v FOL.SInt t = "int " ++ asgn v t
+    decl v FOL.SReal t = "double " ++ asgn v t
+    decl v FOL.SBool t = "bool " ++ asgn v t
+    decl _ _ _ = error "assert: this should really not be reached"
+    asgn v t = v ++ " = " ++ t ++ ";"
 
 indent :: [String] -> [String]
 indent = map ("  " ++)
