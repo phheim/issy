@@ -32,8 +32,8 @@ module Issy.Solver.Synthesis
   , -- Program
     Prog(..)
   , extractProg
-  , printProg
-  , generateProg
+  , printCProg
+  , generateCProg
   ) where
 
 ---------------------------------------------------------------------------------------------------
@@ -273,10 +273,10 @@ data Prog
 assign :: Symbol -> Sort -> Term -> Prog
 assign var sort term = PAssign [(var, sort, term)]
 
--- | Tie together 'extractProg' and 'printProg' to compute a program and print
+-- | Tie together 'extractProg' and 'printCProg' to compute a program and print
 -- it as a C program.
-generateProg :: Config -> Loc -> SyBo -> IO String
-generateProg conf init sybo = uncurry printProg <$> extractProg conf init sybo
+generateCProg :: Config -> Loc -> SyBo -> IO String
+generateCProg conf init sybo = uncurry printCProg <$> extractProg conf init sybo
 
 ---------------------------------------------------------------------------------------------------
 -- Translation to program
@@ -367,8 +367,8 @@ isProperAssign name =
 -- Printing
 ---------------------------------------------------------------------------------------------------
 -- | Print an abstract program as a C program.
-printProg :: Variables -> Prog -> String
-printProg vars prog =
+printCProg :: Variables -> Prog -> String
+printCProg vars prog =
   unlines $ makeHead vars ++ ["void main() {"] ++ indent (printStmt prog) ++ ["}"]
 
 makeHead :: Variables -> [String]
