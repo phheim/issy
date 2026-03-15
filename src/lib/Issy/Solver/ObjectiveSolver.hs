@@ -274,7 +274,11 @@ solveParity conf solst arena colors init = do
                 -- win on some part of the game
                 -- - Opponent, wins if either it goes into the first subgame and wins there or win in the remaining game
                 -- - Player, winf if it wins in the remaining game
-                let progO = Synt.callOnSt winOp'' progO2 $ Synt.callOnSt remove progOR progO1
+                let progO =
+                      Synt.callOnSt winOp'' progO2
+                        $ Synt.callOnSt remove progOR
+                        $ Synt.callOnSt winOp progO1
+                        $ Synt.fromStayIn conf arena (emptySt arena) full -- Needed to have the right "full arena" context
                 pure
                   $ mkPlSet
                       player
