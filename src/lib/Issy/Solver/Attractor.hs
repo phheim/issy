@@ -127,7 +127,8 @@ enforce :: AttrSt a => Config -> a -> Loc -> IO (Maybe a)
 enforce conf ast l = do
   let old = reach ast `get` l
   lgd conf ["Step in", locName (arena ast) l, "with", SMTLib.toString old]
-  new <- SMT.simplify conf $ FOL.orf [cpre (player ast) (arena ast) (reach ast) l, old]
+  new <- SMT.simplifyStrong conf $ FOL.orf [cpre (player ast) (arena ast) (reach ast) l, old]
+  lgv conf ["Result of strong simplification ", SMTLib.toString new]
   lgd conf ["Compute new", SMTLib.toString new]
   changed <- fmap not $ SMT.valid conf $ new `FOL.impl` old
   lgd conf ["which has changed?", show changed]
@@ -156,7 +157,8 @@ accel conf ast l = do
   lg conf ["Try acceleration in", locName (arena ast) l, "(", show tries, "times)"]
   (acc, progSub) <- accelReach conf tries (player ast) (arena ast) l (reachAccel l ast)
   lg conf ["Accleration formula", SMTLib.toString acc]
-  res <- SMT.simplify conf $ FOL.orf [get (reach ast) l, acc]
+  res <- SMT.simplifyStrong conf $ FOL.orf [get (reach ast) l, acc]
+  lgv conf ["Result of strong simplification ", SMTLib.toString res]
   succ <- not <$> SMT.valid conf (res `FOL.impl` get (reach ast) l)
   lg conf ["Accelerated:", show succ]
   pure
@@ -215,7 +217,8 @@ accelSum conf ast l = do
       extended <- SMT.sat conf $ FOL.andf [sum, FOL.neg (get (reach ast) l)]
       if extended
         then do
-          new <- SMT.simplify conf $ FOL.orf [get (reach ast) l, sum]
+          new <- SMT.simplifyStrong conf $ FOL.orf [get (reach ast) l, sum]
+          lgv conf ["Result of strong simplification ", SMTLib.toString new]
           ast <-
             pure $ markSumApp l $ setProg (Synt.callOn l sum subProg (prog ast)) $ setIn l new ast
           pure (ast, True)
