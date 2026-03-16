@@ -17,6 +17,7 @@ module Issy.Parsers.SMTLib
   , -- Parser
     extractModel
   , parseGoals
+  , parseSimplifierRes
   , -- Components
     parseSort
   , tryParseInt
@@ -103,6 +104,12 @@ parseGoals ty str =
             Left err -> Left err
             Right (f, tr) -> (f :) <$> readGoals tr
 
+-- | Parse the result of an external simplifier.
+parseSimplifierRes :: (Symbol -> Maybe Sort) -> String -> Either String Term
+parseSimplifierRes ty str =
+  case parseTerm ty $ tokenize str of
+    Left err -> Left err
+    Right (f, _) -> Right f
 ---------------------------------------------------------------------------------------------------
 parseTermExpr :: [Token] -> PRes (TermExpr, [Token])
 parseTermExpr =

@@ -111,6 +111,10 @@ help =
   , "                        CHCMax with a timeout as argument and the input on STDIN"
   , "                          needed : for --pruning 3 and --accel geom-chc"
   , "                          default: 'call-maxsat.sh'"
+  , "   --caller-simplifier CMD : path or command that calls an external SMT formula simplifier"
+  , "                             with a timeout as argument and the input on STDIN"
+  , "                             needed : never"
+  , "                             default: 'call-simplifier.sh'"
   ]
 
 shortHelp :: [String]
@@ -346,6 +350,7 @@ configParser = go defaultConfig
         "--caller-aut":arg:ar -> go (cfg {ltl2tgba = arg}) ar
         "--caller-muval":arg:ar -> go (cfg {muvalScript = arg}) ar
         "--caller-chcmx":arg:ar -> go (cfg {chcMaxScript = arg}) ar
+        "--caller-simplifier":arg:ar -> go (cfg {extSimpScript = arg, strongSimplification=True}) ar
         -- Debug
         "--debug":ar -> go (cfg {debug = True}) ar
         -- Experimental

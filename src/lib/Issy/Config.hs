@@ -76,6 +76,8 @@ data Config = Config
   -- ^ Path to script that should be used to call MuVal (part of the coar toolsuite)
   , chcMaxScript :: String
   -- ^ Path to script that should be used to call CHCMax (part of the coar toolsuite)
+  , extSimpScript :: String
+  -- ^ Path to script that should be used to call the symbolic formula simplifier
     --
     -- Fixed constants
     --
@@ -85,6 +87,8 @@ data Config = Config
   -- ^ Fixed timeout for CHCMax calls in seconds.
   , chcTimeout :: Int
   -- ^ Fixed timeout for CHC calls (to z3) in seconds.
+  , extSimpTimeOut :: Int
+  -- ^ Fixed timeout for calls to simplifier in seconds.
   --
   -- Debug
   --
@@ -97,6 +101,8 @@ data Config = Config
   -- ^ translates RPGs to symbolic games before starting the solving. If
   -- this is viable, we might remove the RPG solving part in the long run
   -- By default, this methods should not be used.
+  , strongSimplification :: Bool
+  -- ^ During term simplification additionally calls an external simplifier.
   }
 
 ---------------------------------------------------------------------------------------------------
@@ -131,14 +137,17 @@ defaultConfig =
     , ltl2tgba = "ltl2tgba"
     , muvalScript = "call-muval.sh"
     , chcMaxScript = "call-maxsat.sh"
+    , extSimpScript = "call-simplifier.sh"
     -- Constants
     , chcTimeout = 10
     , muvalTimeOut = 5
     , chcMaxTimeOut = 15
+    , extSimpTimeOut = 10
     -- Debug
     , debug = False
     -- Experimental
     , removeRPGs = False
+    , strongSimplification = False
     }
 
 ---------------------------------------------------------------------------------------------------

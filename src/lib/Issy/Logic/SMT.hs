@@ -22,8 +22,11 @@ module Issy.Logic.SMT
   , -- Simplification
     simplify
   , simplifyUF
+  , simplifyStrong
   , trySimplify
   , trySimplifyUF
+  , trySimplifyStrong
+  , trySimplifyExt
   , -- Max SMT
     optPareto
   , tryOptPareto
@@ -34,15 +37,17 @@ import Data.Map ((!?))
 import Data.Maybe (fromMaybe)
 import qualified Data.Set as Set
 import System.Exit (die)
+import System.Process (readProcessWithExitCode)
 
-import Issy.Config (Config, debug, z3cmd)
+import Issy.Config (Config, debug, z3cmd, strongSimplification, extSimpScript, extSimpTimeOut)
 import Issy.Logic.FOL (Model, Term)
 import qualified Issy.Logic.FOL as FOL
-import qualified Issy.Logic.Polyhedra as Poly (normalize)
+import qualified Issy.Logic.Polyhedra as Poly (normalize, normalizeFast)
 import qualified Issy.Parsers.SMTLib as SMTLib
 import qualified Issy.Printers.SMTLib as SMTLib
 import Issy.Utils.Extra (noTimeout, runTO)
 import Issy.Utils.Logging
+import Issy.Utils.Extra (firstLine)
 
 ---------------------------------------------------------------------------------------------------
 -- SMT Solving
@@ -192,6 +197,34 @@ z3TacticList =
     [t] -> t
     t:tr -> "(and-then " ++ t ++ " " ++ z3TacticList tr ++ ")"
 
+-- | Simplifies a term using SMT tactics possibly followed by applying an external simplifier.
+-- Whether external simplifier is used is determined by conf . 
+-- The given term must be free of uninterpreted functions. The methods might diverge.
+simplifyStrong :: Config -> Term -> IO Term
+simplifyStrong conf = noTimeout . trySimplifyStrong conf Nothing
+
+-- | Like 'simplifyStrong' but with an optional timeout (in seconds) for trySimplify.
+-- The external simplifier is always called with a timeout provided in Config.hs.  
+trySimplifyStrong :: Config -> Maybe Int -> Term -> IO (Maybe Term)
+trySimplifyStrong conf to term
+  | not (strongSimplification conf) = trySimplify conf to term
+  | otherwise = do
+    simpTerm <- trySimplify conf to term
+    case simpTerm of
+      Just simpTerm -> trySimplifyExt conf (extSimpTimeOut conf) simpTerm
+      Nothing -> trySimplifyExt conf (extSimpTimeOut conf) term
+
+trySimplifyExt :: Config -> Int -> Term -> IO (Maybe Term)
+trySimplifyExt conf to f
+  | f == FOL.true || f == FOL.false = pure (Just f)
+  | FOL.ufFree f = do
+      let query = SMTLib.toQuery f
+      callExtSimplifier conf to query $ \res ->
+        case SMTLib.parseSimplifierRes (FOL.bindings f !?) res of
+          Right res -> Just $ Poly.normalizeFast res
+          _ -> Just f
+  | otherwise = pure (Just f)
+
 ---------------------------------------------------------------------------------------------------
 -- Optimal Solving
 ---------------------------------------------------------------------------------------------------
@@ -235,5 +268,15 @@ callz3 conf to query parse = do
       case parse res of
         Just res -> pure (Just res)
         _ -> die $ "z3 returned unexpected: \"" ++ res ++ "\" on \"" ++ query ++ "\""
+
+
+callExtSimplifier :: Config -> Int -> String -> (String -> Maybe a) -> IO (Maybe a)
+callExtSimplifier conf to query parse = do
+  lg conf ["External simplifier running"]
+  lgv conf ["External simplifier query:", query]
+  (_, res, _) <- readProcessWithExitCode (extSimpScript conf) [show to] query
+  lg conf ["External simplifier terminated with", firstLine res]
+  lgv conf ["External simplifier result:", res]
+  pure $ parse res
 ---------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------
