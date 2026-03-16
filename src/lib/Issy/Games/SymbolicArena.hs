@@ -476,6 +476,8 @@ syntCPre conf arena locVar toLoc loc cond targ = do
   skolems <- FOLR.skolemize conf skolemVars eqHints preCond postCond
   when (any ((`Map.notMember` skolems) . fst) skolemVars)
     $ error "assert: found unmapped skolem variable"
+  when (any (\(v, _) -> any (elem v . FOL.frees) skolems) skolemVars)
+    $ error "assert: use skolem variables in skolem function"
   pure
     $ map
         (\(var, _) ->

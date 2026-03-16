@@ -18,6 +18,7 @@ module Issy.Logic.Reasoning
   ) where
 
 ---------------------------------------------------------------------------------------------------
+import Data.Bifunctor (second)
 import qualified Data.List as List (isPrefixOf, nub)
 import qualified Data.Map as Map
 import Data.Map.Strict (Map)
@@ -25,7 +26,7 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 
 import Issy.Config (Config, setName)
-import Issy.Logic.FOL (Function(..), Sort, Symbol, Term(..))
+import Issy.Logic.FOL (Function(..), Sort(..), Symbol, Term(..))
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.SMT as SMT
 import qualified Issy.Printers.SMTLib as SMTLib
@@ -44,8 +45,7 @@ import Issy.Utils.Logging
 skolemize :: Config -> [(Symbol, Sort)] -> Map Symbol [Term] -> Term -> Term -> IO (Map Symbol Term)
 skolemize conf vars eqHints pre term
   | any isSkolem (FOL.frees pre) = error "assert: precondition should not have skolem variables"
-  | not (any isSkolem (FOL.frees term)) =
-    pure $ Map.fromList $ map (\(var, sort) -> (var, FOL.var var sort)) vars
+  | not (any isSkolem (FOL.frees term)) = pure $ Map.fromList $ map (second defaultTerm) vars
   | otherwise = do
     conf <- pure $ setName "Skolemize" conf
     lgd conf ["Skolem vars", strL fst vars]
@@ -63,7 +63,7 @@ skolemize conf vars eqHints pre term
         (\mp (var, sort) ->
            if var `Map.member` mp
              then mp
-             else Map.insert var (FOL.var var sort) mp)
+             else Map.insert var (defaultTerm sort) mp)
         mp
         vars
 
@@ -145,6 +145,14 @@ tryEqElim conf eqHints vars pre term var = do
                 then fmap (FOL.ite condSet eq) <$> go pre eqr
                 else pure $ Just eq
             else go pre eqr
+
+defaultTerm :: Sort -> Term
+defaultTerm =
+  \case
+    SBool -> FOL.boolConst False
+    SInt -> FOL.intConst 0
+    SReal -> FOL.realConst 0
+    SFunc _ _ -> error "assert: higher-order skolem variables should not happen"
 
 -- | Heuristically extract all terms that are set to equal in a given terms to
 -- a given variable. For, example in the term "(x = (y + 1)) && (x > z) (3 = x)",

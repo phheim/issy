@@ -81,7 +81,8 @@ t2Term a =
             else fst a ++ show i
     Quant Forall t f -> "(forall ((" ++ hQwant t f
     Quant Exists t f -> "(exists ((" ++ hQwant t f
-    Lambda t f -> "(lambda ((" ++ hQwant t f --FIXME: This is non-standard!
+    Lambda t f -> "(lambda ((" ++ hQwant t f --Warning: This is non-standard!
+    Func f [] -> funcToString f
     Func f args -> "(" ++ funcToString f ++ concatMap ((" " ++) . t2Term a) args ++ ")"
     Const (CInt n)
       | n >= 0 -> show n
