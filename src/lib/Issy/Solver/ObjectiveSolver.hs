@@ -158,7 +158,7 @@ iterBuechi conf solst player arena accept init =
                  if success
                    then do
                      lg conf ["Buechi acceleration succeeded"]
-                     wset <- set wset loc <$> SMT.simplify conf (FOL.orf [get wset loc, wsetAccel])
+                     wset <- set wset loc <$> SMT.simplifyStrong conf (FOL.orf [get wset loc, wsetAccel])
                      pure (wset, Synt.callOnSt wset subProg progOp)
                    else do
                      lg conf ["Buechi acceleration failed"]

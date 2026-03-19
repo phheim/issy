@@ -44,7 +44,7 @@ import Issy.Config (Config)
 import Issy.Games.Locations (Loc)
 import Issy.Logic.FOL (Symbol, Term)
 import qualified Issy.Logic.FOL as FOL
-import qualified Issy.Logic.SMT as SMT (simplify, valid)
+import qualified Issy.Logic.SMT as SMT (simplifyStrong, valid)
 import qualified Issy.Printers.SMTLib as SMTLib (toString)
 import Issy.Utils.Logging
 
@@ -107,7 +107,7 @@ implies cfg (SymSt a) b =
 
 -- | Apply simplifications to a symbolic state. This operation will invoke an SMT solver.
 simplify :: Config -> SymSt -> IO SymSt
-simplify cfg (SymSt s) = SymSt <$> mapM (SMT.simplify cfg) s
+simplify cfg (SymSt s) = SymSt <$> mapM (SMT.simplifyStrong cfg) s
 
 -- | The locations of the symbolic state.
 locations :: SymSt -> [Loc]
