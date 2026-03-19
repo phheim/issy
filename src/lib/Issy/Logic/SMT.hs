@@ -126,21 +126,29 @@ z3SimplifyQEFree =
 z3SimplifyUF :: [String]
 z3SimplifyUF = ["simplify", "blast-term-ite", "nnf", "propagate-ineqs", "qe", "simplify"]
 
+z3SimplifyPartial :: [String]
+z3SimplifyPartial =
+  ["simplify", "qe-light", "propagate-ineqs", "unit-subsume-simplify", "qe2"] ++ z3SimplifyQEFreePartial
+
+z3SimplifyQEFreePartial :: [String]
+z3SimplifyQEFreePartial =
+  [ "simplify", "blast-term-ite", "simplify"]
+
 -- | Simplifies a term using SMT tactics. The given term must be free
 -- of uninterpreted functions. The methods might diverge.
 simplify :: Config -> Term -> IO Term
 simplify conf = noTimeout . trySimplify conf Nothing
 
-simplifyWith :: Term -> [String]
-simplifyWith term
-  | FOL.quantifierFree term = z3SimplifyQEFree
-  | otherwise = z3Simplify
+simplifyWith :: Term -> [String] -> [String] -> [String]
+simplifyWith term tacsQF tacs
+  | FOL.quantifierFree term = tacsQF
+  | otherwise = tacs
 
 -- | Like 'simplify' but with an optional timeout in seconds.
 -- If a timeout is given, this methods will terminate.
 trySimplify :: Config -> Maybe Int -> Term -> IO (Maybe Term)
 trySimplify conf to term = do
-  simpTerm <- simplifyTacs conf to (simplifyWith term) term
+  simpTerm <- simplifyTacs conf to (simplifyWith term z3SimplifyQEFree z3Simplify) term
   case simpTerm of
     Nothing -> pure Nothing
     Just simpTerm -> do
@@ -209,7 +217,7 @@ trySimplifyStrong :: Config -> Maybe Int -> Term -> IO (Maybe Term)
 trySimplifyStrong conf to term
   | not (strongSimplification conf) = trySimplify conf to term
   | otherwise = do
-    simpTerm <- trySimplify conf to term
+    simpTerm <- simplifyTacs conf to (simplifyWith term z3SimplifyQEFreePartial z3SimplifyPartial) term
     case simpTerm of
       Just simpTerm -> trySimplifyExt conf (extSimpTimeOut conf) simpTerm
       Nothing -> trySimplifyExt conf (extSimpTimeOut conf) term
@@ -222,7 +230,7 @@ trySimplifyExt conf to f
       callExtSimplifier conf to query $ \res ->
         case SMTLib.parseSimplifierRes (FOL.bindings f !?) res of
           Right res -> Just $ Poly.normalizeFast res
-          _ -> Just f
+          _ -> Just $ Poly.normalizeFast f
   | otherwise = pure (Just f)
 
 ---------------------------------------------------------------------------------------------------
@@ -273,10 +281,10 @@ callz3 conf to query parse = do
 callExtSimplifier :: Config -> Int -> String -> (String -> Maybe a) -> IO (Maybe a)
 callExtSimplifier conf to query parse = do
   lg conf ["External simplifier running"]
-  lgv conf ["External simplifier query:", query]
+  lg conf ["External simplifier query:", query]
   (_, res, _) <- readProcessWithExitCode (extSimpScript conf) [show to] query
   lg conf ["External simplifier terminated with", firstLine res]
-  lgv conf ["External simplifier result:", res]
+  lg conf ["External simplifier result:", res]
   pure $ parse res
 ---------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------
