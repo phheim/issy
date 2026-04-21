@@ -193,7 +193,7 @@ preCompGen conf heur player arena loc target prime = do
     -- otherwise we usually do an underapproximating projection
         (stAcc, prog) <- iterA conf heur player arena target loc' prog
         let res = unprime lemma $ stAcc `get` loc
-        res <- SMT.simplify conf res
+        res <- SMT.simplifyStrong conf res
         lemmaCond conf arena loc target lemma res prog)
 
 -- | Underappoximating computation of an attractor

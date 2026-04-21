@@ -142,7 +142,7 @@ defaultConfig =
     , chcTimeout = 10
     , muvalTimeOut = 5
     , chcMaxTimeOut = 15
-    , extSimpTimeOut = 20
+    , extSimpTimeOut = 60
     -- Debug
     , debug = False
     -- Experimental

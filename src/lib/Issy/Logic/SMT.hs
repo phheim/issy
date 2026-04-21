@@ -280,11 +280,11 @@ callz3 conf to query parse = do
 
 callExtSimplifier :: Config -> Int -> String -> (String -> Maybe a) -> IO (Maybe a)
 callExtSimplifier conf to query parse = do
-  lg conf ["External simplifier running"]
-  lg conf ["External simplifier query:", query]
+  lgd conf ["External simplifier running"]
+  lgv conf ["External simplifier query:", query]
   (_, res, _) <- readProcessWithExitCode (extSimpScript conf) [show to] query
-  lg conf ["External simplifier terminated with", firstLine res]
-  lg conf ["External simplifier result:", res]
+  lgd conf ["External simplifier terminated with", firstLine res]
+  lgv conf ["External simplifier result:", res]
   pure $ parse res
 ---------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------
