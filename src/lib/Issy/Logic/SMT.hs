@@ -23,6 +23,7 @@ module Issy.Logic.SMT
     simplify
   , simplifyUF
   , simplifyStrong
+  , simplifyStrongConfigurable
   , trySimplify
   , trySimplifyUF
   , trySimplifyStrong
@@ -209,27 +210,33 @@ z3TacticList =
 -- Whether external simplifier is used is determined by conf . 
 -- The given term must be free of uninterpreted functions. The methods might diverge.
 simplifyStrong :: Config -> Term -> IO Term
-simplifyStrong conf = noTimeout . trySimplifyStrong conf Nothing
+simplifyStrong conf = noTimeout . trySimplifyStrong conf Nothing Nothing
+
+-- | Like simplifyStrong but with an optional optional argiment that determines 
+-- the aggressiveness of the external simplification (if applicable).
+simplifyStrongConfigurable :: Config -> Int -> Term -> IO Term
+simplifyStrongConfigurable conf strength = noTimeout . trySimplifyStrong conf Nothing (Just strength)
 
 -- | Like 'simplifyStrong' but with an optional timeout (in seconds) for trySimplify.
--- The external simplifier is always called with a timeout provided in Config.hs.  
-trySimplifyStrong :: Config -> Maybe Int -> Term -> IO (Maybe Term)
-trySimplifyStrong conf to term
+-- The external simplifier is always called with a timeout provided in Config.hs. 
+-- The optional strength determines the aggressiveness of the external simplification. 
+trySimplifyStrong :: Config -> Maybe Int -> Maybe Int ->Term -> IO (Maybe Term)
+trySimplifyStrong conf to strength term
   | not (strongSimplification conf) = trySimplify conf to term
   | otherwise = do
     simpTerm <- simplifyTacs conf to (simplifyWith term z3SimplifyQEFreePartial z3SimplifyPartial) term
     case simpTerm of
-      Just simpTerm -> trySimplifyExt conf (extSimpTimeOut conf) simpTerm
-      Nothing -> trySimplifyExt conf (extSimpTimeOut conf) term
+      Just simpTerm -> trySimplifyExt conf (extSimpTimeOut conf) strength simpTerm
+      Nothing -> trySimplifyExt conf (extSimpTimeOut conf) strength term
 
-trySimplifyExt :: Config -> Int -> Term -> IO (Maybe Term)
-trySimplifyExt conf to f
+trySimplifyExt :: Config -> Int -> Maybe Int -> Term -> IO (Maybe Term)
+trySimplifyExt conf to strength f
   | f == FOL.true || f == FOL.false = pure (Just f)
   | FOL.ufFree f = do
       let query = SMTLib.toQuery f
-      callExtSimplifier conf to query $ \res ->
+      callExtSimplifier conf to strength query $ \res ->
         case SMTLib.parseSimplifierRes (FOL.bindings f !?) res of
-          Right res -> Just $ Poly.normalizeFast res
+          Right res -> Just res
           _ -> Just $ Poly.normalizeFast f
   | otherwise = pure (Just f)
 
@@ -278,11 +285,14 @@ callz3 conf to query parse = do
         _ -> die $ "z3 returned unexpected: \"" ++ res ++ "\" on \"" ++ query ++ "\""
 
 
-callExtSimplifier :: Config -> Int -> String -> (String -> Maybe a) -> IO (Maybe a)
-callExtSimplifier conf to query parse = do
+callExtSimplifier :: Config -> Int -> Maybe Int -> String -> (String -> Maybe a) -> IO (Maybe a)
+callExtSimplifier conf to strength query parse = do
   lgd conf ["External simplifier running"]
   lgv conf ["External simplifier query:", query]
-  (_, res, _) <- readProcessWithExitCode (extSimpScript conf) [show to] query
+  (_, res, _) <- case strength of
+                  Nothing -> readProcessWithExitCode (extSimpScript conf) [show to, ""] query
+                  Just strength -> readProcessWithExitCode (extSimpScript conf) [show to, show strength] query
+  
   lgd conf ["External simplifier terminated with", firstLine res]
   lgv conf ["External simplifier result:", res]
   pure $ parse res
