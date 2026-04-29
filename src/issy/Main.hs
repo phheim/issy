@@ -112,9 +112,10 @@ help =
   , "                          needed : for --pruning 3 and --accel geom-chc"
   , "                          default: 'call-maxsat.sh'"
   , "   --caller-simplifier CMD : path or command that calls an external SMT formula simplifier"
-  , "                             with a timeout as argument and the input on STDIN"
-  , "                             needed : never"
-  , "                             default: 'call-simplifier.sh'"
+  , "                             with a timeout and optionally aggressiveness of simplification as arguments"
+  , "                             and the input on STDIN"
+  , "                             needed : if an external simplifier is to be used"
+  , "                             default: ''"
   ]
 
 shortHelp :: [String]

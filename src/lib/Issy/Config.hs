@@ -137,7 +137,7 @@ defaultConfig =
     , ltl2tgba = "ltl2tgba"
     , muvalScript = "call-muval.sh"
     , chcMaxScript = "call-maxsat.sh"
-    , extSimpScript = "call-simplifier.sh"
+    , extSimpScript = ""
     -- Constants
     , chcTimeout = 10
     , muvalTimeOut = 5
