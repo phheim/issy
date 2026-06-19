@@ -43,19 +43,19 @@ import Issy.Utils.Logging
 -- Both 'Term's should be free of uninterpreted functions.
 -- It is possible to provide hints for possible skolem functions for the variables.
 skolemize :: Config -> [(Symbol, Sort)] -> Map Symbol [Term] -> Term -> Term -> IO (Map Symbol Term)
-skolemize conf vars eqHints pre term
-  | any isSkolem (FOL.frees pre) = error "assert: precondition should not have skolem variables"
-  | not (any isSkolem (FOL.frees term)) = pure $ Map.fromList $ map (second defaultTerm) vars
-  | otherwise = do
-    conf <- pure $ setName "Skolemize" conf
-    lgd conf ["Skolem vars", strL fst vars]
-    lgd conf ["Precondition", SMTLib.toString pre]
-    lgd conf ["Term", SMTLib.toString term]
-    pre <- SMT.simplify conf pre
-    term <- SMT.simplify conf term
-    (term, skolemEqs) <- eqElim conf vars eqHints pre term
-    skolemDirs <- skolemDirect conf vars pre term
-    pure $ complete $ Map.fromList $ skolemEqs ++ skolemDirs
+skolemize conf vars eqHints pre term = do
+  if any isSkolem (FOL.frees pre) then error "assert: precondition should not have skolem variables" else 
+    if not (any isSkolem (FOL.frees term)) then pure $ Map.fromList $ map (second defaultTerm) vars else
+      do
+      conf <- pure $ setName "Skolemize" conf
+      lgd conf ["Skolem vars", strL fst vars]
+      lgv conf ["Precondition", SMTLib.toString pre]
+      lgv conf ["Term", SMTLib.toString term]
+      -- pre <- SMT.simplify conf pre
+      -- term <- SMT.simplify conf term
+      (term, skolemEqs) <- eqElim conf vars eqHints pre term
+      skolemDirs <- skolemDirect conf vars pre term
+      pure $ complete $ Map.fromList $ skolemEqs ++ skolemDirs
   where
     isSkolem v = any ((v ==) . fst) vars
     complete mp =
@@ -77,7 +77,7 @@ skolemDirect conf vars pre term
     let query = FOL.pushdownQE $ FOL.forAll (Set.toList (FOL.frees f)) f
     model <- SMT.satModel conf query
     case model of
-      Nothing -> error "assert: precondition was not proper"
+      Nothing -> error $ "assert: precondition was not proper"
       Just model -> do
         model <- pure $ map unskolem $ Map.toList $ FOL.modelToMap model
         lgd conf ["Skolem model", strL (strP id SMTLib.toString) model]
@@ -101,7 +101,19 @@ skolemDirect conf vars pre term
 
 eqElim ::
      Config -> [(Symbol, Sort)] -> Map Symbol [Term] -> Term -> Term -> IO (Term, [(Symbol, Term)])
-eqElim conf vars eqHints pre term = go term [] vars
+eqElim conf vars eqHints pre term = do
+  --TODO Try adding 'assign to self' to eqHints if no hints are there.
+  let varsWithHints = map (\(v,s) -> (v, FOL.var v s, Map.findWithDefault [] v eqHints)) vars
+  let eqsPerVariable = filter (\(_,_,eqs)->not.null $ eqs) varsWithHints
+  let eqHintsEncoded = FOL.andfL eqsPerVariable encodeVarHint
+  let eqHintsTerm = FOL.andf [term, eqHintsEncoded]
+  let canUseEqHints = FOL.andf [ FOL.neg $ FOL.exists (map fst vars) eqHintsTerm, pre]
+  res <- SMT.sat conf canUseEqHints
+  let missingHints = (any (null.snd) $ Map.toAscList eqHints)
+  if res || missingHints then 
+    go term [] vars
+  else
+    parAssignEqElim conf eqHints pre term
   where
     go term skolems [] = pure (term, skolems)
     go term skolems ((var, _):vr)
@@ -114,13 +126,61 @@ eqElim conf vars eqHints pre term = go term [] vars
             term <- SMT.simplify conf $ FOL.setSymbolTo var sk term
             go term ((var, sk) : skolems) vr
 
+    encodeVarHint (_,v,eqs) = 
+      FOL.orfL eqs (FOL.equal v)
+
+parAssignEqElim ::
+    Config -> Map Symbol [Term] -> Term -> Term -> IO (Term, [(Symbol, Term)])
+parAssignEqElim conf eqHints pre term = do
+  lgd conf ["Use parAssignEqElim"]
+  case pre of
+    FOL.Const (FOL.CBool False) -> do
+      -- This can happen when a safety game has unreachable locations.
+      -- These can appear with a winning region of true, but a domain of false.
+      -- Idealy there would be no Enforce step at all, but this should prevent crashing in that case.
+      lgd conf ["Skolemization was called with a precondition of false, use default assignment."]
+      pure (substHints term (head blastedHints) ,head blastedHints) 
+    _ -> do
+      assigns <- go pre blastedHints
+      let substTerm = substHints term assigns
+      pure (substTerm, assigns)
+  where
+    blastedHints = map Map.toAscList $ sequence eqHints
+    go :: Term -> [[(Symbol, Term)]] -> IO [(Symbol, Term)]
+    go pre [] = do
+      lg conf ["eqHints:", show eqHints]
+      lg conf ["remaining pre:", SMTLib.toString pre]
+      error "assert: using only hints is impossible!"
+    go pre (hints:hs) = do
+      -- TODO sometimes there is a cheap overapproximation we could check the hints against
+      -- before processing the whole term.
+      -- For example we could check if a combination of assignments is possible in a symbolic arena.
+      let condSet = substHints term hints
+      satT <- SMT.sat conf $ FOL.andf [condSet, pre]
+      if satT
+        then do
+          condSet <- SMT.simplify conf condSet
+          pre <- SMT.simplify conf $ FOL.andf [pre, FOL.neg condSet]
+          satE <- SMT.sat conf pre
+          if satE
+            then do
+              inner <- go pre hs
+              --assume the order of symbols matches and never changes
+              pure $ zipWith (\(sym, innerTerm) (_, eq) -> (sym, FOL.ite condSet eq innerTerm)) inner hints 
+              
+            else pure hints
+      else go pre hs
+    substHints = 
+      foldl (\t (sym, ass) -> FOL.setSymbolTo sym ass t)
+
 -- | try to eliminate skolem  functions based on equalities found in the
 -- condition
 tryEqElim ::
      Config -> Map Symbol [Term] -> [(Symbol, Sort)] -> Term -> Term -> Symbol -> IO (Maybe Term)
 tryEqElim conf eqHints vars pre term var = do
   let eqDerived = filter (not . any isSkolem . FOL.frees) $ Set.toList $ equalitiesFor var term
-  let equals = List.nub $ eqDerived ++ Map.findWithDefault [] var eqHints
+  --let equals = List.nub $ eqDerived ++ Map.findWithDefault [] var eqHints
+  let equals = List.nub $ (Map.findWithDefault [] var eqHints) ++ eqDerived 
   lgd conf ["For", var, "use equalties", strL SMTLib.toString equals]
   res <- go pre equals
   case res of
@@ -134,7 +194,9 @@ tryEqElim conf eqHints vars pre term var = do
       \case
         [] -> pure Nothing
         eq:eqr -> do
-          let condSet = FOL.exists (map fst vars) $ FOL.setSymbolTo var eq term
+          let substEq = FOL.setSymbolTo var eq term
+          substEq <- SMT.simplify conf substEq
+          let condSet = FOL.exists (map fst vars) $ substEq 
           condSet <- SMT.simplify conf condSet
           satT <- SMT.sat conf condSet
           if satT

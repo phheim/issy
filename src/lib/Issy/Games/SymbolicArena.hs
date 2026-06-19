@@ -67,6 +67,7 @@ import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.Reasoning as FOLR
 import qualified Issy.Logic.SMT as SMT
 import qualified Issy.Utils.OpenList as OL
+import Issy.Logic.FOL (intConst)
 
 ---------------------------------------------------------------------------------------------------
 -- Arena
@@ -456,14 +457,23 @@ independentProgVars cfg arena = do
 syntCPre ::
      Config -> Arena -> Symbol -> (Loc -> Integer) -> Loc -> Term -> SymSt -> IO [(Symbol, Term)]
 syntCPre conf arena locVar toLoc loc cond targ = do
-  lgd conf ["Synthesize in", locName arena loc, "on", SymSt.toString (locName arena) targ]
+  lgd conf ["Synthesize in", locName arena loc]
+  lgv conf ["target:",  SymSt.toString (locName arena) targ]
   let vs = variables arena
+  let skolemVars = (locVar, FOL.SInt) : map (\v -> (v, Vars.sortOf vs v)) (Vars.stateVarL' vs)
+
   let transTerms = map (trans arena loc) $ succL arena loc
   let eqHints =
+        Map.map (filter (containsNoSkolem skolemVars)) $
+        Map.insert locVar (map (intConst . toLoc) $ succL arena loc) $
         Map.fromSet
-          (\v -> Set.toList (Set.unions (map (FOLR.equalitiesFor v) transTerms)))
+          (eqHintsVar vs transTerms)
           (Vars.stateVars' vs)
-  let preCond = FOL.andf [validInput arena loc, cond, domain arena loc]
+  
+  validInputSimpl <- SMT.simplify conf $ validInput arena loc -- TODO This could be precomputed
+  cond <-  SMT.simplify conf $ cond
+  let preCond = FOL.andf [validInputSimpl, cond, domain arena loc]
+  -- let preCond = FOL.andf [validInput arena loc, cond, domain arena loc]
   let postCond =
         FOL.orfL (succL arena loc) $ \loc' ->
           FOL.andf
@@ -472,7 +482,9 @@ syntCPre conf arena locVar toLoc loc cond targ = do
             , Vars.primeT vs (domain arena loc')
             , Vars.primeT vs (SymSt.get targ loc')
             ]
-  let skolemVars = (locVar, FOL.SInt) : map (\v -> (v, Vars.sortOf vs v)) (Vars.stateVarL' vs)
+  
+  preCond <- SMT.simplify conf preCond
+  postCond <- SMT.simplify conf postCond
   skolems <- FOLR.skolemize conf skolemVars eqHints preCond postCond
   when (any ((`Map.notMember` skolems) . fst) skolemVars)
     $ error "assert: found unmapped skolem variable"
@@ -485,4 +497,15 @@ syntCPre conf arena locVar toLoc loc cond targ = do
              then (var, skolems ! var)
              else (Vars.unprime var, skolems ! var))
         skolemVars
+  where
+    isSkolem skv v  = any ((v ==) . fst) skv 
+    containsNoSkolem skv term = not (any (isSkolem skv) $ (FOL.frees term))
+
+eqHintsVar :: Variables -> [Term] -> Symbol -> [Term]
+eqHintsVar vs transTerms vp = case hints of
+    [] -> [FOL.var v (Vars.sortOf vs v)]
+    _ -> hints
+  where
+    hints = Set.toList (Set.unions (map (FOLR.equalitiesFor vp) transTerms))
+    v = Vars.unprime vp
 ---------------------------------------------------------------------------------------------------

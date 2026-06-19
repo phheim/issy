@@ -127,15 +127,16 @@ enforce :: AttrSt a => Config -> a -> Loc -> IO (Maybe a)
 enforce conf ast l = do
   let old = reach ast `get` l
   lgd conf ["Step in", locName (arena ast) l, "with", SMTLib.toString old]
-  new <- SMT.simplify conf $ FOL.orf [cpre (player ast) (arena ast) (reach ast) l, old]
-  lgd conf ["Compute new", SMTLib.toString new]
+  let cpreStep = cpre (player ast) (arena ast) (reach ast) l
+  --cpreStep <- SMT.simplify conf $ cpreStep
+  new <- SMT.simplify conf $ FOL.orf [cpreStep, old]
   changed <- fmap not $ SMT.valid conf $ new `FOL.impl` old
   lgd conf ["which has changed?", show changed]
   pure
     $ justOn changed
     $ addOpen (preds (arena ast) l)
     $ setIn l new
-    $ setProg (Synt.enforceTo l new (reach ast) (prog ast)) ast
+    $ setProg (Synt.enforceTo l cpreStep (reach ast) (prog ast)) ast -- only store proper step in SyBo
 
 ---------------------------------------------------------------------------------------------------
 -- Attractors can be accelerated

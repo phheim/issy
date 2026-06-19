@@ -39,6 +39,9 @@ module Issy.Utils.Extra
   , invertMap
   , mapFromSet
   , mapFromSetWith
+  , -- Lists
+    mapFirst
+  , mapSecond
   ) where
 
 ---------------------------------------------------------------------------------------------------
@@ -225,4 +228,15 @@ predecessorRelation succ base =
            foldl (\m targ -> Map.insertWith Set.union targ (Set.singleton src) m) m (succ src))
         init
         base
+
+---------------------------------------------------------------------------------------------------
+-- Lists
+---------------------------------------------------------------------------------------------------
+
+mapFirst :: (a->c) -> [(a,b)] -> [(c,b)]
+mapFirst f = map (\(x,y) -> (f x, y))
+
+mapSecond :: (b->c) -> [(a,b)] -> [(a,c)]
+mapSecond f = map (\(x,y) -> (x, f y))
+
 ---------------------------------------------------------------------------------------------------

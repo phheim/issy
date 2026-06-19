@@ -50,6 +50,7 @@ import Issy.Logic.Reasoning (skolemize)
 import qualified Issy.Logic.SMT as SMT
 import qualified Issy.Printers.SMTLib as SMTLib
 import Issy.Solver.GameInterface
+import Issy.Utils.Extra (mapSecond)
 
 ---------------------------------------------------------------------------------------------------
 -- Bookkeeping
@@ -58,13 +59,14 @@ import Issy.Solver.GameInterface
 data SyBo
   = SyBoNone
   -- ^ Indicates that no bookkeeping is done.
-  | SyBoNorm Arena [(Loc, Term, BookType)]
+  | SyBoNorm Arena [BookType]
   -- ^ Conditionals in an arena. They are evaluate from the start
   -- of the list and for given locations and guards
   | SyBoLoop Arena LoopSyBo
   -- ^ Loop arena book-keeping
   | SyBoSummary SummarySyBo
   -- ^ Enforcement summary book-keeping
+  deriving Show 
 
 data SummarySyBo = SummarySyBo
   { metaVars :: [(Symbol, Sort)]
@@ -79,27 +81,30 @@ data SummarySyBo = SummarySyBo
   -- ^ program that archive the sub condition. Note that this should only
   -- contain the constrains that the meta variables do not change
   }
+  deriving Show
 
 data LoopSyBo = LoopSyBo
   { loopLoc :: Loc
   -- ^ location of the loop game
   , loopLoc' :: Loc
   -- ^ copied location of the loop game
-  , loopTrans :: [(Loc, Term, BookType)]
+  , loopTrans :: [BookType]
   , loopToMain :: Map Loc Loc
   -- ^ maps loop locations EXCEPT loopLoc' to old locations
   , loopPrime :: Symbol
   -- ^ priming of the variables that are kept constant
   }
+  deriving Show
 
 -- | Actions that can be recorded
 data BookType
-  = Enforce SymSt
+  = Enforce Loc Term SymSt
   -- ^ enforce the given symbolic state
-  | SubProg SyBo
+  | SubProg [(Loc, Term)] SyBo
   -- ^ execute a sub-program/arena, like a loop arena part
-  | Return
+  | Return Loc Term
   -- ^ return to a higher level, i.e. the part that called a sub program
+  deriving Show
 
 ---------------------------------------------------------------------------------------------------
 -- | Create the bookkeeping data structure that is always empty (and remain so).
@@ -141,7 +146,7 @@ summarySyBo metaVars (preCond, metaCond) subProg =
 -- | Append an enforcement step from a given location and term into a symbolic to the actions
 -- inside a book kept data structure.
 enforceTo :: Loc -> Term -> SymSt -> SyBo -> SyBo
-enforceTo loc cond = addTrans loc cond . Enforce
+enforceTo loc cond trg = addTrans $ Enforce loc cond trg
 
 -- | Like 'enforceTo' but where the starting condition is an entire symbolic state.
 enforceFromTo :: SymSt -> SymSt -> SyBo -> SyBo
@@ -149,27 +154,31 @@ enforceFromTo src trg = chainOn (\loc cond -> enforceTo loc cond trg) src
 
 -- | Append calling a sub-part given a location and term as a guard.
 callOn :: Loc -> Term -> SyBo -> SyBo -> SyBo
-callOn loc cond = addTrans loc cond . SubProg
+callOn loc cond sub = addTrans $ SubProg [(loc, cond)] sub
 
 -- | Like 'callOn' but where the guard is an entire symbolic state.
 callOnSt :: SymSt -> SyBo -> SyBo -> SyBo
-callOnSt src sub = chainOn (\loc cond -> callOn loc cond sub) src
+callOnSt src sub = case retList of 
+    [] -> id
+    _  -> addTrans $ SubProg retList sub
+  where
+    retList = filter ((/= FOL.false) . snd) $ SymSt.toList src 
 
 -- | When in a symbolic state, return to the caller.
 returnOn :: SymSt -> SyBo -> SyBo
-returnOn = chainOn (\loc cond -> addTrans loc cond Return)
+returnOn = chainOn (\loc cond -> addTrans (Return loc cond))
 
 -- | Create a new book keeping data structure that from a source symbolic state enforces to stay
 -- in a target symbolic state.
 fromStayIn :: Config -> Arena -> SymSt -> SymSt -> SyBo
 fromStayIn conf arena src trg = enforceFromTo src trg $ normSyBo conf arena
 
-addTrans :: Loc -> Term -> BookType -> SyBo -> SyBo
-addTrans loc cond tran =
+addTrans :: BookType -> SyBo -> SyBo
+addTrans tran =
   \case
     SyBoNone -> SyBoNone
-    SyBoNorm arena trans -> SyBoNorm arena $ (loc, cond, tran) : trans
-    SyBoLoop arena prog -> SyBoLoop arena $ prog {loopTrans = (loc, cond, tran) : loopTrans prog}
+    SyBoNorm arena trans -> SyBoNorm arena $ tran : trans
+    SyBoLoop arena prog -> SyBoLoop arena $ prog {loopTrans = tran : loopTrans prog}
     SyBoSummary _ -> error "assert: summaries have to be called immediatley"
 
 chainOn :: (Loc -> Term -> SyBo -> SyBo) -> SymSt -> SyBo -> SyBo
@@ -190,11 +199,10 @@ mapTerms f =
     SyBoLoop arena prog -> SyBoLoop arena $ prog {loopTrans = map mapTrans (loopTrans prog)}
     SyBoSummary sum -> SyBoSummary $ sum {subProg = mapTerms f (subProg sum)}
   where
-    mapTrans (loc, cond, pt) =
-      case pt of
-        Enforce st -> (loc, f cond, Enforce (SymSt.map f st))
-        Return -> (loc, f cond, Return)
-        SubProg sub -> (loc, f cond, SubProg (mapTerms f sub))
+    mapTrans = \case
+        Enforce loc cond st -> Enforce loc (f cond) (SymSt.map f st)
+        Return loc cond -> Return loc (f cond)
+        SubProg locConds sub -> SubProg (mapSecond f locConds) (mapTerms f sub)
 
 -- | Instantiate an uninterpreted function in a book keeping data structure
 -- with a concrete body. This is usually used to instantiate the step relation
@@ -210,12 +218,12 @@ symbols =
     SyBoNorm arena trans ->
       Set.unions
         $ usedSymbols arena
-            : map (\(_, cond, tran) -> FOL.symbols cond `Set.union` symbolsBT tran) trans
+            : map symbolsBT trans
     SyBoLoop arena prog ->
       Set.unions
         $ usedSymbols arena
             : Set.map (loopPrime prog ++) (stateVars arena)
-            : map (\(_, cond, tran) -> FOL.symbols cond `Set.union` symbolsBT tran) (loopTrans prog)
+            : map symbolsBT (loopTrans prog)
     SyBoSummary sum ->
       Set.unions
         [ Set.fromList (map fst (metaVars sum))
@@ -227,9 +235,13 @@ symbols =
 symbolsBT :: BookType -> Set Symbol
 symbolsBT =
   \case
-    Enforce st -> Set.unions $ map (FOL.symbols . snd) $ SymSt.toList st
-    Return -> Set.empty
-    SubProg prog -> symbols prog
+    Enforce _ cond st -> Set.unions 
+                          $ FOL.symbols cond 
+                            : (map (FOL.symbols . snd) $ SymSt.toList st)
+    Return _ cond -> FOL.symbols cond
+    SubProg locConds prog -> Set.unions
+                              $ symbols prog
+                                  : map (FOL.symbols . snd) locConds
 
 getArena :: SyBo -> Arena
 getArena =
@@ -333,30 +345,39 @@ extractPG conf locVar =
       subProg <- extractPG conf locVar $ subProg sum
       pure $ Sequence $ metaDec ++ [metaCopy, subProg]
 
-extractTT :: Config -> Symbol -> Arena -> Maybe (Loc -> Loc) -> (Loc, Term, BookType) -> IO Prog
-extractTT conf locVar arena mapLoc (loc, cond, pt) = do
-  cond <- SMT.simplify conf cond
-  unless (FOL.quantifierFree cond)
-    $ die
-    $ "synthesis failure: could not qelim" ++ SMTLib.toString cond
-  let condStmt = Cond $ FOL.andf [isLoc locVar loc, cond]
-   in case pt of
-        Return ->
-          case mapLoc of
-            Nothing -> pure $ condStmt Break
-            Just mapLoc ->
-              pure $ condStmt $ Sequence [assign locVar FOL.SInt (toLoc (mapLoc loc)), Break]
-        SubProg sub -> do
-          sub <- extractPG conf locVar sub
-          pure $ condStmt $ Sequence [sub, Continue]
-        Enforce target -> do
-          assigns <- syntCPre conf arena locVar Locs.toNumber loc cond target
-          assigns <-
-            pure
-              $ PAssign
-              $ map (\(v, t) -> (v, varSort locVar arena v, t))
-              $ filter (uncurry isProperAssign) assigns
-          pure $ condStmt $ Sequence [Read, assigns, Continue]
+extractTT :: Config -> Symbol -> Arena -> Maybe (Loc -> Loc) -> BookType -> IO Prog
+extractTT conf locVar arena mapLoc = 
+  \case
+    Return loc cond -> do
+      condStmt <- Cond <$> buildCond loc cond
+      case mapLoc of
+        Nothing -> pure $ condStmt Break
+        Just mapLoc ->
+          pure $ condStmt $ Sequence [assign locVar FOL.SInt (toLoc (mapLoc loc)), Break]
+    SubProg locConds sub -> do
+      condStmt <- Cond <$> buildMultiLocCond locConds
+      sub <- extractPG conf locVar sub
+      pure $ condStmt $ Sequence [sub, Continue]
+    Enforce loc cond target -> do
+      lgd conf ["Extracting program for enforcement step in", locName arena loc]
+      lgv conf ["target: ", strSt arena target]
+      condStmt <- Cond <$> buildCond loc cond
+      assigns <- syntCPre conf arena locVar Locs.toNumber loc cond target
+      assigns <-
+        pure
+          $ PAssign
+          $ map (\(v, t) -> (v, varSort locVar arena v, t))
+          $ filter (uncurry isProperAssign) assigns
+      pure $ condStmt $ Sequence [Read, assigns, Continue]
+
+  where
+    buildCond loc cond = do
+        cond <- SMT.simplify conf cond
+        unless (FOL.quantifierFree cond)
+          $ die
+          $ "synthesis failure: could not qelim" ++ SMTLib.toString cond
+        pure $ FOL.andf [isLoc locVar loc, cond]
+    buildMultiLocCond locConds = FOL.orf <$> mapM (uncurry buildCond) locConds
 
 varSort :: Symbol -> Arena -> Symbol -> Sort
 varSort locVar arena var
@@ -445,12 +466,14 @@ printTerm =
     FOL.Func func args ->
       case (SMTLib.funcToString func, args) of
         ("abs", [arg]) -> "(abs(" ++ printTerm arg ++ "))"
+        ("to_real", [arg]) -> "((double)(" ++ printTerm arg ++ "))"
         ("-", [arg]) -> "(- (" ++ printTerm arg ++ "))"
         ("not", [arg]) -> "(!(" ++ printTerm arg ++ "))"
         ("ite", [c, th, el]) ->
           "(" ++ printTerm c ++ " ? " ++ printTerm th ++ " : " ++ printTerm el ++ ")"
         ("=", args) -> mulOp "==" args
         ("mod", args) -> mulOp "%" args
+        ("div", args) -> mulOp "/" args
         ("and", args) -> mulOp "&&" args
         ("or", args) -> mulOp "||" args
         (name, arg)
