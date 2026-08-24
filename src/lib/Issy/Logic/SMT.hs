@@ -102,9 +102,12 @@ satCommand f
 ---------------------------------------------------------------------------------------------------
 -- Simplification
 ---------------------------------------------------------------------------------------------------
+guardedQE :: String -> String
+guardedQE qe = "(when has-quantifiers " ++ qe ++ " )"
+
 z3Simplify :: [String]
 z3Simplify =
-  ["simplify", "qe-light", "propagate-ineqs", "unit-subsume-simplify", "qe2"] ++ z3SimplifyQEFree
+  ["simplify", guardedQE "qe-light", "propagate-ineqs", "unit-subsume-simplify", guardedQE "qe2"] ++ z3SimplifyQEFree
 
 z3SimplifyQEFree :: [String]
 z3SimplifyQEFree =
@@ -119,7 +122,7 @@ z3SimplifyQEFree =
   ]
 
 z3SimplifyUF :: [String]
-z3SimplifyUF = ["simplify", "blast-term-ite", "nnf", "propagate-ineqs", "qe", "simplify"]
+z3SimplifyUF = ["simplify", "blast-term-ite", "nnf", "propagate-ineqs", guardedQE "qe", "simplify"]
 
 -- | Simplifies a term using SMT tactics. The given term must be free
 -- of uninterpreted functions. The methods might diverge.
