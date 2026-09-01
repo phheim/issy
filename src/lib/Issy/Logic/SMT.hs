@@ -182,11 +182,23 @@ trySimplifyUF :: Config -> Maybe Int -> Term -> IO (Maybe Term)
 trySimplifyUF conf to f
   | f == FOL.true || f == FOL.false = pure (Just f)
   | otherwise = do
-    let query = SMTLib.toQuery f ++ "(apply " ++ z3TacticList z3SimplifyUF ++ ")"
-    callz3 conf to query $ \res ->
-      case SMTLib.parseGoals (FOL.bindings f !?) res of
-        Right res -> Just $ Poly.normalize res
-        _ -> Nothing
+    simpTerm <- simplifyTerm
+    case simpTerm of
+      Nothing -> pure Nothing
+      Just simpTerm -> Just
+        <$> assertM
+              conf
+              simpTerm
+              (valid conf (simpTerm `FOL.iff` f))
+              "SMT.trySimplifyUF: terms differ"
+
+  where
+    simplifyTerm = do
+      let query = SMTLib.toQuery f ++ "(apply " ++ z3TacticList z3SimplifyUF ++ ")"
+      callz3 conf to query $ \res ->
+        case SMTLib.parseGoals (FOL.bindings f !?) res of
+          Right res -> Just $ Poly.normalize res
+          _ -> Nothing
 
 z3TacticList :: [String] -> String
 z3TacticList =
