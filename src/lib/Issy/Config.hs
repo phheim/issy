@@ -90,6 +90,8 @@ data Config = Config
   --
   , debug :: Bool
   -- ^ Enables different validation techniques and double checks
+  , safeMode :: Bool
+  -- ^ Validate the results of SMT solver tactics
   --
   -- Experimental
   --
@@ -137,6 +139,7 @@ defaultConfig =
     , chcMaxTimeOut = 15
     -- Debug
     , debug = False
+    , safeMode = False
     -- Experimental
     , removeRPGs = False
     }

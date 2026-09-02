@@ -111,6 +111,7 @@ help =
   , "                        CHCMax with a timeout as argument and the input on STDIN"
   , "                          needed : for --pruning 3 and --accel geom-chc"
   , "                          default: 'call-maxsat.sh'"
+  , "   --safe-mode : Validate the results of SMT solver tactics"
   ]
 
 shortHelp :: [String]
@@ -348,6 +349,7 @@ configParser = go defaultConfig
         "--caller-chcmx":arg:ar -> go (cfg {chcMaxScript = arg}) ar
         -- Debug
         "--debug":ar -> go (cfg {debug = True}) ar
+        "--safe-mode":ar -> go (cfg {safeMode = True}) ar
         -- Experimental
         "--remove-rpgs":ar -> go (cfg {removeRPGs = True}) ar
         s:_ -> Left $ "found invalid argument: " ++ s

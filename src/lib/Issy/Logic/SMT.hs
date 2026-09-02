@@ -35,7 +35,7 @@ import Data.Maybe (fromMaybe)
 import qualified Data.Set as Set
 import System.Exit (die)
 
-import Issy.Config (Config, debug, z3cmd)
+import Issy.Config (Config, debug, z3cmd, safeMode)
 import Issy.Logic.FOL (Model, Term)
 import qualified Issy.Logic.FOL as FOL
 import qualified Issy.Logic.Polyhedra as Poly (normalize)
@@ -144,11 +144,20 @@ trySimplify conf to term = do
     Just simpTerm -> do
       simpTerm <- pure $ Poly.normalize simpTerm
       Just
-        <$> assertM
+        <$> assertEq
               conf
+              "trySimplify"
               simpTerm
-              (valid conf (simpTerm `FOL.iff` term))
-              "SMT.trySimplify: terms differ"
+              term
+
+assertEq :: Config -> String -> Term -> Term -> IO Term
+assertEq conf funcName t1 t2
+  | safeMode conf || debug conf = do
+    res <- valid conf (t1 `FOL.iff` t2)
+    if res
+      then pure t1
+      else error $ "assert: SMT." ++ funcName ++ "terms differ"
+  | otherwise = pure t1
 
 assertM :: Config -> a -> IO Bool -> String -> IO a
 assertM conf val check msg
@@ -186,11 +195,11 @@ trySimplifyUF conf to f
     case simpTerm of
       Nothing -> pure Nothing
       Just simpTerm -> Just
-        <$> assertM
+        <$> assertEq
               conf
+              "trySimplifyUF"
               simpTerm
-              (valid conf (simpTerm `FOL.iff` f))
-              "SMT.trySimplifyUF: terms differ"
+              f
 
   where
     simplifyTerm = do
