@@ -146,7 +146,9 @@ encConst funarg =
     CInt n
       | n >= 0 -> show n
       | otherwise -> "(0 - " ++ show (-n) ++ ")"
-    CReal r -> addDot $ showFixed True (fromRational r :: Nano)
+    CReal r
+      | r >= 0 -> addDot $ showFixed True (fromRational r :: Nano)
+      | otherwise -> "(0.0 - " ++ encConst funarg (CReal (-r)) ++ ")"
     CBool True
       | funarg -> "1"
       | otherwise -> "(0 = 0)"
