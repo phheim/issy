@@ -1053,9 +1053,9 @@ underapproxSAT = go . normNNF
 -- for our custom interpretation of the sort that are implemented here. In general, the SMTLib
 -- standard might be more liberal what kind of arity and compatible sort it allows. For example,
 -- "(< 1 2 3)" or "(= 4 true)" are valid SMTLib2 formulas but are not valid here. Note
--- that for now this checker is not production ready and should only be used to server warnings.
-sortCheck :: Term -> Either String Sort
-sortCheck fullTerm = go (const Nothing) fullTerm
+-- that for now this checker is not production ready and should mainly be used to serve warnings.
+sortCheck :: (Int -> Maybe Sort) -> Term -> Either String Sort
+sortCheck qvarType fullTerm = go qvarType fullTerm
   where
     sortOf = Map.fromList $ Set.toList $ bindingsS fullTerm
     go varType =

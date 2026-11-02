@@ -17,7 +17,6 @@ module Issy.Printers.MuCLP
 ---------------------------------------------------------------------------------------------------
 import Data.Fixed (Nano, showFixed)
 import qualified Data.Map.Strict as Map
-import qualified Data.Set as Set
 import Issy.Prelude
 
 import Issy.Encoders.ToFixpoints (FPSystem(..), FPTerm(..), FPType(..))
@@ -55,10 +54,10 @@ encFPTerm name fpeq =
 encTerm :: Term -> String
 encTerm term =
   let qpref = FOL.unusedPrefix "qvar" term
-   in encTermF (qpref, 0, Set.empty) False term
+   in encTermF (qpref, 0, const Nothing) False term
 
-encTermF :: (String, Int, Set Int) -> Bool -> Term -> String
-encTermF (qpref, qdepth, bvars) funarg =
+encTermF :: (String, Int, Int -> Maybe Sort) -> Bool -> Term -> String
+encTermF (qpref, qdepth, qsorts) funarg =
   \case
     Var v s
       | s == SBool && not funarg -> "(" ++ v ++ " = 1)"
@@ -66,7 +65,7 @@ encTermF (qpref, qdepth, bvars) funarg =
       | otherwise -> v
     Const c -> encConst funarg c
     QVar k
-      | qdepth - k - 1 `elem` bvars && not funarg ->
+      | not funarg && qsorts (qdepth - k - 1) == Just SBool ->
         "(" ++ qpref ++ show (qdepth - k - 1) ++ " = 1)"
       | otherwise -> qpref ++ show (qdepth - k - 1)
     Func f args ->
@@ -86,7 +85,7 @@ encTermF (qpref, qdepth, bvars) funarg =
           | otherwise ->
             case args of
               [a, b] -> "(" ++ rec a ++ " => " ++ rec b ++ ")"
-              _ -> error "'=>' only supports exactly two arguments"
+              _ -> error "'=>' so far only supports exactly two arguments"
         FOL.FAdd -> encOp rec "+" "0" args
         FOL.FMul -> encOp rec "*" "1" args
         FOL.FDivReal ->
@@ -99,33 +98,43 @@ encTermF (qpref, qdepth, bvars) funarg =
             case args of
               [c, t, e] -> rec $ FOL.orf [FOL.andf [c, t], FOL.andf [FOL.neg c, e]]
               _ -> error "assert: 'ite' should have exactly three arguments"
+        FOL.FEq ->
+          case args of
+            [a, b] ->
+              case FOL.sortCheck qsorts a of
+                Left err -> error $ "sort check failed with: " ++ err
+                Right SBool
+                  | funarg -> error "boolean '=' not supported as function argument"
+                  | otherwise -> "(" ++ rec a ++ " <=> " ++ rec b ++ ")"
+                Right _ -> binOp "=" [a, b]
+            _ -> error "'=' so far only support exaclty two arguments"
         f
-          | f `elem` [FOL.FEq, FOL.FLt, FOL.FLte] -> binOp (funcToString f) args
+          | f `elem` [FOL.FLt, FOL.FLte] -> binOp (funcToString f) args
           | otherwise -> error (funcToString f ++ " not supported yet")
-    Quant Exists sort term ->
-      "(exists ( "
-        ++ qpref
-        ++ show qdepth
-        ++ " : "
-        ++ encSort sort
-        ++ "). "
-        ++ recNest sort term
-        ++ ")"
-    Quant Forall sort term ->
-      "(forall ( "
-        ++ qpref
-        ++ show qdepth
-        ++ " : "
-        ++ encSort sort
-        ++ "). "
-        ++ recNest sort term
-        ++ ")"
+    Quant quant sort term ->
+      let quantName =
+            case quant of
+              Exists -> "exists"
+              Forall -> "forall"
+       in "("
+            ++ quantName
+            ++ " ( "
+            ++ qpref
+            ++ show qdepth
+            ++ " : "
+            ++ encSort sort
+            ++ "). "
+            ++ recNest sort term
+            ++ ")"
     Lambda _ _ -> error "lambdas not supported"
   where
-    rec = encTermF (qpref, qdepth, bvars) funarg
-    recT = encTermF (qpref, qdepth, bvars) True
-    recNest SBool = encTermF (qpref, qdepth + 1, Set.insert qdepth bvars) funarg
-    recNest _ = encTermF (qpref, qdepth + 1, bvars) funarg
+    rec = encTermF (qpref, qdepth, qsorts) funarg
+    recT = encTermF (qpref, qdepth, qsorts) True
+    recNest sort = encTermF (qpref, qdepth + 1, pushSort sort) funarg
+    --
+    pushSort sort n
+      | n == 0 = Just sort
+      | otherwise = qsorts (n - 1)
     --
     binOp :: String -> [Term] -> String
     binOp op =
