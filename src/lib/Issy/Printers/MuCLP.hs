@@ -50,49 +50,50 @@ encFPTerm name fpeq =
 encTerm :: Term -> String
 encTerm term =
   let qpref = FOL.unusedPrefix "qvar" term
-   in encTermF (qpref, 0, const Nothing) False term
+   in encTermF (qpref, 0, const Nothing) False False term
 
-encTermF :: (String, Int, Int -> Maybe Sort) -> Bool -> Term -> String
-encTermF (qpref, qdepth, qsorts) funarg =
+encTermF :: (String, Int, Int -> Maybe Sort) -> Bool -> Bool -> Term -> String
+encTermF (qpref, qdepth, qsorts) funarg realctx =
   \case
     Var v s
       | s == SBool && not funarg -> "(" ++ v ++ " = 1)"
       | s == SBool && funarg -> v
       | otherwise -> v
-    Const c -> encConst funarg c
+    Const c -> encConst funarg realctx c
     QVar k
       | not funarg && qsorts (qdepth - k - 1) == Just SBool ->
         "(" ++ qpref ++ show (qdepth - k - 1) ++ " = 1)"
       | otherwise -> qpref ++ show (qdepth - k - 1)
     Func f args ->
       case f of
-        FOL.CustomF name _ _ -> "(" ++ name ++ concatMap ((" " ++) . recT) args ++ ")"
+        FOL.CustomF name sorts _ ->
+          "(" ++ name ++ concatMap ((" " ++) . recArgs) (zip args sorts) ++ ")"
         FOL.FOr
           | funarg -> error "boolean 'or' not supported as function argument"
-          | otherwise -> encOp rec "\\/" "false" args
+          | otherwise -> encOp recBool "\\/" "false" args
         FOL.FAnd
           | funarg -> error "boolean 'and' not supported as function argument"
-          | otherwise -> encOp rec "/\\" "true" args
+          | otherwise -> encOp recBool "/\\" "true" args
         FOL.FNot
           | funarg -> error "boolean 'not' not supported as function argument"
-          | otherwise -> "(not " ++ rec (head args) ++ ")"
+          | otherwise -> "(not " ++ recBool (head args) ++ ")"
         FOL.FImply
           | funarg -> error "boolean '=>' not supported as function argument"
           | otherwise ->
             case args of
-              [a, b] -> "(" ++ rec a ++ " => " ++ rec b ++ ")"
+              [a, b] -> "(" ++ recBool a ++ " => " ++ recBool b ++ ")"
               _ -> error "'=>' so far only supports exactly two arguments"
-        FOL.FAdd -> encOp rec "+" "0" args
-        FOL.FMul -> encOp rec "*" "1" args
+        FOL.FAdd -> encOp (recArith args) "+" "0" args
+        FOL.FMul -> encOp (recArith args) "*" "1" args
         FOL.FDivReal ->
           case args of
-            [Const (CInt c1), Const (CInt c2)] -> encConst funarg (CReal (c1 % c2))
+            [Const (CInt c1), Const (CInt c2)] -> encConst funarg True (CReal (c1 % c2))
             _ -> error "'/' only supported for constants"
         FOL.FIte
           | funarg -> error "ite in function argument not supported yet"
           | otherwise ->
             case args of
-              [c, t, e] -> rec $ FOL.orf [FOL.andf [c, t], FOL.andf [FOL.neg c, e]]
+              [c, t, e] -> recBool $ FOL.orf [FOL.andf [c, t], FOL.andf [FOL.neg c, e]]
               _ -> error "assert: 'ite' should have exactly three arguments"
         FOL.FEq ->
           case args of
@@ -101,7 +102,7 @@ encTermF (qpref, qdepth, qsorts) funarg =
                 Left err -> error $ "sort check failed with: " ++ err
                 Right SBool
                   | funarg -> error "boolean '=' not supported as function argument"
-                  | otherwise -> "(" ++ rec a ++ " <=> " ++ rec b ++ ")"
+                  | otherwise -> "(" ++ recBool a ++ " <=> " ++ recBool b ++ ")"
                 Right _ -> binOp "=" [a, b]
             _ -> error "'=' so far only support exaclty two arguments"
         f
@@ -124,9 +125,13 @@ encTermF (qpref, qdepth, qsorts) funarg =
             ++ ")"
     Lambda _ _ -> error "lambdas not supported"
   where
-    rec = encTermF (qpref, qdepth, qsorts) funarg
-    recT = encTermF (qpref, qdepth, qsorts) True
-    recNest sort = encTermF (qpref, qdepth + 1, pushSort sort) funarg
+    anyReal = any ((== Right SReal) . FOL.sortCheck qsorts)
+    --
+    recArgs (term, sort) = encTermF (qpref, qdepth, qsorts) True (sort == SReal) term
+    recBool = encTermF (qpref, qdepth, qsorts) funarg False
+    recArith args = encTermF (qpref, qdepth, qsorts) funarg (realctx || anyReal args)
+    recComp args = encTermF (qpref, qdepth, qsorts) True (realctx || anyReal args)
+    recNest sort = encTermF (qpref, qdepth + 1, pushSort sort) funarg realctx
     --
     pushSort sort n
       | n == 0 = Just sort
@@ -135,7 +140,7 @@ encTermF (qpref, qdepth, qsorts) funarg =
     binOp :: String -> [Term] -> String
     binOp op =
       \case
-        [o1, o2] -> "(" ++ recT o1 ++ " " ++ op ++ " " ++ recT o2 ++ ")"
+        [o1, o2] -> "(" ++ recComp [o1, o2] o1 ++ " " ++ op ++ " " ++ recComp [o1, o2] o2 ++ ")"
         _ -> error (op ++ "is a binary operator")
 
 encOp :: (a -> String) -> String -> String -> [a] -> String
@@ -145,15 +150,16 @@ encOp encA op neut =
     [x] -> "(" ++ encA x ++ ")"
     x:xr -> "(" ++ encA x ++ " " ++ op ++ " " ++ encOp encA op neut xr ++ ")"
 
-encConst :: Bool -> Constant -> String
-encConst funarg =
+encConst :: Bool -> Bool -> Constant -> String
+encConst funarg realctx =
   \case
     CInt n
+      | realctx -> encConst funarg True (CReal (n % 1))
       | n >= 0 -> show n
       | otherwise -> "(0 - " ++ show (-n) ++ ")"
     CReal r
       | r >= 0 -> addDot $ showFixed True (fromRational r :: Nano)
-      | otherwise -> "(0.0 - " ++ encConst funarg (CReal (-r)) ++ ")"
+      | otherwise -> "(0.0 - " ++ encConst funarg True (CReal (-r)) ++ ")"
     CBool True
       | funarg -> "1"
       | otherwise -> "(0 = 0)"
