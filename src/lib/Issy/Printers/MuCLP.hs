@@ -16,7 +16,6 @@ module Issy.Printers.MuCLP
 
 ---------------------------------------------------------------------------------------------------
 import Data.Fixed (Nano, showFixed)
-import qualified Data.Map.Strict as Map
 import Issy.Prelude
 
 import Issy.Encoders.ToFixpoints (FPSystem(..), FPTerm(..), FPType(..))
@@ -32,10 +31,7 @@ import Issy.Printers.SMTLib (funcToString)
 -- should not be considered to be very stable.
 printMuCLP :: FPSystem -> String
 printMuCLP fpSystem =
-  unlines
-    $ encTerm (systemTerm fpSystem)
-        : "s.t."
-        : map (uncurry encFPTerm) (Map.toList (fpTerms fpSystem))
+  unlines $ encTerm (systemTerm fpSystem) : "s.t." : map (uncurry encFPTerm) (fpTerms fpSystem)
 
 encFPTerm :: Symbol -> FPTerm -> String
 encFPTerm name fpeq =
