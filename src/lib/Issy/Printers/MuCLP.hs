@@ -72,9 +72,21 @@ encTermF (qpref, qdepth, bvars) funarg =
     Func f args ->
       case f of
         FOL.CustomF name _ _ -> "(" ++ name ++ concatMap ((" " ++) . recT) args ++ ")"
-        FOL.FOr -> encOp rec "\\/" "false" args
-        FOL.FAnd -> encOp rec "/\\" "true" args
-        FOL.FNot -> "(not " ++ rec (head args) ++ ")"
+        FOL.FOr
+          | funarg -> error "boolean 'or' not supported as function argument"
+          | otherwise -> encOp rec "\\/" "false" args
+        FOL.FAnd
+          | funarg -> error "boolean 'and' not supported as function argument"
+          | otherwise -> encOp rec "/\\" "true" args
+        FOL.FNot
+          | funarg -> error "boolean 'not' not supported as function argument"
+          | otherwise -> "(not " ++ rec (head args) ++ ")"
+        FOL.FImply
+          | funarg -> error "boolean '=>' not supported as function argument"
+          | otherwise ->
+            case args of
+              [a, b] -> "(" ++ rec a ++ " => " ++ rec b ++ ")"
+              _ -> error "'=>' only supports exactly two arguments"
         FOL.FAdd -> encOp rec "+" "0" args
         FOL.FMul -> encOp rec "*" "1" args
         FOL.FDivReal ->
@@ -131,7 +143,9 @@ encOp encA op neut =
 encConst :: Bool -> Constant -> String
 encConst funarg =
   \case
-    CInt n -> show n
+    CInt n
+      | n >= 0 -> show n
+      | otherwise -> "(0 - " ++ show (-n) ++ ")"
     CReal r -> addDot $ showFixed True (fromRational r :: Nano)
     CBool True
       | funarg -> "1"

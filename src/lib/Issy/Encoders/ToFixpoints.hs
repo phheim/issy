@@ -157,7 +157,7 @@ encodeParity arena init rank =
       | even col = lfp states $ pred (col - 1) loc
       | otherwise = gfp states $ pred (col - 1) loc
     pred col loc = FOL.unintFunc (predName col loc) FOL.SBool states
-    predName col loc = prefix ++ "_ " ++ show col ++ "_" ++ locName arena loc
+    predName col loc = prefix ++ "_" ++ show col ++ "_" ++ locName arena loc
     prefix = FOL.uniquePrefix "Pred" (usedSymbols arena)
     states = map (\v -> (v, Vars.sortOf (vars arena) v)) $ Vars.stateVarL $ vars arena
 
