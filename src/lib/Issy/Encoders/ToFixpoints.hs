@@ -9,7 +9,7 @@
 -- symbolic games to them. At the moment the target is MuVal, i.e. the semantics of these
 -- fixpoint systems should match MuCLP.
 ---------------------------------------------------------------------------------------------------
-{-# LANGUAGE Safe #-}
+{-# LANGUAGE Safe, LambdaCase #-}
 
 ---------------------------------------------------------------------------------------------------
 module Issy.Encoders.ToFixpoints
@@ -36,8 +36,9 @@ data FPSystem = FPSystem
     -- ^ top-level closed term that should hold. This term might
     -- include references to fixpoint predicates, which are represented
     -- as uninterpreted functions.
-  , fpTerms :: Map Symbol FPTerm
-    -- ^ all fixpoint terms that appear in the equation system
+  , fpTerms :: [(Symbol, FPTerm)]
+    -- ^ all fixpoint terms that appear in the equation system, the order
+    -- goes from outer to inner fixpoints
   } deriving (Eq, Ord, Show)
 
 -- | Representation of a fixpoint predicate in a fixpoint equation system.
@@ -75,8 +76,24 @@ encTop :: Arena -> (Loc, Term) -> (Loc -> [(Symbol, FPTerm)]) -> FPSystem
 encTop arena (initLoc, initCond) encLoc =
   FPSystem
     { systemTerm = Vars.forallX (vars arena) $ dom arena initLoc `FOL.impl` initCond
-    , fpTerms = Map.fromList $ concatMap encLoc $ locationL arena
+    , fpTerms = interleave $ map encLoc $ locationL arena -- length of encLoc should be thae same for all locations
     }
+
+-- | Concatenate the list by first taking all first elements, the all second elements,
+-- and so on
+interleave :: [[a]] -> [a]
+interleave = go
+  where
+    go [] = []
+    go xs =
+      let (heads, xr) = takeHeadOrDelete ([], []) xs
+       in heads ++ go xr
+    --
+    takeHeadOrDelete (acc, ys) =
+      \case
+        [] -> (reverse acc, reverse ys)
+        []:xr -> takeHeadOrDelete (acc, ys) xr
+        (z:zr):xr -> takeHeadOrDelete (z : acc, zr : ys) xr
 
 encodeSafety :: Arena -> Loc -> Set Loc -> FPSystem
 encodeSafety arena init safes =
@@ -135,8 +152,8 @@ encodeCoBuechi arena init sset =
     encGFP loc =
       gfp states
         $ if loc `elem` sset
-            then cpre Sys arena (SymSt.symSt (locations arena) lfpPred) loc
-            else cpre Sys arena (SymSt.symSt (locations arena) gfpPred) loc
+            then cpre Sys arena (SymSt.symSt (locations arena) gfpPred) loc
+            else cpre Sys arena (SymSt.symSt (locations arena) lfpPred) loc
     gfpPred loc = FOL.unintFunc (gfpName loc) FOL.SBool states
     gfpName loc = prefix ++ "GFP" ++ "_" ++ locName arena loc
     lfpPred loc = FOL.unintFunc (lfpName loc) FOL.SBool states
@@ -147,7 +164,7 @@ encodeCoBuechi arena init sset =
 encodeParity :: Arena -> Loc -> Map Loc Word -> FPSystem
 encodeParity arena init rank =
   encTop arena (init, pred maxColor init) $ \loc ->
-    fpPair (0 :: Word) loc : map (`fpPair` loc) [1 .. maxColor]
+    reverse (fpPair (0 :: Word) loc : map (`fpPair` loc) [1 .. maxColor])
   where
     maxColor = maximum $ Map.elems rank
     fpPair col loc = (predName col loc, encFP col loc)
@@ -157,7 +174,7 @@ encodeParity arena init rank =
       | even col = lfp states $ pred (col - 1) loc
       | otherwise = gfp states $ pred (col - 1) loc
     pred col loc = FOL.unintFunc (predName col loc) FOL.SBool states
-    predName col loc = prefix ++ "_ " ++ show col ++ "_" ++ locName arena loc
+    predName col loc = prefix ++ "_" ++ show col ++ "_" ++ locName arena loc
     prefix = FOL.uniquePrefix "Pred" (usedSymbols arena)
     states = map (\v -> (v, Vars.sortOf (vars arena) v)) $ Vars.stateVarL $ vars arena
 

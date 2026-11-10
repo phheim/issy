@@ -148,7 +148,7 @@ writeTerm pref defs =
             ABBAnd -> mk "and"
             ABBOr -> mk "or"
             ABBImpl -> mk "=>"
-            ABBIff -> sexpr ["and", sexpr ["=>", s1, s2], sexpr ["=>", s1, s2]]
+            ABBIff -> sexpr ["and", sexpr ["=>", s1, s2], sexpr ["=>", s2, s1]]
 
 writeAtom :: (String -> String) -> Defs -> AstAtom -> String
 writeAtom pref defs =
