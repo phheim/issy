@@ -52,8 +52,25 @@ encTerm term =
   let qpref = FOL.unusedPrefix "qvar" term
    in encTermF (qpref, 0, const Nothing) False False term
 
+-- | Encodes a term. When the context expects a real ('realctx') and the term is an integer
+-- term other than a constant, the term is encoded in an integer context and wrapped into an
+-- explicit "to_real". The MuCLP format has no implicit coercion from integers to reals, while
+-- Issy (like Z3 on the SMTLib queries it is given) reads an integer term in a real context as
+-- its conversion to a real. The maximal integer subterm is converted, as Z3 does, so that
+-- integer operations below it, like "div" and "mod", keep their integer meaning. Constants are
+-- printed as reals in a real context already.
 encTermF :: (String, Int, Int -> Maybe Sort) -> Bool -> Bool -> Term -> String
-encTermF (qpref, qdepth, qsorts) funarg realctx =
+encTermF ctx@(_, _, qsorts) funarg realctx term
+  | realctx && intTerm = "(to_real " ++ encTermF' ctx funarg False term ++ ")"
+  | otherwise = encTermF' ctx funarg realctx term
+  where
+    intTerm =
+      case term of
+        Const _ -> False
+        _ -> FOL.sortCheck qsorts term == Right SInt
+
+encTermF' :: (String, Int, Int -> Maybe Sort) -> Bool -> Bool -> Term -> String
+encTermF' (qpref, qdepth, qsorts) funarg realctx =
   \case
     Var v s
       | s == SBool && not funarg -> "(" ++ v ++ " = 1)"
@@ -84,6 +101,9 @@ encTermF (qpref, qdepth, qsorts) funarg realctx =
               [a, b] -> "(" ++ recBool a ++ " => " ++ recBool b ++ ")"
               _ -> error "'=>' so far only supports exactly two arguments"
         FOL.FAdd -> encOp (recArith args) "+" "0" args
+        -- Issy's "mod" and "div" are SMTLib's (euclidean) ones, and so are the MuCLP format's
+        FOL.FMod -> intOp "mod" args
+        FOL.FDivInt -> intOp "div" args
         FOL.FMul -> encOp (recArith args) "*" "1" args
         FOL.FDivReal ->
           case args of
@@ -132,6 +152,13 @@ encTermF (qpref, qdepth, qsorts) funarg realctx =
     recArith args = encTermF (qpref, qdepth, qsorts) funarg (realctx || anyReal args)
     recComp args = encTermF (qpref, qdepth, qsorts) True (realctx || anyReal args)
     recNest sort = encTermF (qpref, qdepth + 1, pushSort sort) funarg realctx
+    recInt = encTermF (qpref, qdepth, qsorts) funarg False
+    --
+    intOp :: String -> [Term] -> String
+    intOp op =
+      \case
+        [o1, o2] -> "(" ++ recInt o1 ++ " " ++ op ++ " " ++ recInt o2 ++ ")"
+        _ -> error (op ++ " is a binary operator")
     --
     pushSort sort n
       | n == 0 = Just sort
